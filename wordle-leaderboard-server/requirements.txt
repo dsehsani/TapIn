@@ -1,0 +1,18 @@
+#
+#  requirements.txt
+#  TapInApp - Wordle Leaderboard Server
+#
+#  Created by Darius Ehsani on 2/2/26.
+#
+#  MARK: - Python Dependencies
+#  Install with: pip install -r requirements.txt
+#
+
+# Flask web framework
+Flask==3.0.0
+
+# CORS support for cross-origin requests from iOS app
+Flask-Cors==4.0.0
+
+# WSGI server for production (used by Google App Engine)
+gunicorn==21.2.0
