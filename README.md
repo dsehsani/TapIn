@@ -35,14 +35,6 @@ On-device testing tip: If you run the server on your Mac and test on a physical 
 ## Configuration: Leaderboard base URL
 The Wordle leaderboard is optional and controlled by `LeaderboardService`.
 
-```swift:LeaderboardService.swift
-private init() {
-    // Use localhost for development
-    // TODO: Update to App Engine URL when deployed
-    self.baseURL = "http://localhost:8080/api/leaderboard"
-    ...
-}
-
 ## Setting up the Flask Leaderboard Server
 
 To set up the Flask leaderboard server, follow these steps:
