@@ -1,0 +1,34 @@
+#
+#  app.yaml
+#  TapInApp - Wordle Leaderboard Server
+#
+#  Created by Darius Ehsani on 2/2/26.
+#
+#  MARK: - Google App Engine Configuration
+#  This file configures the app for deployment to Google App Engine.
+#
+#  Deployment:
+#    gcloud app deploy
+#
+#  Note: For Milestone 0, we're running locally. This file is prepared
+#  for future deployment to Google App Engine.
+#
+
+# Use Python 3.11 runtime
+runtime: python311
+
+# Entry point - use gunicorn for production
+entrypoint: gunicorn -b :$PORT app:app
+
+# Instance class (F1 is free tier eligible)
+instance_class: F1
+
+# Automatic scaling configuration
+automatic_scaling:
+  min_instances: 0
+  max_instances: 2
+  target_cpu_utilization: 0.65
+
+# Environment variables (if needed in the future)
+env_variables:
+  ENV: "production"
