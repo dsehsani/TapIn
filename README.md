@@ -41,4 +41,37 @@ private init() {
     // TODO: Update to App Engine URL when deployed
     self.baseURL = "http://localhost:8080/api/leaderboard"
     ...
-}```
+}
+
+## Setting up the Flask Leaderboard Server
+
+To set up the Flask leaderboard server, follow these steps:
+
+1. Navigate to the `wordle-leaderboard-server` directory:
+   ```bash
+   cd wordle-leaderboard-server
+   ```
+
+2. Create a virtual environment:
+   ```bash
+   python3 -m venv venv
+   ```
+
+3. Activate the virtual environment:
+   ```bash
+   source venv/bin/activate
+   ```
+
+4. Install the required Python packages listed in `requirements.txt`:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+5. Run the Flask server:
+   ```bash
+   python app.py
+   ```
+
+6. Ensure the server is running on port 8080. You can access the leaderboard API at `http://localhost:8080/api/leaderboard`.
+
+Make sure to update the `LeaderboardService` base URL in your iOS app configuration to point to your deployed server if applicable.
