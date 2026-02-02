@@ -27,7 +27,7 @@ class EchoGameViewModel {
     let totalRounds: Int = 5
     let maxAttempts: Int = 3
     let sequenceDisplayDuration: Double = 2.0
-    let ruleRevealInterval: Double = 1.5
+    let ruleRevealInterval: Double = 2.5
 
     // MARK: - Round State
 
