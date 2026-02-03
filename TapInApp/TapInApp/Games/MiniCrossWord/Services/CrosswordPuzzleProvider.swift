@@ -40,7 +40,7 @@ class CrosswordPuzzleProvider {
         let dayOfYear = calendar.ordinality(of: .day, in: .year, for: date) ?? 1
         let puzzleIndex = (dayOfYear - 1) % SamplePuzzles.puzzles.count
 
-        var puzzle = SamplePuzzles.puzzles[puzzleIndex]
+        let puzzle = SamplePuzzles.puzzles[puzzleIndex]
         // Create a new puzzle with the date key set
         return CrosswordPuzzle(
             id: puzzle.id,

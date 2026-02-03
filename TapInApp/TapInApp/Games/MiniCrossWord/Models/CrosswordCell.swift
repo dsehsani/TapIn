@@ -15,7 +15,7 @@ struct CrosswordCell: Identifiable, Equatable {
     let col: Int
     var isBlocked: Bool
     var letter: Character?
-    let correctLetter: Character?
+    var correctLetter: Character?
     var clueNumber: Int?
     var acrossClueID: UUID?
     var downClueID: UUID?

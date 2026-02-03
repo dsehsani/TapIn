@@ -91,7 +91,7 @@ struct CrosswordCellView: View {
 #Preview {
     HStack {
         CrosswordCellView(
-            cell: CrosswordCell(row: 0, col: 0, clueNumber: 1, correctLetter: "A"),
+            cell: CrosswordCell(row: 0, col: 0, correctLetter: "A", clueNumber: 1),
             isSelected: true,
             isHighlighted: false,
             colorScheme: .light,

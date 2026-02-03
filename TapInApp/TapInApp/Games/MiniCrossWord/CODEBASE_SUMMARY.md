@@ -305,7 +305,7 @@ Create in `Games/MiniCrossWord/Models/`:
 
 | # | File | Location | Description |
 |---|------|----------|-------------|
-| 7 | `SamplePuzzles.swift` | `Data/` | 2-3 UC Davis themed puzzles |
+| 7 | `SamplePuzzles.swift` | `Data/` | 2-3 random themed puzzles |
 | 8 | `CrosswordPuzzleProvider.swift` | `Services/` | Singleton, `puzzleForDate(_:)`, `todaysPuzzle()` |
 | 9 | `CrosswordStorage.swift` | `Services/` | Singleton, persistence with key `"crosswordGameStates"` |
 
