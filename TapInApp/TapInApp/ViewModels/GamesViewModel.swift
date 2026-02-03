@@ -19,6 +19,7 @@ class GamesViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var userStats: GameStats = GameStats()
     @Published var showingWordle: Bool = false
+    @Published var showingCrossword: Bool = false
 
     init() {
         loadAvailableGames()
@@ -38,14 +39,20 @@ class GamesViewModel: ObservableObject {
     func startGame(_ game: Game) {
         currentGame = game
 
-        // Check if it's the Wordle game and show it
-        if game.name == "Aggie Wordle" {
+        // Check game type and show appropriate game view
+        switch game.type {
+        case .wordle:
             showingWordle = true
+        case .crossword:
+            showingCrossword = true
+        case .trivia:
+            break // TODO: Implement trivia game
         }
     }
 
     func dismissGame() {
         showingWordle = false
+        showingCrossword = false
         currentGame = nil
     }
 
