@@ -101,6 +101,11 @@ struct GamesView: View {
                 viewModel.dismissGame()
             })
         }
+        .fullScreenCover(isPresented: $viewModel.showingEcho) {
+            EchoGameView(onDismiss: {
+                viewModel.dismissGame()
+            })
+        }
     }
 }
 
