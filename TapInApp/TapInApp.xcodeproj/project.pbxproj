@@ -38,7 +38,7 @@
 				Extensions/README.md,
 				Info.plist,
 				Models/README.md,
-				Prompts/CampusEventsPrompt.md,
+				Prompts/AttendingPrompt.md,
 				Prompts/DashboardPrompt.md,
 				Prompts/DashboardUIDesign.md,
 				Prompts/FixUI.md,

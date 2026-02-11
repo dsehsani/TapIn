@@ -11,6 +11,8 @@ struct SavedView: View {
     @ObservedObject var viewModel: SavedViewModel
 
     @State private var selectedSegment = 0
+    @State private var selectedEventSegment = 0
+    @State private var selectedEvent: CampusEvent?
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -63,29 +65,90 @@ struct SavedView: View {
                         }
                     }
                 } else {
-                    if viewModel.savedEvents.isEmpty {
-                        EmptyStateView(
-                            icon: "calendar.badge.clock",
-                            title: "No saved events",
-                            message: "Events you save will appear here"
-                        )
-                    } else {
-                        ScrollView(showsIndicators: false) {
-                            LazyVStack(spacing: 16) {
-                                ForEach(viewModel.savedEvents) { event in
-                                    SavedEventCard(
-                                        event: event,
-                                        colorScheme: colorScheme,
-                                        onRemove: { viewModel.removeEvent(event) }
-                                    )
-                                    .padding(.horizontal, 16)
+                    // Events sub-tabs: Saved / Attended
+                    HStack(spacing: 0) {
+                        Button(action: { selectedEventSegment = 0 }) {
+                            Text("Saved")
+                                .font(.system(size: 14, weight: selectedEventSegment == 0 ? .semibold : .medium))
+                                .foregroundColor(selectedEventSegment == 0 ? .white : (colorScheme == .dark ? .white : Color(hex: "#334155")))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .background(selectedEventSegment == 0 ? Color.ucdBlue : Color.clear)
+                                .clipShape(Capsule())
+                        }
+
+                        Button(action: { selectedEventSegment = 1 }) {
+                            Text("Attended")
+                                .font(.system(size: 14, weight: selectedEventSegment == 1 ? .semibold : .medium))
+                                .foregroundColor(selectedEventSegment == 1 ? .white : (colorScheme == .dark ? .white : Color(hex: "#334155")))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .background(selectedEventSegment == 1 ? Color.ucdBlue : Color.clear)
+                                .clipShape(Capsule())
+                        }
+                    }
+                    .padding(4)
+                    .background(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"))
+                    .clipShape(Capsule())
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
+
+                    if selectedEventSegment == 0 {
+                        // Upcoming saved events
+                        let events = viewModel.upcomingEvents
+                        if events.isEmpty {
+                            EmptyStateView(
+                                icon: "calendar.badge.clock",
+                                title: "No upcoming events",
+                                message: "Events you mark as attending will appear here"
+                            )
+                        } else {
+                            ScrollView(showsIndicators: false) {
+                                LazyVStack(spacing: 16) {
+                                    ForEach(events) { event in
+                                        SavedEventCard(
+                                            event: event,
+                                            colorScheme: colorScheme,
+                                            onRemove: { viewModel.removeEvent(event) }
+                                        )
+                                        .padding(.horizontal, 16)
+                                        .onTapGesture { selectedEvent = event }
+                                    }
                                 }
+                                .padding(.bottom, 8)
                             }
-                            .padding(.bottom, 8)
+                        }
+                    } else {
+                        // Past attended events
+                        let events = viewModel.attendedEvents
+                        if events.isEmpty {
+                            EmptyStateView(
+                                icon: "clock.arrow.circlepath",
+                                title: "No attended events",
+                                message: "Past events you attended will appear here automatically"
+                            )
+                        } else {
+                            ScrollView(showsIndicators: false) {
+                                LazyVStack(spacing: 16) {
+                                    ForEach(events) { event in
+                                        SavedEventCard(
+                                            event: event,
+                                            colorScheme: colorScheme,
+                                            onRemove: { viewModel.removeEvent(event) }
+                                        )
+                                        .padding(.horizontal, 16)
+                                        .onTapGesture { selectedEvent = event }
+                                    }
+                                }
+                                .padding(.bottom, 8)
+                            }
                         }
                     }
                 }
             }
+        }
+        .sheet(item: $selectedEvent) { event in
+            EventDetailView(event: event, savedViewModel: viewModel)
         }
     }
 }
@@ -179,9 +242,9 @@ struct SavedEventCard: View {
             Spacer()
 
             Button(action: onRemove) {
-                Image(systemName: "bookmark.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(Color.ucdGold)
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 22))
+                    .foregroundColor(Color(hex: "#10b981"))
             }
         }
         .padding(16)
