@@ -11,6 +11,7 @@ struct CampusView: View {
     @ObservedObject var viewModel: CampusViewModel
 
     @Environment(\.colorScheme) var colorScheme
+    @State private var selectedEvent: CampusEvent?
 
     var body: some View {
         ZStack {
@@ -87,6 +88,9 @@ struct CampusView: View {
                             ForEach(viewModel.events) { event in
                                 EventCard(event: event, colorScheme: colorScheme)
                                     .padding(.horizontal, 16)
+                                    .onTapGesture {
+                                        selectedEvent = event
+                                    }
                             }
                         }
                         .padding(.bottom, 8)
@@ -96,6 +100,9 @@ struct CampusView: View {
                     }
                 }
             }
+        }
+        .sheet(item: $selectedEvent) { event in
+            EventDetailView(event: event)
         }
     }
 }
@@ -107,10 +114,18 @@ struct EventCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(event.isOfficial ? "OFFICIAL" : "STUDENT EVENT")
-                    .font(.system(size: 10, weight: .bold))
-                    .tracking(1)
-                    .foregroundColor(event.isOfficial ? Color.ucdBlue : Color.ucdGold)
+                if let organizer = event.organizerName {
+                    Text(organizer.uppercased())
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(1)
+                        .foregroundColor(Color.ucdGold)
+                        .lineLimit(1)
+                } else {
+                    Text(event.isOfficial ? "OFFICIAL" : "STUDENT EVENT")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(1)
+                        .foregroundColor(event.isOfficial ? Color.ucdBlue : Color.ucdGold)
+                }
                 Spacer()
                 Text(event.date, style: .date)
                     .font(.system(size: 12))
@@ -126,13 +141,26 @@ struct EventCard: View {
                 .foregroundColor(.textMuted)
                 .lineLimit(2)
 
-            HStack(spacing: 6) {
-                Image(systemName: "mappin.circle.fill")
-                    .font(.system(size: 14))
-                    .foregroundColor(Color.ucdBlue)
-                Text(event.location)
-                    .font(.system(size: 12))
-                    .foregroundColor(.textSecondary)
+            HStack(spacing: 16) {
+                HStack(spacing: 6) {
+                    Image(systemName: "mappin.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color.ucdBlue)
+                    Text(event.location)
+                        .font(.system(size: 12))
+                        .foregroundColor(.textSecondary)
+                }
+
+                if let eventType = event.eventType {
+                    HStack(spacing: 4) {
+                        Image(systemName: "tag.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(Color.ucdGold)
+                        Text(eventType)
+                            .font(.system(size: 11))
+                            .foregroundColor(.textSecondary)
+                    }
+                }
             }
         }
         .padding(16)

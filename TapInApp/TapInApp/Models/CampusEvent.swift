@@ -7,31 +7,52 @@
 
 import Foundation
 
-struct CampusEvent: Identifiable {
+struct CampusEvent: Identifiable, Equatable {
     let id: UUID
     let title: String
     let description: String
     let date: Date
+    let endDate: Date?
     let location: String
     let isOfficial: Bool
     let imageURL: String?
+    let organizerName: String?
+    let clubAcronym: String?
+    let eventType: String?
+    let tags: [String]
+    let eventURL: String?
+    let organizerURL: String?
 
     init(
         id: UUID = UUID(),
         title: String,
         description: String,
         date: Date,
+        endDate: Date? = nil,
         location: String,
         isOfficial: Bool = true,
-        imageURL: String? = nil
+        imageURL: String? = nil,
+        organizerName: String? = nil,
+        clubAcronym: String? = nil,
+        eventType: String? = nil,
+        tags: [String] = [],
+        eventURL: String? = nil,
+        organizerURL: String? = nil
     ) {
         self.id = id
         self.title = title
         self.description = description
         self.date = date
+        self.endDate = endDate
         self.location = location
         self.isOfficial = isOfficial
         self.imageURL = imageURL
+        self.organizerName = organizerName
+        self.clubAcronym = clubAcronym
+        self.eventType = eventType
+        self.tags = tags
+        self.eventURL = eventURL
+        self.organizerURL = organizerURL
     }
 }
 
@@ -40,7 +61,6 @@ enum EventFilterType: String, CaseIterable {
     case official = "Official"
     case studentPosted = "Student Events"
     case today = "Today"
-    case thisWeek = "This Week"
 }
 
 // MARK: - Sample Data
