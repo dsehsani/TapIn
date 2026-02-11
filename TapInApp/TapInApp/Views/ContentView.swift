@@ -37,7 +37,7 @@ struct ContentView: View {
                 )
 
             case .campus:
-                CampusView(viewModel: campusViewModel)
+                CampusView(viewModel: campusViewModel, savedViewModel: savedViewModel)
 
             case .games:
                 GamesView(viewModel: gamesViewModel)

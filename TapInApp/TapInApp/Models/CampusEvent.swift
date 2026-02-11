@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct CampusEvent: Identifiable, Equatable {
+struct CampusEvent: Identifiable, Equatable, Codable {
     let id: UUID
     let title: String
     let description: String

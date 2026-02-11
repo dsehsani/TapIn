@@ -9,6 +9,7 @@ import SwiftUI
 
 struct CampusView: View {
     @ObservedObject var viewModel: CampusViewModel
+    @ObservedObject var savedViewModel: SavedViewModel
 
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedEvent: CampusEvent?
@@ -86,7 +87,7 @@ struct CampusView: View {
                     ScrollView(showsIndicators: false) {
                         LazyVStack(spacing: 16) {
                             ForEach(viewModel.events) { event in
-                                EventCard(event: event, colorScheme: colorScheme)
+                                EventCard(event: event, colorScheme: colorScheme, savedViewModel: savedViewModel)
                                     .padding(.horizontal, 16)
                                     .onTapGesture {
                                         selectedEvent = event
@@ -102,7 +103,7 @@ struct CampusView: View {
             }
         }
         .sheet(item: $selectedEvent) { event in
-            EventDetailView(event: event)
+            EventDetailView(event: event, savedViewModel: savedViewModel)
         }
     }
 }
@@ -110,6 +111,7 @@ struct CampusView: View {
 struct EventCard: View {
     let event: CampusEvent
     let colorScheme: ColorScheme
+    @ObservedObject var savedViewModel: SavedViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -161,6 +163,21 @@ struct EventCard: View {
                             .foregroundColor(.textSecondary)
                     }
                 }
+
+                Spacer()
+
+                // Attending Toggle
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                        savedViewModel.toggleEventSaved(event)
+                    }
+                }) {
+                    Image(systemName: savedViewModel.isEventSaved(event) ? "checkmark.circle.fill" : "plus.circle")
+                        .font(.system(size: 22))
+                        .foregroundColor(savedViewModel.isEventSaved(event) ? Color(hex: "#10b981") : .textSecondary)
+                        .scaleEffect(savedViewModel.isEventSaved(event) ? 1.1 : 1.0)
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(16)
@@ -178,6 +195,6 @@ struct EventCard: View {
 }
 
 #Preview {
-    CampusView(viewModel: CampusViewModel())
+    CampusView(viewModel: CampusViewModel(), savedViewModel: SavedViewModel())
 }
 

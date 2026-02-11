@@ -9,6 +9,7 @@ import SwiftUI
 
 struct EventDetailView: View {
     let event: CampusEvent
+    @ObservedObject var savedViewModel: SavedViewModel
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
 
@@ -122,6 +123,32 @@ struct EventDetailView: View {
                             }
                         }
                     }
+
+                    // MARK: - Attend Button
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                            savedViewModel.toggleEventSaved(event)
+                        }
+                    }) {
+                        HStack {
+                            Spacer()
+                            Image(systemName: savedViewModel.isEventSaved(event) ? "checkmark.circle.fill" : "plus.circle")
+                                .font(.system(size: 18, weight: .semibold))
+                            Text(savedViewModel.isEventSaved(event) ? "Attending" : "Attend")
+                                .font(.system(size: 16, weight: .semibold))
+                            Spacer()
+                        }
+                        .foregroundColor(savedViewModel.isEventSaved(event) ? .white : (colorScheme == .dark ? .white : Color(hex: "#0f172a")))
+                        .padding(.vertical, 14)
+                        .background(savedViewModel.isEventSaved(event) ? Color(hex: "#10b981") : (colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9")))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(savedViewModel.isEventSaved(event) ? Color.clear : Color(hex: "#e2e8f0"), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 8)
 
                     // MARK: - RSVP Button
                     if let urlString = event.eventURL, let url = URL(string: urlString) {
@@ -239,5 +266,5 @@ struct FlowLayout: Layout {
 }
 
 #Preview {
-    EventDetailView(event: CampusEvent.sampleData[0])
+    EventDetailView(event: CampusEvent.sampleData[0], savedViewModel: SavedViewModel())
 }
