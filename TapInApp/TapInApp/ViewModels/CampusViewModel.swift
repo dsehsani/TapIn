@@ -5,8 +5,7 @@
 //  Created by Darius Ehsani on 1/29/26.
 //
 //  MARK: - Campus/Events ViewModel
-//  Manages campus events and activities
-//  TODO: ADD YOUR EVENTS DATA SOURCE HERE
+//  Manages campus events fetched from Aggie Life iCal feed.
 //
 
 import Foundation
@@ -19,57 +18,77 @@ class CampusViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var filterType: EventFilterType = .all
 
+    private let service = AggieLifeService()
+    private var allEvents: [CampusEvent] = []
+
     init() {
-        loadEvents()
+        Task { await fetchEvents() }
     }
 
-    // TODO: REPLACE WITH YOUR EVENTS DATA SOURCE
-    func fetchEvents() {
+    // MARK: - Fetch from Aggie Life
+
+    @MainActor
+    func fetchEvents() async {
         isLoading = true
         errorMessage = nil
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            self.loadEvents()
-            self.isLoading = false
+        do {
+            let fetched = try await service.fetchEvents()
+            allEvents = cleanEvents(fetched)
+            applyFilter()
+        } catch {
+            errorMessage = error.localizedDescription
+            // Fall back to sample data if network fails
+            allEvents = CampusEvent.sampleData
+            applyFilter()
         }
+
+        isLoading = false
     }
 
-    func fetchEventsAsync() async {
-        await MainActor.run {
-            isLoading = true
-            errorMessage = nil
-        }
-
-        try? await Task.sleep(nanoseconds: 1_000_000_000)
-
-        await MainActor.run {
-            loadEvents()
-            isLoading = false
-        }
-    }
+    // MARK: - Filtering
 
     func filterEvents(by type: EventFilterType) {
         filterType = type
-        switch type {
-        case .all:
-            events = CampusEvent.sampleData
-        case .official:
-            events = CampusEvent.sampleData.filter { $0.isOfficial }
-        case .studentPosted:
-            events = CampusEvent.sampleData.filter { !$0.isOfficial }
-        case .today:
-            events = CampusEvent.sampleData.filter { Calendar.current.isDateInToday($0.date) }
-        case .thisWeek:
-            let weekFromNow = Date().addingTimeInterval(7 * 86400)
-            events = CampusEvent.sampleData.filter { $0.date <= weekFromNow }
-        }
+        applyFilter()
     }
 
     func refreshEvents() async {
-        await fetchEventsAsync()
+        await fetchEvents()
     }
 
-    private func loadEvents() {
-        events = CampusEvent.sampleData
+    private func applyFilter() {
+        switch filterType {
+        case .all:
+            events = allEvents
+        case .official:
+            events = allEvents.filter { $0.isOfficial }
+        case .studentPosted:
+            events = allEvents.filter { !$0.isOfficial }
+        case .today:
+            events = allEvents.filter { Calendar.current.isDateInToday($0.date) }
+        }
+    }
+
+    // MARK: - Event Cleaning
+
+    /// Removes irrelevant events before they reach the UI.
+    /// - Filters out events with "meeting" in the title (club-internal meetings)
+    /// - Only keeps events within the current week
+    private func cleanEvents(_ events: [CampusEvent]) -> [CampusEvent] {
+        let now = Date()
+        let calendar = Calendar.current
+        guard let endOfWeek = calendar.date(byAdding: .day, value: 7, to: calendar.startOfDay(for: now)) else {
+            return events
+        }
+
+        return events.filter { event in
+            // Remove events with "meeting" in the title
+            let hasMeeting = event.title.localizedCaseInsensitiveContains("meeting")
+            if hasMeeting { return false }
+
+            // Only keep events within the current week
+            return event.date >= now && event.date <= endOfWeek
+        }
     }
 }
