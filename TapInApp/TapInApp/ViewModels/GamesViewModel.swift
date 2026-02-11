@@ -19,6 +19,7 @@ class GamesViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var userStats: GameStats = GameStats()
     @Published var showingWordle: Bool = false
+    @Published var showingEcho: Bool = false
 
     init() {
         loadAvailableGames()
@@ -41,11 +42,14 @@ class GamesViewModel: ObservableObject {
         // Check if it's the Wordle game and show it
         if game.name == "Aggie Wordle" {
             showingWordle = true
+        } else if game.type == .echo {
+            showingEcho = true
         }
     }
 
     func dismissGame() {
         showingWordle = false
+        showingEcho = false
         currentGame = nil
     }
 
