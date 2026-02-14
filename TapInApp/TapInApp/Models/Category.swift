@@ -26,12 +26,31 @@ struct Category: Identifiable, Hashable {
     }
 }
 
-// MARK: - Sample Categories
+// MARK: - The Aggie News Categories
 extension Category {
     static let allCategories: [Category] = [
-        Category(name: "Top Stories", icon: "", isSelected: true),
-        Category(name: "Research", icon: "flask.fill"),
+        Category(name: "All News", icon: "newspaper.fill", isSelected: true),
         Category(name: "Campus", icon: "building.2.fill"),
-        Category(name: "Athletics", icon: "sportscourt.fill")
+        Category(name: "City", icon: "building.fill"),
+        Category(name: "Opinion", icon: "text.bubble.fill"),
+        Category(name: "Features", icon: "star.fill"),
+        Category(name: "Arts & Culture", icon: "paintpalette.fill"),
+        Category(name: "Sports", icon: "sportscourt.fill"),
+        Category(name: "Science & Tech", icon: "atom")
     ]
+
+    /// Maps category display name to NewsService.NewsCategory
+    var newsCategory: NewsService.NewsCategory {
+        switch name {
+        case "All News": return .all
+        case "Campus": return .campus
+        case "City": return .city
+        case "Opinion": return .opinion
+        case "Features": return .features
+        case "Arts & Culture": return .artsCulture
+        case "Sports": return .sports
+        case "Science & Tech": return .scienceTech
+        default: return .all
+        }
+    }
 }
