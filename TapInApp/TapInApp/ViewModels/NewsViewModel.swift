@@ -6,47 +6,51 @@
 //
 //  MARK: - News ViewModel
 //  Handles all news-related business logic and state
-//  TODO: ADD YOUR WEB SCRAPING LOGIC HERE
+//  Fetches articles from The Aggie RSS feeds
 //
 
 import Foundation
 import SwiftUI
 import Combine
 
+@MainActor
 class NewsViewModel: ObservableObject {
     @Published var articles: [NewsArticle] = []
     @Published var featuredArticle: NewsArticle?
     @Published var latestArticles: [NewsArticle] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
-    @Published var selectedCategory: String = "Top Stories"
+    @Published var selectedCategory: String = "All News"
     @Published var searchText: String = ""
     @Published var categories: [Category] = Category.allCategories
 
+    private let newsService = NewsService()
+    private var allFetchedArticles: [NewsArticle] = []
+
     init() {
-        loadSampleData()
+        Task {
+            await fetchArticles()
+        }
     }
 
-    // TODO: REPLACE THIS WITH YOUR WEB SCRAPING IMPLEMENTATION
-    func fetchArticles() {
+    // MARK: - Fetch Articles from RSS
+
+    func fetchArticles() async {
         isLoading = true
         errorMessage = nil
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            self.loadSampleData()
-            self.isLoading = false
-        }
-    }
+        // Find the selected category
+        let selectedCat = categories.first { $0.name == selectedCategory } ?? categories[0]
+        let newsCategory = selectedCat.newsCategory
 
-    func fetchArticlesAsync() async {
-        await MainActor.run {
-            isLoading = true
-            errorMessage = nil
-        }
-
-        try? await Task.sleep(nanoseconds: 1_000_000_000)
-
-        await MainActor.run {
+        do {
+            let fetched = try await newsService.fetchArticles(category: newsCategory)
+            allFetchedArticles = fetched
+            processArticles(fetched)
+            isLoading = false
+        } catch {
+            // Fallback to sample data on error
+            errorMessage = error.localizedDescription
             loadSampleData()
             isLoading = false
         }
@@ -58,36 +62,59 @@ class NewsViewModel: ObservableObject {
             Category(id: cat.id, name: cat.name, icon: cat.icon, isSelected: cat.name == category)
         }
 
-        if category == "Top Stories" {
-            loadSampleData()
-        } else {
-            let filtered = NewsArticle.sampleData.filter { $0.category == category }
-            articles = filtered
-            featuredArticle = filtered.first { $0.isFeatured }
-            latestArticles = filtered.filter { !$0.isFeatured }
+        // Fetch articles for the new category
+        Task {
+            await fetchArticles()
         }
     }
 
     func searchArticles(_ query: String) {
         searchText = query
         if query.isEmpty {
-            loadSampleData()
+            processArticles(allFetchedArticles)
             return
         }
-        let filtered = NewsArticle.sampleData.filter {
+
+        let filtered = allFetchedArticles.filter {
             $0.title.localizedCaseInsensitiveContains(query) ||
-            $0.excerpt.localizedCaseInsensitiveContains(query)
+            $0.excerpt.localizedCaseInsensitiveContains(query) ||
+            ($0.author?.localizedCaseInsensitiveContains(query) ?? false)
         }
-        articles = filtered
-        featuredArticle = filtered.first { $0.isFeatured }
-        latestArticles = filtered.filter { !$0.isFeatured }
+        processArticles(filtered)
     }
 
     func refreshArticles() async {
-        await fetchArticlesAsync()
+        await fetchArticles()
+    }
+
+    // MARK: - Private Helpers
+
+    private func processArticles(_ fetchedArticles: [NewsArticle]) {
+        // Mark the first article as featured
+        var processed = fetchedArticles
+        if !processed.isEmpty {
+            let first = processed[0]
+            processed[0] = NewsArticle(
+                id: first.id,
+                title: first.title,
+                excerpt: first.excerpt,
+                imageURL: first.imageURL,
+                category: first.category,
+                timestamp: first.timestamp,
+                author: first.author,
+                readTime: first.readTime,
+                isFeatured: true,
+                articleURL: first.articleURL
+            )
+        }
+
+        articles = processed
+        featuredArticle = processed.first
+        latestArticles = Array(processed.dropFirst())
     }
 
     private func loadSampleData() {
+        allFetchedArticles = NewsArticle.sampleData
         articles = NewsArticle.sampleData
         featuredArticle = NewsArticle.featuredArticle
         latestArticles = NewsArticle.latestArticles
