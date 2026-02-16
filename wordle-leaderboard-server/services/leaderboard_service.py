@@ -11,17 +11,19 @@
 #  - Leaderboard retrieval and ranking
 #
 #  Architecture:
-#  - Uses in-memory storage for Milestone 0 (will migrate to Firestore later)
+#  - Uses Google Cloud Firestore for persistent storage (Milestone 1)
 #  - Singleton pattern via module-level instance
 #  - Scores are organized by puzzle date for daily leaderboards
 #
-#  Storage Format:
-#  - _scores: Dict[str, List[Score]] where key is puzzle_date (YYYY-MM-DD)
-#
 
 import random
-from typing import List, Optional, Dict
+import logging
+from typing import List, Optional
 from models import Score, LeaderboardEntry
+from repositories.score_repository import score_repository
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 # ------------------------------------------------------------------------------
@@ -61,8 +63,9 @@ class LeaderboardService:
     - Retrieving ranked leaderboards
 
     Storage:
-    - Currently uses in-memory dictionary (Milestone 0)
-    - Will be migrated to Firestore Datastore in future milestones
+    - Uses Google Cloud Firestore for persistent storage (Milestone 1)
+    - Scores are stored in the "scores" collection
+    - Organized by puzzle_date for daily leaderboards
 
     Usage:
         service = LeaderboardService()
@@ -76,16 +79,11 @@ class LeaderboardService:
 
     def __init__(self):
         """
-        Initializes the LeaderboardService with empty in-memory storage.
+        Initializes the LeaderboardService.
 
-        The _scores dictionary maps puzzle dates to lists of Score objects:
-        {
-            "2026-02-02": [Score(...), Score(...), ...],
-            "2026-02-03": [Score(...), ...]
-        }
+        Uses the score_repository singleton for Firestore operations.
         """
-        # In-memory storage: Dict[puzzle_date, List[Score]]
-        self._scores: Dict[str, List[Score]] = {}
+        self._repository = score_repository
 
     # --------------------------------------------------------------------------
     # MARK: - Username Generation
@@ -119,7 +117,7 @@ class LeaderboardService:
         Submits a new score to the leaderboard.
 
         Creates a new Score entry with an auto-generated username (if not provided)
-        and stores it in the in-memory database.
+        and stores it in Firestore.
 
         Args:
             guesses: Number of guesses taken (1-6)
@@ -157,12 +155,9 @@ class LeaderboardService:
             puzzle_date=puzzle_date
         )
 
-        # Initialize list for this date if it doesn't exist
-        if puzzle_date not in self._scores:
-            self._scores[puzzle_date] = []
-
-        # Add score to storage
-        self._scores[puzzle_date].append(score)
+        # Save to Firestore
+        self._repository.save_score(score)
+        logger.info(f"Score submitted: {username} - {guesses} guesses for {puzzle_date}")
 
         return score
 
@@ -190,18 +185,12 @@ class LeaderboardService:
             for entry in entries:
                 print(f"{entry.rank}. {entry.username} - {entry.guesses_display}")
         """
-        # Get scores for this date (empty list if none exist)
-        scores = self._scores.get(puzzle_date, [])
-
-        # Sort by guesses (ascending), then by time (ascending) as tiebreaker
-        sorted_scores = sorted(scores, key=lambda s: (s.guesses, s.time_seconds))
-
-        # Take top N scores
-        top_scores = sorted_scores[:limit]
+        # Get scores from Firestore (already sorted by guesses, then time)
+        scores = self._repository.get_scores_by_date(puzzle_date, limit=limit)
 
         # Convert to LeaderboardEntry objects with rank and emoji display
         entries = []
-        for rank, score in enumerate(top_scores, start=1):
+        for rank, score in enumerate(scores, start=1):
             entry = LeaderboardEntry(
                 rank=rank,
                 username=score.username,
@@ -229,31 +218,23 @@ class LeaderboardService:
         """
         return "🟩" * guesses
 
-    def get_all_dates(self) -> List[str]:
+    def clear_scores(self, puzzle_date: Optional[str] = None) -> int:
         """
-        Returns all puzzle dates that have scores.
-
-        Useful for debugging and admin purposes.
-
-        Returns:
-            List of puzzle date strings (YYYY-MM-DD format)
-        """
-        return list(self._scores.keys())
-
-    def clear_scores(self, puzzle_date: Optional[str] = None) -> None:
-        """
-        Clears scores from storage.
+        Clears scores from Firestore.
 
         Args:
             puzzle_date: If provided, only clears scores for that date.
                         If None, clears all scores.
 
+        Returns:
+            Number of scores deleted
+
         Note: This is primarily for testing purposes.
         """
         if puzzle_date:
-            self._scores.pop(puzzle_date, None)
+            return self._repository.delete_scores_by_date(puzzle_date)
         else:
-            self._scores.clear()
+            return self._repository.delete_all_scores()
 
 
 # ------------------------------------------------------------------------------

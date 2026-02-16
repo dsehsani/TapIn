@@ -17,6 +17,7 @@
 
 from flask import Blueprint, request, jsonify
 from services.leaderboard_service import leaderboard_service
+from services.firestore_client import is_firestore_connected
 
 
 # ------------------------------------------------------------------------------
@@ -232,13 +233,17 @@ def health_check():
     Response (200 OK):
         {
             "status": "healthy",
-            "service": "wordle-leaderboard"
+            "service": "wordle-leaderboard",
+            "firestore": "connected" | "disconnected"
         }
 
     Example curl:
         curl http://localhost:8080/api/leaderboard/health
     """
+    firestore_status = "connected" if is_firestore_connected() else "disconnected"
+
     return jsonify({
         "status": "healthy",
-        "service": "wordle-leaderboard"
+        "service": "wordle-leaderboard",
+        "firestore": firestore_status
     }), 200

@@ -1,0 +1,14 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "scores",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "puzzle_date", "order": "ASCENDING" },
+        { "fieldPath": "guesses", "order": "ASCENDING" },
+        { "fieldPath": "time_seconds", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

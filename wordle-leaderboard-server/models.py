@@ -14,7 +14,7 @@
 #
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import datetime
 from typing import Optional
 import uuid
 
@@ -49,10 +49,11 @@ class Score:
     time_seconds: int
     puzzle_date: str
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    created_at: datetime = field(default_factory=datetime.utcnow)
 
     def to_dict(self) -> dict:
         """
-        Converts the Score to a dictionary for JSON serialization.
+        Converts the Score to a dictionary for JSON serialization (API responses).
 
         Returns:
             Dictionary representation of the score
@@ -63,6 +64,21 @@ class Score:
             "guesses": self.guesses,
             "time_seconds": self.time_seconds,
             "puzzle_date": self.puzzle_date
+        }
+
+    def to_firestore_dict(self) -> dict:
+        """
+        Converts the Score to a dictionary for Firestore storage.
+
+        Returns:
+            Dictionary with Firestore-compatible types
+        """
+        return {
+            "username": self.username,
+            "guesses": self.guesses,
+            "time_seconds": self.time_seconds,
+            "puzzle_date": self.puzzle_date,
+            "created_at": self.created_at
         }
 
     @classmethod
@@ -81,7 +97,38 @@ class Score:
             username=data["username"],
             guesses=data["guesses"],
             time_seconds=data["time_seconds"],
-            puzzle_date=data["puzzle_date"]
+            puzzle_date=data["puzzle_date"],
+            created_at=data.get("created_at", datetime.utcnow())
+        )
+
+    @classmethod
+    def from_firestore(cls, doc) -> "Score":
+        """
+        Creates a Score instance from a Firestore document.
+
+        Args:
+            doc: Firestore DocumentSnapshot
+
+        Returns:
+            Score instance
+        """
+        data = doc.to_dict()
+        created_at = data.get("created_at")
+
+        # Handle Firestore Timestamp conversion
+        if hasattr(created_at, "seconds"):
+            # Convert Firestore Timestamp to datetime
+            created_at = datetime.utcfromtimestamp(created_at.seconds)
+        elif created_at is None:
+            created_at = datetime.utcnow()
+
+        return cls(
+            id=doc.id,
+            username=data["username"],
+            guesses=data["guesses"],
+            time_seconds=data["time_seconds"],
+            puzzle_date=data["puzzle_date"],
+            created_at=created_at
         )
 
 

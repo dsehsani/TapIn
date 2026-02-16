@@ -16,3 +16,6 @@ Flask-Cors==4.0.0
 
 # WSGI server for production (used by Google App Engine)
 gunicorn==21.2.0
+
+# Google Cloud Firestore for persistent storage
+google-cloud-firestore==2.14.0

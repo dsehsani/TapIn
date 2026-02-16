@@ -41,3 +41,7 @@ README*
 # Local development files
 .DS_Store
 Thumbs.db
+
+# Service account credentials (use App Engine default credentials in production)
+service-account.json
+*.json.backup
