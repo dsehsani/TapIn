@@ -106,6 +106,11 @@ struct GamesView: View {
                 viewModel.dismissGame()
             })
         }
+        .fullScreenCover(isPresented: $viewModel.showingCrossword) {
+            MiniCrosswordGameView(onDismiss: {
+                viewModel.dismissGame()
+            })
+        }
     }
 }
 

@@ -115,4 +115,86 @@ extension Color {
     static func adaptiveAccent(_ colorScheme: ColorScheme) -> Color {
         colorScheme == .dark ? ucdGold : ucdBlue
     }
+
+    // MARK: - Crossword Game Colors
+
+    /// Selected cell background (gold)
+    static func crosswordSelected(_ colorScheme: ColorScheme) -> Color {
+        Color.ucdGold.opacity(0.8)
+    }
+
+    /// Highlighted cells in same word (light gold)
+    static func crosswordHighlighted(_ colorScheme: ColorScheme) -> Color {
+        Color.ucdGold.opacity(0.3)
+    }
+
+    /// Blocked cell background (black/dark)
+    static func crosswordBlocked(_ colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? Color(hex: "#1a1a1a") : Color(hex: "#2d2d2d")
+    }
+
+    /// Incorrect letter indicator (red tint)
+    static func crosswordIncorrect(_ colorScheme: ColorScheme) -> Color {
+        Color.red.opacity(0.3)
+    }
+
+    /// Revealed cell indicator (orange tint)
+    static func crosswordRevealed(_ colorScheme: ColorScheme) -> Color {
+        Color.orange.opacity(0.3)
+    }
+
+    /// Normal cell background
+    static func crosswordCellBackground(_ colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? Color(hex: "#2a2a3e") : .white
+    }
+
+    /// Cell border color
+    static func crosswordBorder(_ colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? Color(hex: "#3a3a4e") : Color(hex: "#cccccc")
+    }
+
+    /// Cell text color
+    static func crosswordText(_ colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? .white : .black
+    }
+
+    /// Revealed text color
+    static func crosswordRevealedText(_ colorScheme: ColorScheme) -> Color {
+        Color.orange
+    }
+
+    /// Clue number color
+    static func crosswordClueNumber(_ colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? Color(hex: "#8888aa") : Color(hex: "#666666")
+    }
+
+    /// Crossword background
+    static func crosswordBackground(_ colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? backgroundDark : backgroundLight
+    }
+
+    /// Crossword header background
+    static func crosswordHeaderBackground(_ colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? Color(hex: "#1a1a2e") : .white
+    }
+
+    /// Crossword keyboard key background
+    static func crosswordKeyBackground(_ colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? keyBackgroundDark : keyBackground
+    }
+
+    /// Crossword keyboard key text
+    static func crosswordKeyText(_ colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? .white : .black
+    }
+
+    /// Clue background
+    static func crosswordClueBackground(_ colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? Color(hex: "#2a2a3e") : Color(hex: "#f5f5f5")
+    }
+
+    /// Clue list background
+    static func crosswordClueListBackground(_ colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? Color(hex: "#1a1a2e") : .white
+    }
 }
