@@ -18,20 +18,26 @@ struct FeaturedArticleCard: View {
             VStack(alignment: .leading, spacing: 0) {
                 // Image Section
                 ZStack(alignment: .topLeading) {
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.ucdBlue.opacity(0.3), Color.ucdBlue.opacity(0.1)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                    if let url = URL(string: article.imageURL), !article.imageURL.isEmpty {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(16/10, contentMode: .fill)
+                            case .failure(_):
+                                categoryPlaceholder
+                            case .empty:
+                                categoryPlaceholder
+                                    .overlay(ProgressView())
+                            @unknown default:
+                                categoryPlaceholder
+                            }
+                        }
                         .aspectRatio(16/10, contentMode: .fill)
-                        .overlay(
-                            Image(systemName: "photo")
-                                .font(.system(size: 40))
-                                .foregroundColor(.white.opacity(0.5))
-                        )
+                    } else {
+                        categoryPlaceholder
+                    }
 
                     // Featured Badge
                     if article.isFeatured {
@@ -123,6 +129,23 @@ struct FeaturedArticleCard: View {
         }
         .buttonStyle(PlainButtonStyle())
         .padding(.horizontal, 16)
+    }
+
+    private var categoryPlaceholder: some View {
+        Rectangle()
+            .fill(
+                LinearGradient(
+                    colors: [Color.ucdBlue.opacity(0.3), Color.ucdBlue.opacity(0.1)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .aspectRatio(16/10, contentMode: .fill)
+            .overlay(
+                Image(systemName: article.categoryIcon)
+                    .font(.system(size: 40))
+                    .foregroundColor(.white.opacity(0.5))
+            )
     }
 }
 
