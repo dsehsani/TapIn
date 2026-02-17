@@ -19,3 +19,6 @@ gunicorn==21.2.0
 
 # Google Cloud Firestore for persistent storage
 google-cloud-firestore==2.14.0
+
+# Anthropic Claude API SDK for AI features
+anthropic>=0.39.0

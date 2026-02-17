@@ -25,6 +25,7 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 from api.leaderboard import leaderboard_bp
+from api.claude import claude_bp
 
 
 # ------------------------------------------------------------------------------
@@ -73,6 +74,10 @@ def create_app() -> Flask:
     # All leaderboard endpoints will be prefixed with /api/leaderboard
     app.register_blueprint(leaderboard_bp)
 
+    # Register the Claude API proxy blueprint
+    # All Claude endpoints will be prefixed with /api/claude
+    app.register_blueprint(claude_bp)
+
     # --------------------------------------------------------------------------
     # MARK: - Root Endpoint
     # --------------------------------------------------------------------------
@@ -94,12 +99,15 @@ def create_app() -> Flask:
             }
         """
         return jsonify({
-            "service": "TapInApp Wordle Leaderboard API",
-            "version": "1.0.0",
+            "service": "TapInApp API",
+            "version": "1.1.0",
             "endpoints": {
                 "submit_score": "POST /api/leaderboard/score",
                 "get_leaderboard": "GET /api/leaderboard/<date>",
-                "health_check": "GET /api/leaderboard/health"
+                "leaderboard_health": "GET /api/leaderboard/health",
+                "summarize_event": "POST /api/claude/summarize",
+                "claude_chat": "POST /api/claude/chat",
+                "claude_health": "GET /api/claude/health"
             }
         })
 
@@ -155,6 +163,10 @@ if __name__ == "__main__":
     print("  POST /api/leaderboard/score     - Submit a score")
     print("  GET  /api/leaderboard/<date>    - Get leaderboard")
     print("  GET  /api/leaderboard/health    - Health check")
+    print("")
+    print("  POST /api/claude/summarize      - Summarize event")
+    print("  POST /api/claude/chat           - Claude chat")
+    print("  GET  /api/claude/health         - Claude health")
     print("")
     print("Press Ctrl+C to stop the server")
     print("=" * 60)

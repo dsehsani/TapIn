@@ -87,7 +87,12 @@ struct CampusView: View {
                     ScrollView(showsIndicators: false) {
                         LazyVStack(spacing: 16) {
                             ForEach(viewModel.events) { event in
-                                EventCard(event: event, colorScheme: colorScheme, savedViewModel: savedViewModel)
+                                EventCard(
+                                    event: event,
+                                    colorScheme: colorScheme,
+                                    savedViewModel: savedViewModel,
+                                    aiSummary: viewModel.summary(for: event)
+                                )
                                     .padding(.horizontal, 16)
                                     .onTapGesture {
                                         selectedEvent = event
@@ -112,6 +117,7 @@ struct EventCard: View {
     let event: CampusEvent
     let colorScheme: ColorScheme
     @ObservedObject var savedViewModel: SavedViewModel
+    var aiSummary: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -138,10 +144,15 @@ struct EventCard: View {
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
 
-            Text(event.description)
-                .font(.system(size: 14))
-                .foregroundColor(.textMuted)
-                .lineLimit(2)
+            // Show AI Summary badge if available, otherwise show raw description
+            if let summary = aiSummary {
+                AISummaryBadge(summary: summary)
+            } else {
+                Text(event.description)
+                    .font(.system(size: 14))
+                    .foregroundColor(.textMuted)
+                    .lineLimit(2)
+            }
 
             HStack(spacing: 16) {
                 HStack(spacing: 6) {
