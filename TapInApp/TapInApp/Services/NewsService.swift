@@ -27,6 +27,8 @@ class NewsService {
         case artsCulture = "arts-culture"
         case sports = "sports"
         case scienceTech = "science-technology"
+        case editorial = "editorial"
+        case column = "column"
 
         var feedURL: URL {
             if self == .all {
@@ -45,6 +47,8 @@ class NewsService {
             case .artsCulture: return "Arts & Culture"
             case .sports: return "Sports"
             case .scienceTech: return "Science & Tech"
+            case .editorial: return "Editorial"
+            case .column: return "Column"
             }
         }
 
@@ -58,6 +62,8 @@ class NewsService {
             case .artsCulture: return "paintpalette.fill"
             case .sports: return "sportscourt.fill"
             case .scienceTech: return "atom"
+            case .editorial: return "doc.text.fill"
+            case .column: return "quote.bubble.fill"
             }
         }
     }
@@ -119,11 +125,80 @@ class NewsService {
         }
 
         // Sort by date, newest first
-        return articles.sorted { $0.timestamp > $1.timestamp }
+        var sorted = articles.sorted { $0.timestamp > $1.timestamp }
+
+        // Fetch featured images from article pages in parallel
+        sorted = await fetchArticleImages(for: sorted)
+
+        return sorted
     }
 
     /// Fetches articles from all categories and combines them.
     func fetchAllArticles() async throws -> [NewsArticle] {
         return try await fetchArticles(category: .all)
+    }
+
+    // MARK: - Image Scraping
+
+    /// Fetches each article's webpage and extracts the featured image (first img inside <article>).
+    private func fetchArticleImages(for articles: [NewsArticle]) async -> [NewsArticle] {
+        await withTaskGroup(of: (Int, String).self) { group in
+            for (index, article) in articles.enumerated() {
+                guard let urlString = article.articleURL,
+                      let url = URL(string: urlString) else { continue }
+
+                group.addTask {
+                    let imageURL = await self.scrapeImageURL(from: url)
+                    return (index, imageURL)
+                }
+            }
+
+            var updated = articles
+            for await (index, imageURL) in group {
+                guard !imageURL.isEmpty else { continue }
+                let old = updated[index]
+                updated[index] = NewsArticle(
+                    id: old.id,
+                    title: old.title,
+                    excerpt: old.excerpt,
+                    imageURL: imageURL,
+                    category: old.category,
+                    timestamp: old.timestamp,
+                    author: old.author,
+                    readTime: old.readTime,
+                    isFeatured: old.isFeatured,
+                    articleURL: old.articleURL
+                )
+            }
+            return updated
+        }
+    }
+
+    /// Scrapes the first image URL from inside the <article> tag of a webpage.
+    private func scrapeImageURL(from url: URL) async -> String {
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            guard let html = String(data: data, encoding: .utf8) else { return "" }
+
+            // Find content inside <article...>...</article>
+            guard let articlePattern = try? NSRegularExpression(pattern: "<article[^>]*>(.*?)</article>", options: .dotMatchesLineSeparators),
+                  let articleMatch = articlePattern.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
+                  let articleRange = Range(articleMatch.range(at: 1), in: html) else {
+                return ""
+            }
+
+            let articleHTML = String(html[articleRange])
+
+            // Extract first img src from the article content
+            guard let imgPattern = try? NSRegularExpression(pattern: "<img[^>]+src\\s*=\\s*[\"']([^\"']+)[\"']", options: .caseInsensitive),
+                  let imgMatch = imgPattern.firstMatch(in: articleHTML, range: NSRange(articleHTML.startIndex..., in: articleHTML)),
+                  let srcRange = Range(imgMatch.range(at: 1), in: articleHTML) else {
+                return ""
+            }
+
+            return String(articleHTML[srcRange])
+        } catch {
+            return ""
+        }
     }
 }

@@ -162,19 +162,26 @@ struct ArticleRowCard: View {
                 Spacer()
 
                 // Thumbnail
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.ucdBlue.opacity(0.2), Color.ucdBlue.opacity(0.1)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-
-                    Image(systemName: "photo")
-                        .font(.system(size: 20))
-                        .foregroundColor(.white.opacity(0.5))
+                Group {
+                    if let url = URL(string: article.imageURL), !article.imageURL.isEmpty {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                            case .failure(_):
+                                thumbnailPlaceholder
+                            case .empty:
+                                thumbnailPlaceholder
+                                    .overlay(ProgressView())
+                            @unknown default:
+                                thumbnailPlaceholder
+                            }
+                        }
+                    } else {
+                        thumbnailPlaceholder
+                    }
                 }
                 .frame(width: 80, height: 80)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -192,6 +199,23 @@ struct ArticleRowCard: View {
             .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
         }
         .buttonStyle(PlainButtonStyle())
+    }
+
+    private var thumbnailPlaceholder: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.ucdBlue.opacity(0.2), Color.ucdBlue.opacity(0.1)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            Image(systemName: article.categoryIcon)
+                .font(.system(size: 20))
+                .foregroundColor(.white.opacity(0.5))
+        }
     }
 }
 
