@@ -119,6 +119,9 @@ class GameViewModel {
     /// Whether the score has been submitted for this game
     var scoreSubmitted: Bool = false
 
+    /// Whether the score has been saved locally
+    private var localScoreSaved: Bool = false
+
     // MARK: - Word Lists
 
     /// Combined set of valid words (answers + valid guesses)
@@ -183,6 +186,7 @@ class GameViewModel {
         if gameState == .playing && !isArchiveMode {
             gameStartTime = Date()
             scoreSubmitted = false
+            localScoreSaved = false
             assignedUsername = nil
         }
     }
@@ -439,12 +443,15 @@ class GameViewModel {
         let duration = Int(Date().timeIntervalSince(startTime))
         gameDurationSeconds = duration
 
+        // Save locally first (offline-first approach)
+        saveScoreToLocalLeaderboard()
+
         // Format date for API (YYYY-MM-DD)
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let puzzleDate = dateFormatter.string(from: currentDate)
 
-        // Submit score asynchronously
+        // Submit score asynchronously to remote server
         Task {
             do {
                 let response = try await LeaderboardService.shared.submitScore(
@@ -457,14 +464,58 @@ class GameViewModel {
                 await MainActor.run {
                     self.assignedUsername = response.score.username
                     self.scoreSubmitted = true
+
+                    // Update local score with username and mark as synced
+                    if let existingScore = LocalLeaderboardService.shared.getUserScore(for: .wordle, date: self.currentDate) {
+                        LocalLeaderboardService.shared.markAsSynced(
+                            existingScore.id,
+                            remoteId: response.score.id,
+                            username: response.score.username
+                        )
+                    }
                 }
 
                 print("Score submitted! Username: \(response.score.username)")
             } catch {
+                // Mark local score as failed to sync
+                if let existingScore = LocalLeaderboardService.shared.getUserScore(for: .wordle, date: self.currentDate) {
+                    LocalLeaderboardService.shared.markAsFailed(existingScore.id)
+                }
                 // Log error but don't disrupt user experience
                 print("Failed to submit score: \(error)")
             }
         }
+    }
+
+    /// Saves the score to the local leaderboard.
+    /// Called before remote submission for offline support.
+    private func saveScoreToLocalLeaderboard() {
+        // Prevent duplicate saves
+        guard !localScoreSaved else { return }
+        guard gameState == .won else { return }
+
+        let calculatedScore = LocalScore.calculateWordleScore(
+            guesses: currentRow,
+            timeSeconds: gameDurationSeconds
+        )
+
+        let metadata = GameMetadata.wordle(
+            guesses: currentRow,
+            timeSeconds: gameDurationSeconds
+        )
+
+        let localScore = LocalScore(
+            gameType: .wordle,
+            score: calculatedScore,
+            date: currentDate,
+            metadata: metadata,
+            username: assignedUsername  // Will be nil initially, updated after remote sync
+        )
+
+        LocalLeaderboardService.shared.saveScore(localScore)
+        localScoreSaved = true
+
+        print("GameViewModel: Saved Wordle score \(calculatedScore) to local leaderboard")
     }
 
     // MARK: - Keyboard State Management

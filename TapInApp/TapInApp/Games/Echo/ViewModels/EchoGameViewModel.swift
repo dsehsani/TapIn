@@ -56,6 +56,11 @@ class EchoGameViewModel {
     var roundResults: [Bool] = []
     var attemptsUsedPerRound: [Int] = []
 
+    // MARK: - Leaderboard Integration
+
+    /// Whether the score has been saved to local leaderboard
+    private var scoreSaved: Bool = false
+
     // MARK: - All Rounds
 
     var rounds: [EchoRound] = []
@@ -80,6 +85,7 @@ class EchoGameViewModel {
         roundScores = []
         roundResults = []
         attemptsUsedPerRound = []
+        scoreSaved = false
         startRound()
     }
 
@@ -109,6 +115,7 @@ class EchoGameViewModel {
             startRound()
         } else {
             gameState = .gameOver
+            saveScoreToLocalLeaderboard()
         }
     }
 
@@ -289,5 +296,35 @@ class EchoGameViewModel {
     /// Number of rounds solved
     var roundsSolved: Int {
         roundResults.filter { $0 }.count
+    }
+
+    // MARK: - Leaderboard Methods
+
+    /// Saves the final score to the local leaderboard.
+    /// Called automatically when game ends.
+    private func saveScoreToLocalLeaderboard() {
+        // Prevent duplicate saves
+        guard !scoreSaved else { return }
+        guard gameState == .gameOver else { return }
+
+        let metadata = GameMetadata.echo(
+            totalScore: score,
+            roundScores: roundScores,
+            perfectRounds: perfectRounds,
+            totalAttempts: totalAttemptsUsed,
+            roundsSolved: roundsSolved
+        )
+
+        let localScore = LocalScore(
+            gameType: .echo,
+            score: score,
+            date: Date(),  // Echo doesn't have daily puzzles, use current date
+            metadata: metadata
+        )
+
+        LocalLeaderboardService.shared.saveScore(localScore)
+        scoreSaved = true
+
+        print("EchoGameViewModel: Saved score \(score) to local leaderboard")
     }
 }

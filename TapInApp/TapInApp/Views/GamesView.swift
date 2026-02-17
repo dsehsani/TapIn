@@ -32,6 +32,19 @@ struct GamesView: View {
 
                         Spacer()
 
+                        // Leaderboard Button
+                        Button(action: { viewModel.showLeaderboard() }) {
+                            Image(systemName: "trophy.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(Color.ucdGold)
+                                .frame(width: 44, height: 44)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(colorScheme == .dark ? Color(hex: "#1e293b") : .white)
+                                        .shadow(color: .black.opacity(0.05), radius: 4)
+                                )
+                        }
+
                         // Streak Badge
                         VStack(spacing: 2) {
                             Text("\(viewModel.userStats.currentStreak)")
@@ -109,6 +122,11 @@ struct GamesView: View {
         .fullScreenCover(isPresented: $viewModel.showingCrossword) {
             MiniCrosswordGameView(onDismiss: {
                 viewModel.dismissGame()
+            })
+        }
+        .fullScreenCover(isPresented: $viewModel.showingLeaderboard) {
+            LeaderboardView(onDismiss: {
+                viewModel.dismissLeaderboard()
             })
         }
     }

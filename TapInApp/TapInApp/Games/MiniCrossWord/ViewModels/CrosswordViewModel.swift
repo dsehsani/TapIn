@@ -36,6 +36,11 @@ class CrosswordViewModel {
     private var timerTask: Task<Void, Never>?
     private var gameStartTime: Date?
 
+    // MARK: - Leaderboard Integration
+
+    /// Whether the score has been saved to local leaderboard
+    private var scoreSaved: Bool = false
+
     // MARK: - Daily Mode
 
     var currentDate: Date = Date()
@@ -64,6 +69,7 @@ class CrosswordViewModel {
         selectedCol = 0
         currentDirection = .across
         elapsedSeconds = 0
+        scoreSaved = false
 
         // Find first non-blocked cell
         selectFirstAvailableCell()
@@ -373,6 +379,7 @@ class CrosswordViewModel {
         gameState = .completed
         stopTimer()
         saveCurrentState()
+        saveScoreToLocalLeaderboard()
     }
 
     // MARK: - Timer Management
@@ -438,5 +445,37 @@ class CrosswordViewModel {
     /// Returns whether a cell is currently selected
     func isSelected(row: Int, col: Int) -> Bool {
         return row == selectedRow && col == selectedCol
+    }
+
+    // MARK: - Leaderboard Methods
+
+    /// Saves the completion to the local leaderboard.
+    /// Called automatically when puzzle is completed.
+    /// Note: Only completion time matters for ranking (hints don't affect score)
+    private func saveScoreToLocalLeaderboard() {
+        // Prevent duplicate saves
+        guard !scoreSaved else { return }
+        guard gameState == .completed else { return }
+
+        // Score based on completion time only
+        let calculatedScore = LocalScore.calculateCrosswordScore(
+            completionTimeSeconds: elapsedSeconds
+        )
+
+        let metadata = GameMetadata.crossword(
+            completionTimeSeconds: elapsedSeconds
+        )
+
+        let localScore = LocalScore(
+            gameType: .crossword,
+            score: calculatedScore,
+            date: currentDate,
+            metadata: metadata
+        )
+
+        LocalLeaderboardService.shared.saveScore(localScore)
+        scoreSaved = true
+
+        print("CrosswordViewModel: Saved score \(calculatedScore) (time: \(elapsedSeconds)s) to local leaderboard")
     }
 }

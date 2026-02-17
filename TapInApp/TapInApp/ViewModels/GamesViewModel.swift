@@ -21,6 +21,7 @@ class GamesViewModel: ObservableObject {
     @Published var showingWordle: Bool = false
     @Published var showingEcho: Bool = false
     @Published var showingCrossword: Bool = false
+    @Published var showingLeaderboard: Bool = false
 
     init() {
         loadAvailableGames()
@@ -57,7 +58,16 @@ class GamesViewModel: ObservableObject {
         showingWordle = false
         showingEcho = false
         showingCrossword = false
+        showingLeaderboard = false
         currentGame = nil
+    }
+
+    func showLeaderboard() {
+        showingLeaderboard = true
+    }
+
+    func dismissLeaderboard() {
+        showingLeaderboard = false
     }
 
     func endGame() {
