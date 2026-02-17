@@ -1,0 +1,43 @@
+#
+#  .gcloudignore
+#  TapInApp - Wordle Leaderboard Server
+#
+#  Created by Darius Ehsani on 2/2/26.
+#
+#  MARK: - Google Cloud Ignore File
+#  Files and directories listed here will not be uploaded when deploying
+#  to Google App Engine.
+#
+
+# Git files
+.git
+.gitignore
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+.env
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Documentation (not needed in deployment)
+*.md
+README*
+
+# Local development files
+.DS_Store
+Thumbs.db
