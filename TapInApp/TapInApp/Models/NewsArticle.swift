@@ -17,6 +17,7 @@ struct NewsArticle: Identifiable {
     let author: String?
     let readTime: Int?
     let isFeatured: Bool
+    let articleURL: String?
 
     init(
         id: UUID = UUID(),
@@ -27,7 +28,8 @@ struct NewsArticle: Identifiable {
         timestamp: Date = Date(),
         author: String? = nil,
         readTime: Int? = nil,
-        isFeatured: Bool = false
+        isFeatured: Bool = false,
+        articleURL: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -38,6 +40,7 @@ struct NewsArticle: Identifiable {
         self.author = author
         self.readTime = readTime
         self.isFeatured = isFeatured
+        self.articleURL = articleURL
     }
 }
 
