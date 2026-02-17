@@ -44,6 +44,25 @@ struct NewsArticle: Identifiable {
     }
 }
 
+// MARK: - Helpers
+extension NewsArticle {
+    /// Returns an SF Symbol name matching the article's category, used as a fallback when no image is available.
+    var categoryIcon: String {
+        switch category {
+        case "Campus": return "building.2.fill"
+        case "City": return "building.fill"
+        case "Opinion": return "text.bubble.fill"
+        case "Features": return "star.fill"
+        case "Arts & Culture": return "paintpalette.fill"
+        case "Sports": return "sportscourt.fill"
+        case "Science & Tech": return "atom"
+        case "Editorial": return "doc.text.fill"
+        case "Column": return "quote.bubble.fill"
+        default: return "newspaper.fill"
+        }
+    }
+}
+
 // MARK: - Sample Data (Where we populate our data)
 extension NewsArticle {
     static let sampleData: [NewsArticle] = [

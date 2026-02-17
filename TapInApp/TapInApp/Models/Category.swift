@@ -36,7 +36,9 @@ extension Category {
         Category(name: "Features", icon: "star.fill"),
         Category(name: "Arts & Culture", icon: "paintpalette.fill"),
         Category(name: "Sports", icon: "sportscourt.fill"),
-        Category(name: "Science & Tech", icon: "atom")
+        Category(name: "Science & Tech", icon: "atom"),
+        Category(name: "Editorial", icon: "doc.text.fill"),
+        Category(name: "Column", icon: "quote.bubble.fill")
     ]
 
     /// Maps category display name to NewsService.NewsCategory
@@ -50,6 +52,8 @@ extension Category {
         case "Arts & Culture": return .artsCulture
         case "Sports": return .sports
         case "Science & Tech": return .scienceTech
+        case "Editorial": return .editorial
+        case "Column": return .column
         default: return .all
         }
     }
