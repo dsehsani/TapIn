@@ -54,37 +54,37 @@ struct NewsView: View {
                         .padding(.bottom, 24)
                     }
 
-                    // Latest Updates Section
-                    VStack(spacing: 16) {
+                    // Top Stories Section
+                    VStack(spacing: 0) {
                         // Section Header
                         HStack {
-                            Text("Latest Updates")
-                                .font(.system(size: 18, weight: .bold))
+                            Text("Top Stories")
+                                .font(.system(size: 22, weight: .bold))
                                 .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
 
                             Spacer()
-
-                            Button(action: {}) {
-                                Text("See all")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
-                            }
                         }
                         .padding(.horizontal, 16)
+                        .padding(.bottom, 12)
 
                         // Article List
-                        LazyVStack(spacing: 16) {
+                        LazyVStack(spacing: 12) {
                             ForEach(viewModel.latestArticles) { article in
                                 ArticleRowCard(
                                     article: article,
                                     colorScheme: colorScheme,
-                                    onTap: {
-                                        selectedArticle = article
-                                    }
+                                    onTap: { selectedArticle = article }
                                 )
-                                .padding(.horizontal, 16)
+                                .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"), lineWidth: 1)
+                                )
+                                .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
                             }
                         }
+                        .padding(.horizontal, 16)
                     }
 
                     Spacer(minLength: 0)
@@ -128,7 +128,7 @@ struct NewsView: View {
     }
 }
 
-// MARK: - Article Row Card (inline for simplicity)
+// MARK: - Article Row Card (Apple News style)
 struct ArticleRowCard: View {
     let article: NewsArticle
     let colorScheme: ColorScheme
@@ -136,88 +136,87 @@ struct ArticleRowCard: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(article.category.uppercased())
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+            VStack(alignment: .leading, spacing: 0) {
 
+                // Publisher row — top left, Apple News style
+                HStack(spacing: 5) {
+                    Image(systemName: "newspaper.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+                    Text("THE CALIFORNIA AGGIE")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(0.4)
+                        .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 14)
+                .padding(.bottom, 10)
+
+                // Content row — title left, thumbnail right
+                HStack(alignment: .top, spacing: 12) {
                     Text(article.title)
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
-                        .lineLimit(2)
                         .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .font(.system(size: 12))
-                        Text(article.timestamp.timeAgoDisplay())
-                        if let readTime = article.readTime {
-                            Text("•")
-                            Text("\(readTime) min read")
-                        }
-                    }
-                    .font(.system(size: 10))
-                    .italic()
-                    .foregroundColor(.textSecondary)
-                    .padding(.top, 4)
+                    Spacer(minLength: 0)
+
+                    thumbnailView
+                        .frame(width: 90, height: 90)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
+                .padding(.horizontal, 14)
 
-                Spacer()
-
-                // Thumbnail
-                Group {
-                    if let url = URL(string: article.imageURL), !article.imageURL.isEmpty {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                            case .failure(_):
-                                thumbnailPlaceholder
-                            case .empty:
-                                thumbnailPlaceholder
-                                    .overlay(ProgressView())
-                            @unknown default:
-                                thumbnailPlaceholder
-                            }
-                        }
-                    } else {
-                        thumbnailPlaceholder
+                // Metadata row — category · time · read time
+                HStack(spacing: 4) {
+                    Text(article.category)
+                        .font(.system(size: 11, weight: .medium))
+                    Text("·")
+                    Text(article.timestamp.timeAgoDisplay())
+                        .font(.system(size: 11))
+                    if let readTime = article.readTime {
+                        Text("·")
+                        Text("\(readTime) min read")
+                            .font(.system(size: 11))
                     }
                 }
-                .frame(width: 80, height: 80)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+                .padding(.bottom, 14)
             }
-            .padding(16)
-            .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(
-                        colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"),
-                        lineWidth: 1
-                    )
-            )
-            .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
         }
         .buttonStyle(PlainButtonStyle())
     }
 
+    private var thumbnailView: some View {
+        Group {
+            if let url = URL(string: article.imageURL), !article.imageURL.isEmpty {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        thumbnailPlaceholder
+                    }
+                }
+            } else {
+                thumbnailPlaceholder
+            }
+        }
+    }
+
     private var thumbnailPlaceholder: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(
-                    LinearGradient(
-                        colors: [Color.ucdBlue.opacity(0.2), Color.ucdBlue.opacity(0.1)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-
+            LinearGradient(
+                colors: [Color.ucdBlue.opacity(0.25), Color.ucdBlue.opacity(0.1)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
             Image(systemName: article.categoryIcon)
-                .font(.system(size: 20))
+                .font(.system(size: 22))
                 .foregroundColor(.white.opacity(0.5))
         }
     }
