@@ -102,14 +102,31 @@ private struct ArticleReadingView: View {
                         ForEach(Array(content.bodyParagraphs.enumerated()), id: \.offset) { _, paragraph in
                             if isQuote(paragraph) {
                                 QuoteCalloutView(text: paragraph, colorScheme: colorScheme)
+                            } else if isFullBold(paragraph) {
+                                sectionHeader(strippingMarkers(from: paragraph), colorScheme: colorScheme)
                             } else {
-                                Text(paragraph)
-                                    .font(.system(size: 16))
-                                    .lineSpacing(7)
-                                    .foregroundColor(colorScheme == .dark ? Color(hex: "#cbd5e1") : Color(hex: "#1e293b"))
-                                    .fixedSize(horizontal: false, vertical: true)
+                                bodyText(paragraph)
                             }
                         }
+
+                        // Open in Browser button
+                        Link(destination: content.articleURL) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "safari")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Open in Browser")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+                            .padding(.vertical, 12)
+                            .padding(.horizontal, 24)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue, lineWidth: 1.5)
+                            )
+                        }
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 8)
 
                         Spacer(minLength: 48)
                     }
@@ -141,10 +158,56 @@ private struct ArticleReadingView: View {
         }
     }
 
+    // Renders a paragraph, interpreting **bold** markdown from the parser
+    @ViewBuilder
+    private func bodyText(_ paragraph: String) -> some View {
+        let textColor: Color = colorScheme == .dark ? Color(hex: "#cbd5e1") : Color(hex: "#1e293b")
+        if let attributed = try? AttributedString(
+            markdown: paragraph,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        ) {
+            Text(attributed)
+                .font(.system(size: 16))
+                .lineSpacing(7)
+                .foregroundColor(textColor)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text(paragraph)
+                .font(.system(size: 16))
+                .lineSpacing(7)
+                .foregroundColor(textColor)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     // Returns true if the paragraph looks like a direct quote
     private func isQuote(_ text: String) -> Bool {
         let quoteStarters: [Character] = ["\"", "\u{201C}", "\u{2018}"] // ", ", '
         return quoteStarters.contains(where: { text.hasPrefix(String($0)) })
+    }
+
+    // Returns true if the ENTIRE paragraph is bold (acts as a section subheading)
+    private func isFullBold(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.hasPrefix("**") && t.hasSuffix("**") && t.count > 4
+    }
+
+    // Strips the leading/trailing ** markers from a full-bold paragraph
+    private func strippingMarkers(from text: String) -> String {
+        var t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.hasPrefix("**") { t = String(t.dropFirst(2)) }
+        if t.hasSuffix("**") { t = String(t.dropLast(2)) }
+        return t.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // H3-style section subheading for full-bold paragraphs
+    @ViewBuilder
+    private func sectionHeader(_ text: String, colorScheme: ColorScheme) -> some View {
+        Text(text)
+            .font(.system(size: 17, weight: .bold))
+            .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 8)
     }
 
     private var imagePlaceholder: some View {

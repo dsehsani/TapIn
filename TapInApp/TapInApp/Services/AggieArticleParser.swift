@@ -50,12 +50,15 @@ final class AggieArticleParser {
             ?? fallback.title
 
         // --- Author ---
-        // The Aggie pattern: "By FIRSTNAME LASTNAME — email@theaggie.org"
-        let authorLine = (try? doc.select(".author-name").first()?.text())
-            ?? (try? doc.select("a[rel='author']").first()?.text())
-            ?? (try? doc.select(".entry-author").first()?.text())
-            ?? fallback.author
-            ?? "The Aggie"
+        // Scan body paragraphs for "By NAME" first — most reliable for The Aggie.
+        // Fall back to meta element selectors, then RSS fallback.
+        var authorLine: String = fallback.author ?? "The Aggie"
+        if let v = extractBylineFromContent(doc)                                           { authorLine = v }
+        else if let v = try? doc.select(".author-name").first()?.text(), !v.isEmpty        { authorLine = v }
+        else if let v = try? doc.select(".entry-author").first()?.text(), !v.isEmpty       { authorLine = v }
+        else if let v = try? doc.select(".author.vcard a").first()?.text(), !v.isEmpty     { authorLine = v }
+        else if let v = try? doc.select(".byline a").first()?.text(), !v.isEmpty           { authorLine = v }
+        else if let v = try? doc.select(".entry-meta .author").first()?.text(), !v.isEmpty { authorLine = v }
 
         let (authorName, authorEmail) = parseAuthorLine(authorLine, fallback: fallback.author ?? "The Aggie")
 
@@ -120,19 +123,79 @@ final class AggieArticleParser {
         let noisePatterns = ["follow us on", "subscribe to", "support the aggie", "©", "written by"]
 
         let cleaned: [String] = try paragraphs.compactMap { p in
-            let text = try p.text().trimmingCharacters(in: .whitespacesAndNewlines)
+            // Use inner HTML to preserve bold/strong markup
+            let text = extractTextPreservingBold(from: p)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
 
-            // Skip very short or navigational paragraphs
             guard text.count > 20 else { return nil }
 
-            // Skip noise
             let lower = text.lowercased()
+
+            // Filter out the byline paragraph ("By NAME — email")
+            guard !lower.hasPrefix("by ") else { return nil }
+
             guard !noisePatterns.contains(where: { lower.hasPrefix($0) || lower.contains($0) }) else { return nil }
 
             return text
         }
 
         return cleaned
+    }
+
+    /// Converts inner HTML of a <p> to plain text, wrapping <strong>/<b> content with **markdown**.
+    private func extractTextPreservingBold(from element: Element) -> String {
+        guard var html = try? element.html() else {
+            return (try? element.text()) ?? ""
+        }
+
+        // Replace <strong> and <b> tags with markdown bold markers
+        let boldOpen  = try? NSRegularExpression(pattern: "<(strong|b)[^>]*>", options: .caseInsensitive)
+        let boldClose = try? NSRegularExpression(pattern: "</(strong|b)>",     options: .caseInsensitive)
+        let range = NSRange(html.startIndex..., in: html)
+        html = boldOpen?.stringByReplacingMatches(in: html, range: range, withTemplate: "**") ?? html
+        let range2 = NSRange(html.startIndex..., in: html)
+        html = boldClose?.stringByReplacingMatches(in: html, range: range2, withTemplate: "**") ?? html
+
+        // Strip all remaining HTML tags
+        let tagPattern = try? NSRegularExpression(pattern: "<[^>]+>", options: [])
+        let range3 = NSRange(html.startIndex..., in: html)
+        html = tagPattern?.stringByReplacingMatches(in: html, range: range3, withTemplate: "") ?? html
+
+        // Tighten up ** markers — "** text **" → "**text**" so markdown parses correctly
+        let spaceAfter  = try? NSRegularExpression(pattern: #"\*\*\s+"#, options: [])
+        let spaceBefore = try? NSRegularExpression(pattern: #"\s+\*\*"#, options: [])
+        let r4 = NSRange(html.startIndex..., in: html)
+        html = spaceAfter?.stringByReplacingMatches(in: html, range: r4, withTemplate: "**") ?? html
+        let r5 = NSRange(html.startIndex..., in: html)
+        html = spaceBefore?.stringByReplacingMatches(in: html, range: r5, withTemplate: "**") ?? html
+
+        // Decode common HTML entities
+        return html
+            .replacingOccurrences(of: "&amp;",   with: "&")
+            .replacingOccurrences(of: "&lt;",    with: "<")
+            .replacingOccurrences(of: "&gt;",    with: ">")
+            .replacingOccurrences(of: "&quot;",  with: "\"")
+            .replacingOccurrences(of: "&nbsp;",  with: " ")
+            .replacingOccurrences(of: "&#160;",  with: " ")
+            .replacingOccurrences(of: "&#8220;", with: "\u{201C}")
+            .replacingOccurrences(of: "&#8221;", with: "\u{201D}")
+            .replacingOccurrences(of: "&#8216;", with: "\u{2018}")
+            .replacingOccurrences(of: "&#8217;", with: "\u{2019}")
+            .replacingOccurrences(of: "&#8230;", with: "…")
+            .replacingOccurrences(of: "&#38;",   with: "&")
+    }
+
+    /// Scans the first 6 paragraphs for a line starting with "By " — The Aggie's byline format.
+    private func extractBylineFromContent(_ doc: Document) -> String? {
+        guard let paragraphs = try? doc.select("p") else { return nil }
+        for (i, p) in paragraphs.enumerated() {
+            if i > 6 { break }
+            let text = (try? p.text())?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if text.lowercased().hasPrefix("by ") {
+                return text
+            }
+        }
+        return nil
     }
 
     // MARK: - Author Line Parser
