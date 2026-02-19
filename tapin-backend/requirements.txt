@@ -25,3 +25,9 @@ python-dotenv>=1.0.0
 
 # Google Cloud Firestore (persistent storage for processed events)
 google-cloud-firestore>=2.14.0
+
+# RSS feed parsing (for The Aggie article caching)
+feedparser>=6.0.0
+
+# HTML parsing for article body extraction (server-side)
+beautifulsoup4>=4.12.0

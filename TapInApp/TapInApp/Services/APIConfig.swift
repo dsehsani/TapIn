@@ -25,6 +25,13 @@ enum APIConfig {
     /// GET - All AI-processed campus events (with aiSummary + aiBulletPoints)
     static var eventsURL: String { "\(baseURL)/api/events" }
 
+    // MARK: - Articles Endpoint
+
+    /// GET /api/articles?category=xxx — Firestore-cached Aggie article list
+    static func articlesURL(category: String) -> String {
+        "\(baseURL)api/articles?category=\(category)"
+    }
+
     // MARK: - Claude Endpoints
 
     /// POST - Summarize an event description

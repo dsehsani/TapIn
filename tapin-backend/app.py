@@ -28,6 +28,7 @@ from dotenv import load_dotenv
 from api.leaderboard import leaderboard_bp
 from api.claude import claude_bp
 from api.events import events_bp
+from api.articles import articles_bp
 
 # Load environment variables from .env file (for local development)
 load_dotenv()
@@ -87,6 +88,10 @@ def create_app() -> Flask:
     # All event endpoints will be prefixed with /api/events
     app.register_blueprint(events_bp)
 
+    # Register the Articles blueprint
+    # All article endpoints will be prefixed with /api/articles
+    app.register_blueprint(articles_bp)
+
     # --------------------------------------------------------------------------
     # MARK: - Root Endpoint
     # --------------------------------------------------------------------------
@@ -120,6 +125,9 @@ def create_app() -> Flask:
                 "get_events": "GET /api/events",
                 "refresh_events": "POST /api/events/refresh",
                 "events_health": "GET /api/events/health",
+                "get_articles": "GET /api/articles?category=all",
+                "refresh_articles": "POST /api/articles/refresh",
+                "articles_health": "GET /api/articles/health",
             }
         })
 

@@ -12,9 +12,10 @@ import Foundation
 
 class NewsService {
 
-    // MARK: - Article Content Cache
+    // MARK: - Caches
     private let parser = AggieArticleParser()
-    private var contentCache: [String: ArticleContent] = [:]
+    private var contentCache: [String: ArticleContent] = [:]   // In-memory (session)
+    private let diskCache = ArticleCacheService.shared         // FileManager (persistent)
 
     // MARK: - Feed URLs
 
@@ -94,12 +95,50 @@ class NewsService {
         }
     }
 
-    // MARK: - Fetch Articles
+    // MARK: - Fetch Articles (two-layer cache: disk → backend → direct RSS)
 
-    /// Fetches and parses articles from The Aggie RSS feed for a specific category.
+    /// Fetches articles for a category.
+    /// Layer 1: FileManager disk cache (30-min TTL, works offline)
+    /// Layer 2: Backend /api/articles (Firestore-cached, shared across users)
+    /// Layer 3: Direct Aggie RSS fallback (original behaviour)
     func fetchArticles(category: NewsCategory = .all) async throws -> [NewsArticle] {
-        let url = category.feedURL
+        let slug = category.rawValue.isEmpty ? "all" : category.rawValue
 
+        // Layer 1 — disk cache
+        if let cached = diskCache.loadArticleList(category: slug) {
+            return cached
+        }
+
+        // Layer 2 — backend
+        if let backendArticles = await fetchFromBackend(category: slug) {
+            diskCache.saveArticleList(backendArticles, category: slug)
+            return backendArticles
+        }
+
+        // Layer 3 — direct RSS fallback
+        return try await fetchDirectFromRSS(category: category)
+    }
+
+    // MARK: - Backend Fetch
+
+    private func fetchFromBackend(category: String) async -> [NewsArticle]? {
+        guard let url = URL(string: APIConfig.articlesURL(category: category)) else { return nil }
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else { return nil }
+
+            let decoded = try JSONDecoder().decode(BackendArticlesResponse.self, from: data)
+            return decoded.success ? decoded.articles : nil
+        } catch {
+            print("NewsService: backend fetch failed, falling back to RSS — \(error)")
+            return nil
+        }
+    }
+
+    // MARK: - Direct RSS Fallback (original behaviour)
+
+    private func fetchDirectFromRSS(category: NewsCategory) async throws -> [NewsArticle] {
+        let url = category.feedURL
         let data: Data
         let response: URLResponse
 
@@ -109,7 +148,6 @@ class NewsService {
             throw ServiceError.networkFailure(error)
         }
 
-        // Verify we got a valid HTTP response
         if let httpResponse = response as? HTTPURLResponse,
            !(200...299).contains(httpResponse.statusCode) {
             throw ServiceError.networkFailure(
@@ -123,17 +161,10 @@ class NewsService {
         }
 
         let articles = RSSParser.parse(xmlString, defaultCategory: category.displayName)
+        if articles.isEmpty { throw ServiceError.parsingFailed }
 
-        if articles.isEmpty {
-            throw ServiceError.parsingFailed
-        }
-
-        // Sort by date, newest first
         var sorted = articles.sorted { $0.timestamp > $1.timestamp }
-
-        // Fetch featured images from article pages in parallel
         sorted = await fetchArticleImages(for: sorted)
-
         return sorted
     }
 
@@ -142,20 +173,33 @@ class NewsService {
         return try await fetchArticles(category: .all)
     }
 
-    // MARK: - Article Content Fetching
+    // MARK: - Article Content Fetching (in-memory → disk → scrape)
 
-    /// Fetches and parses the full article body for in-app reading.
-    /// Results are cached in memory to avoid re-fetching opened articles.
+    /// Fetches the full article body for in-app reading.
+    /// Layer 1: In-memory cache (session)
+    /// Layer 2: FileManager disk cache (permanent, per device)
+    /// Layer 3: Live HTML scrape via AggieArticleParser
     func fetchArticleContent(for article: NewsArticle) async throws -> ArticleContent {
         let cacheKey = article.articleURL ?? article.id.uuidString
+
+        // Layer 1 — in-memory
         if let cached = contentCache[cacheKey] {
             return cached
         }
+
+        // Layer 2 — disk
+        if let cached = diskCache.loadArticleContent(articleURL: cacheKey) {
+            contentCache[cacheKey] = cached
+            return cached
+        }
+
+        // Layer 3 — live scrape
         guard let urlString = article.articleURL, let url = URL(string: urlString) else {
             throw AggieParserError.invalidURL
         }
         let content = try await parser.fetchAndParse(articleURL: url, fallback: article)
         contentCache[cacheKey] = content
+        diskCache.saveArticleContent(content, articleURL: cacheKey)
         return content
     }
 
@@ -195,7 +239,7 @@ class NewsService {
         }
     }
 
-    /// Scrapes the first image URL from inside the <article> tag of a webpage.
+    /// Scrapes the first image URL from inside the &lt;article&gt; tag of a webpage.
     private func scrapeImageURL(from url: URL) async -> String {
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
@@ -222,4 +266,11 @@ class NewsService {
             return ""
         }
     }
+}
+
+// MARK: - Backend Response Model
+
+private struct BackendArticlesResponse: Decodable {
+    let success: Bool
+    let articles: [NewsArticle]
 }
