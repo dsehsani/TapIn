@@ -17,6 +17,7 @@ class SavedViewModel: ObservableObject {
     @Published var savedEvents: [CampusEvent] = []
 
     private let savedEventsKey = "savedEvents"
+    private let savedArticlesKey = "savedArticles"
 
     // MARK: - Temporal Filtering
 
@@ -101,11 +102,18 @@ class SavedViewModel: ObservableObject {
            let events = try? JSONDecoder().decode([CampusEvent].self, from: data) {
             savedEvents = events
         }
+        if let data = UserDefaults.standard.data(forKey: savedArticlesKey),
+           let articles = try? JSONDecoder().decode([NewsArticle].self, from: data) {
+            savedArticles = articles
+        }
     }
 
     private func persistContent() {
         if let data = try? JSONEncoder().encode(savedEvents) {
             UserDefaults.standard.set(data, forKey: savedEventsKey)
+        }
+        if let data = try? JSONEncoder().encode(savedArticles) {
+            UserDefaults.standard.set(data, forKey: savedArticlesKey)
         }
     }
 }

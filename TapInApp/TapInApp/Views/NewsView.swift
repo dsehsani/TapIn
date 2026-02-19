@@ -10,6 +10,7 @@ import SwiftUI
 struct NewsView: View {
     @ObservedObject var viewModel: NewsViewModel
     @ObservedObject var gamesViewModel: GamesViewModel
+    @ObservedObject var savedViewModel: SavedViewModel
     @Binding var selectedTab: TabItem
 
     @Environment(\.colorScheme) var colorScheme
@@ -73,7 +74,9 @@ struct NewsView: View {
                                 ArticleRowCard(
                                     article: article,
                                     colorScheme: colorScheme,
-                                    onTap: { selectedArticle = article }
+                                    isSaved: savedViewModel.isArticleSaved(article),
+                                    onTap: { selectedArticle = article },
+                                    onSave: { savedViewModel.toggleArticleSaved(article) }
                                 )
                                 .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
                                 .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -95,7 +98,7 @@ struct NewsView: View {
                 await viewModel.refreshArticles()
             }
             .sheet(item: $selectedArticle) { article in
-                ArticleDetailView(article: article)
+                ArticleDetailView(article: article, savedViewModel: savedViewModel)
             }
 
             // Sticky Header
@@ -132,7 +135,9 @@ struct NewsView: View {
 struct ArticleRowCard: View {
     let article: NewsArticle
     let colorScheme: ColorScheme
+    var isSaved: Bool = false
     var onTap: () -> Void
+    var onSave: () -> Void = {}
 
     var body: some View {
         Button(action: onTap) {
@@ -169,7 +174,7 @@ struct ArticleRowCard: View {
                 }
                 .padding(.horizontal, 14)
 
-                // Metadata row — category · time · read time
+                // Metadata row — category · time · read time + bookmark
                 HStack(spacing: 4) {
                     Text(article.category)
                         .font(.system(size: 11, weight: .medium))
@@ -181,6 +186,15 @@ struct ArticleRowCard: View {
                         Text("\(readTime) min read")
                             .font(.system(size: 11))
                     }
+                    Spacer()
+                    Button(action: {
+                        onSave()
+                    }) {
+                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(isSaved ? (colorScheme == .dark ? Color.ucdGold : Color.ucdBlue) : .secondary)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 14)
@@ -226,6 +240,7 @@ struct ArticleRowCard: View {
     NewsView(
         viewModel: NewsViewModel(),
         gamesViewModel: GamesViewModel(),
+        savedViewModel: SavedViewModel(),
         selectedTab: .constant(.news)
     )
 }

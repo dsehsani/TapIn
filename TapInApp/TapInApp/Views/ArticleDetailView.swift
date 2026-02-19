@@ -10,6 +10,7 @@ import SwiftUI
 
 struct ArticleDetailView: View {
     let article: NewsArticle
+    var savedViewModel: SavedViewModel? = nil
     @StateObject private var viewModel = ArticleDetailViewModel()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
@@ -20,7 +21,13 @@ struct ArticleDetailView: View {
             case .idle, .loading:
                 ArticleDetailLoadingView()
             case .loaded(let content):
-                ArticleReadingView(content: content, colorScheme: colorScheme, onDismiss: { dismiss() })
+                ArticleReadingView(
+                    content: content,
+                    colorScheme: colorScheme,
+                    isSaved: savedViewModel?.isArticleSaved(article) ?? false,
+                    onDismiss: { dismiss() },
+                    onSave: { savedViewModel?.toggleArticleSaved(article) }
+                )
             case .failed(let message):
                 ArticleErrorView(message: message, colorScheme: colorScheme, onRetry: {
                     Task { await viewModel.load(article: article) }
@@ -40,6 +47,16 @@ private struct ArticleReadingView: View {
     let content: ArticleContent
     let colorScheme: ColorScheme
     let onDismiss: () -> Void
+    var onSave: () -> Void = {}
+    @State private var isSaved: Bool
+
+    init(content: ArticleContent, colorScheme: ColorScheme, isSaved: Bool, onDismiss: @escaping () -> Void, onSave: @escaping () -> Void) {
+        self.content = content
+        self.colorScheme = colorScheme
+        self.onDismiss = onDismiss
+        self.onSave = onSave
+        self._isSaved = State(initialValue: isSaved)
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -146,11 +163,25 @@ private struct ArticleReadingView: View {
 
                 Spacer()
 
-                ShareLink(item: content.articleURL) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 15, weight: .semibold))
-                        .padding(10)
-                        .background(.thinMaterial, in: Circle())
+                HStack(spacing: 10) {
+                    Button(action: {
+                        isSaved.toggle()
+                        onSave()
+                    }) {
+                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(isSaved ? (colorScheme == .dark ? Color.ucdGold : Color.ucdBlue) : .primary)
+                            .padding(10)
+                            .background(.thinMaterial, in: Circle())
+                            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isSaved)
+                    }
+
+                    ShareLink(item: content.articleURL) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 15, weight: .semibold))
+                            .padding(10)
+                            .background(.thinMaterial, in: Circle())
+                    }
                 }
             }
             .padding(.horizontal, 16)

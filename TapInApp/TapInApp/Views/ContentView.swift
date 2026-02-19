@@ -33,6 +33,7 @@ struct ContentView: View {
                 NewsView(
                     viewModel: newsViewModel,
                     gamesViewModel: gamesViewModel,
+                    savedViewModel: savedViewModel,
                     selectedTab: $selectedTab
                 )
 

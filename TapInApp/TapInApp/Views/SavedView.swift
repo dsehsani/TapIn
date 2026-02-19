@@ -13,6 +13,7 @@ struct SavedView: View {
     @State private var selectedSegment = 0
     @State private var selectedEventSegment = 0
     @State private var selectedEvent: CampusEvent?
+    @State private var selectedArticle: NewsArticle?
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -51,13 +52,22 @@ struct SavedView: View {
                         )
                     } else {
                         ScrollView(showsIndicators: false) {
-                            LazyVStack(spacing: 16) {
+                            LazyVStack(spacing: 12) {
                                 ForEach(viewModel.savedArticles) { article in
-                                    SavedArticleCard(
+                                    ArticleRowCard(
                                         article: article,
                                         colorScheme: colorScheme,
-                                        onRemove: { viewModel.removeArticle(article) }
+                                        isSaved: true,
+                                        onTap: { selectedArticle = article },
+                                        onSave: { viewModel.removeArticle(article) }
                                     )
+                                    .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"), lineWidth: 1)
+                                    )
+                                    .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
                                     .padding(.horizontal, 16)
                                 }
                             }
@@ -149,6 +159,9 @@ struct SavedView: View {
         }
         .sheet(item: $selectedEvent) { event in
             EventDetailView(event: event, savedViewModel: viewModel)
+        }
+        .sheet(item: $selectedArticle) { article in
+            ArticleDetailView(article: article, savedViewModel: viewModel)
         }
     }
 }
