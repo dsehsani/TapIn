@@ -12,6 +12,10 @@ import Foundation
 
 class NewsService {
 
+    // MARK: - Article Content Cache
+    private let parser = AggieArticleParser()
+    private var contentCache: [String: ArticleContent] = [:]
+
     // MARK: - Feed URLs
 
     /// Base URL for The Aggie RSS feeds
@@ -136,6 +140,23 @@ class NewsService {
     /// Fetches articles from all categories and combines them.
     func fetchAllArticles() async throws -> [NewsArticle] {
         return try await fetchArticles(category: .all)
+    }
+
+    // MARK: - Article Content Fetching
+
+    /// Fetches and parses the full article body for in-app reading.
+    /// Results are cached in memory to avoid re-fetching opened articles.
+    func fetchArticleContent(for article: NewsArticle) async throws -> ArticleContent {
+        let cacheKey = article.articleURL ?? article.id.uuidString
+        if let cached = contentCache[cacheKey] {
+            return cached
+        }
+        guard let urlString = article.articleURL, let url = URL(string: urlString) else {
+            throw AggieParserError.invalidURL
+        }
+        let content = try await parser.fetchAndParse(articleURL: url, fallback: article)
+        contentCache[cacheKey] = content
+        return content
     }
 
     // MARK: - Image Scraping

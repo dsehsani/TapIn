@@ -136,6 +136,58 @@ class ClaudeAPIService {
         return cleaned
     }
 
+    // MARK: - Event Bullet Points
+
+    /// Generates emoji bullet points for an event's About section.
+    /// Returns cached result instantly if available, otherwise calls the backend.
+    ///
+    /// - Parameters:
+    ///   - title: The event title.
+    ///   - description: The full event description text.
+    /// - Returns: An array of emoji bullet point strings, or nil on failure.
+    func generateEventBulletPoints(title: String, description: String) async -> [String]? {
+        let cacheStoreKey = "eventBullets_" + cacheKey(for: title + description)
+
+        if let cached = UserDefaults.standard.array(forKey: cacheStoreKey) as? [String], !cached.isEmpty {
+            return cached
+        }
+
+        if APIConfig.useMockSummaries {
+            return generateMockBulletPoints(from: description)
+        }
+
+        let systemPrompt = """
+        You are a concise event summarizer for a UC Davis campus app. \
+        Extract the 3 to 5 most important facts from the event details provided. \
+        Return ONLY emoji bullet points, one per line, with no extra text, headers, or markdown. \
+        Each line must start with a relevant emoji followed by a space, then a brief phrase under 12 words. \
+        Pick emojis that match the content (📍 location, 💰 cost, 🎓 academic, 🍕 food, 🎤 speaker, 🕐 time, 🔗 link, etc.).
+        """
+
+        let message = "Event: \(title)\n\n\(description)"
+
+        guard let response = await chat(message: message, systemPrompt: systemPrompt, maxTokens: 200) else {
+            return nil
+        }
+
+        let lines = response
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !lines.isEmpty else { return nil }
+
+        UserDefaults.standard.set(lines, forKey: cacheStoreKey)
+        return lines
+    }
+
+    private func generateMockBulletPoints(from description: String) -> [String] {
+        let cleaned = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sentences = cleaned.components(separatedBy: ". ").filter { !$0.isEmpty }
+        let emojis = ["📌", "🗓️", "📍", "🎯", "ℹ️"]
+        return zip(emojis, sentences.prefix(4)).map { "\($0) \($1.trimmingCharacters(in: .whitespaces))" }
+    }
+
     // MARK: - General Chat (Future Use)
 
     /// Sends a message to Claude via the backend proxy.

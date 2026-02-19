@@ -22,3 +22,6 @@ anthropic>=0.39.0
 
 # Environment variable loading from .env files
 python-dotenv>=1.0.0
+
+# Google Cloud Firestore (persistent storage for processed events)
+google-cloud-firestore>=2.14.0

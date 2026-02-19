@@ -13,6 +13,9 @@ struct EventDetailView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
 
+    // Bullets come directly from the model — no async loading needed
+    private var bulletPoints: [String] { event.aiBulletPoints }
+
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
@@ -87,16 +90,32 @@ struct EventDetailView: View {
 
                     Divider()
 
-                    // MARK: - Description
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("About")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
+                    // MARK: - About (AI Bullet Points)
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 8) {
+                            Text("About")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
+                            if !bulletPoints.isEmpty {
+                                AIBadgePill()
+                            }
+                        }
 
-                        Text(event.description)
-                            .font(.system(size: 15))
-                            .foregroundColor(.textMuted)
-                            .lineSpacing(4)
+                        if !bulletPoints.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(bulletPoints, id: \.self) { bullet in
+                                    Text(bullet)
+                                        .font(.system(size: 15))
+                                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.85) : Color(hex: "#334155"))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        } else {
+                            Text(event.description)
+                                .font(.system(size: 15))
+                                .foregroundColor(.textMuted)
+                                .lineSpacing(4)
+                        }
                     }
 
                     // MARK: - Tags

@@ -27,6 +27,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from api.leaderboard import leaderboard_bp
 from api.claude import claude_bp
+from api.events import events_bp
 
 # Load environment variables from .env file (for local development)
 load_dotenv()
@@ -82,6 +83,10 @@ def create_app() -> Flask:
     # All Claude endpoints will be prefixed with /api/claude
     app.register_blueprint(claude_bp)
 
+    # Register the Events blueprint
+    # All event endpoints will be prefixed with /api/events
+    app.register_blueprint(events_bp)
+
     # --------------------------------------------------------------------------
     # MARK: - Root Endpoint
     # --------------------------------------------------------------------------
@@ -111,7 +116,10 @@ def create_app() -> Flask:
                 "health_check": "GET /api/leaderboard/health",
                 "summarize_event": "POST /api/claude/summarize",
                 "claude_chat": "POST /api/claude/chat",
-                "claude_health": "GET /api/claude/health"
+                "claude_health": "GET /api/claude/health",
+                "get_events": "GET /api/events",
+                "refresh_events": "POST /api/events/refresh",
+                "events_health": "GET /api/events/health",
             }
         })
 

@@ -13,6 +13,7 @@ struct NewsView: View {
     @Binding var selectedTab: TabItem
 
     @Environment(\.colorScheme) var colorScheme
+    @State private var selectedArticle: NewsArticle? = nil
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -47,7 +48,7 @@ struct NewsView: View {
                         FeaturedArticleCard(
                             article: featured,
                             onTap: {
-                                // TODO: Navigate to article detail
+                                selectedArticle = featured
                             }
                         )
                         .padding(.bottom, 24)
@@ -78,7 +79,7 @@ struct NewsView: View {
                                     article: article,
                                     colorScheme: colorScheme,
                                     onTap: {
-                                        // TODO: Navigate to article detail
+                                        selectedArticle = article
                                     }
                                 )
                                 .padding(.horizontal, 16)
@@ -92,6 +93,9 @@ struct NewsView: View {
             }
             .refreshable {
                 await viewModel.refreshArticles()
+            }
+            .sheet(item: $selectedArticle) { article in
+                ArticleDetailView(article: article)
             }
 
             // Sticky Header

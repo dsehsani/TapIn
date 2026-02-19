@@ -32,6 +32,7 @@ automatic_scaling:
 # Environment variables (if needed in the future)
 env_variables:
   ENV: "production"
-  # Set your Claude API key here for App Engine deployment
-  # For local dev, use a .env file instead (never commit it)
+  # Set these in Cloud Console secrets / environment config — never commit real values
   CLAUDE_API_KEY: "SET_IN_CLOUD_CONSOLE"
+  GCP_PROJECT: "SET_IN_CLOUD_CONSOLE"
+  REFRESH_SECRET: "SET_IN_CLOUD_CONSOLE"

@@ -23,6 +23,11 @@ struct CampusEvent: Identifiable, Equatable, Codable {
     let eventURL: String?
     let organizerURL: String?
 
+    // Server pre-computed AI content (populated by backend pipeline)
+    let aiSummary: String?
+    let aiBulletPoints: [String]
+
+    // MARK: - Memberwise init (for sample data & local construction)
     init(
         id: UUID = UUID(),
         title: String,
@@ -37,7 +42,9 @@ struct CampusEvent: Identifiable, Equatable, Codable {
         eventType: String? = nil,
         tags: [String] = [],
         eventURL: String? = nil,
-        organizerURL: String? = nil
+        organizerURL: String? = nil,
+        aiSummary: String? = nil,
+        aiBulletPoints: [String] = []
     ) {
         self.id = id
         self.title = title
@@ -53,6 +60,67 @@ struct CampusEvent: Identifiable, Equatable, Codable {
         self.tags = tags
         self.eventURL = eventURL
         self.organizerURL = organizerURL
+        self.aiSummary = aiSummary
+        self.aiBulletPoints = aiBulletPoints
+    }
+
+    // MARK: - Codable (custom to handle server "startDate" vs local "date")
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, description, location, isOfficial
+        case imageURL, organizerName, clubAcronym, eventType
+        case tags, eventURL, organizerURL, aiSummary, aiBulletPoints
+        case startDate, date, endDate
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id            = (try? c.decode(UUID.self, forKey: .id)) ?? UUID()
+        title         = try c.decode(String.self, forKey: .title)
+        description   = try c.decode(String.self, forKey: .description)
+        // Accept "startDate" (server) or "date" (UserDefaults / legacy)
+        let serverDate = try? c.decode(Date.self, forKey: .startDate)
+        let localDate  = try? c.decode(Date.self, forKey: .date)
+        guard let resolved = serverDate ?? localDate else {
+            throw DecodingError.keyNotFound(
+                CodingKeys.date,
+                DecodingError.Context(codingPath: c.codingPath,
+                                      debugDescription: "Missing startDate or date key")
+            )
+        }
+        date          = resolved
+        endDate       = try? c.decode(Date.self, forKey: .endDate)
+        location      = (try? c.decode(String.self, forKey: .location)) ?? "TBD"
+        isOfficial    = (try? c.decode(Bool.self, forKey: .isOfficial)) ?? true
+        imageURL      = try? c.decode(String.self, forKey: .imageURL)
+        organizerName = try? c.decode(String.self, forKey: .organizerName)
+        clubAcronym   = try? c.decode(String.self, forKey: .clubAcronym)
+        eventType     = try? c.decode(String.self, forKey: .eventType)
+        tags          = (try? c.decode([String].self, forKey: .tags)) ?? []
+        eventURL      = try? c.decode(String.self, forKey: .eventURL)
+        organizerURL  = try? c.decode(String.self, forKey: .organizerURL)
+        aiSummary     = try? c.decode(String.self, forKey: .aiSummary)
+        aiBulletPoints = (try? c.decode([String].self, forKey: .aiBulletPoints)) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id,             forKey: .id)
+        try c.encode(title,          forKey: .title)
+        try c.encode(description,    forKey: .description)
+        try c.encode(date,           forKey: .date)       // store as "date" for UserDefaults compat
+        try c.encodeIfPresent(endDate,       forKey: .endDate)
+        try c.encode(location,       forKey: .location)
+        try c.encode(isOfficial,     forKey: .isOfficial)
+        try c.encodeIfPresent(imageURL,      forKey: .imageURL)
+        try c.encodeIfPresent(organizerName, forKey: .organizerName)
+        try c.encodeIfPresent(clubAcronym,   forKey: .clubAcronym)
+        try c.encodeIfPresent(eventType,     forKey: .eventType)
+        try c.encode(tags,           forKey: .tags)
+        try c.encodeIfPresent(eventURL,      forKey: .eventURL)
+        try c.encodeIfPresent(organizerURL,  forKey: .organizerURL)
+        try c.encodeIfPresent(aiSummary,     forKey: .aiSummary)
+        try c.encode(aiBulletPoints, forKey: .aiBulletPoints)
     }
 }
 

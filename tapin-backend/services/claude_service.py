@@ -207,5 +207,90 @@ class ClaudeService:
             }
 
 
+    def generate_bullet_points(self, title: str, description: str) -> list[str]:
+        """
+        Generates 3-5 emoji bullet points for an event's About section.
+        Called internally by the event processor — no rate limiting applied.
+
+        Args:
+            title: The event title.
+            description: The full event description.
+
+        Returns:
+            List of emoji bullet point strings, or empty list on failure.
+        """
+        if not description or not description.strip():
+            return []
+
+        cache_key = f"{title}\n{description}"
+        cached = self._bullet_cache.get(cache_key)
+        if cached:
+            return cached
+
+        system_prompt = (
+            "You are a concise event summarizer for a UC Davis campus app. "
+            "Extract the 3 to 5 most important facts from the event details. "
+            "Return ONLY emoji bullet points, one per line, with no extra text or markdown. "
+            "Each line must start with a relevant emoji followed by a space, "
+            "then a brief phrase under 12 words. "
+            "Pick emojis that match the content "
+            "(📍 location, 💰 cost, 🎓 academic, 🍕 food, 🎤 speaker, 🕐 time, 🔗 link, etc.)."
+        )
+
+        try:
+            client = self._get_client()
+            message = client.messages.create(
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=200,
+                system=system_prompt,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"Event: {title}\n\n{description}"
+                    }
+                ]
+            )
+
+            raw = message.content[0].text.strip()
+            lines = [l.strip() for l in raw.splitlines() if l.strip()]
+            self._bullet_cache.set(cache_key, lines)
+            return lines
+
+        except Exception:
+            return []
+
+    def summarize_event_internal(self, description: str) -> str | None:
+        """
+        Summarizes an event description without rate limiting.
+        Used internally by the event processor.
+        """
+        if not description or not description.strip():
+            return None
+
+        cached = self.cache.get(description)
+        if cached:
+            return cached
+
+        try:
+            client = self._get_client()
+            message = client.messages.create(
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=60,
+                system=self.SUMMARIZE_SYSTEM_PROMPT,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"Summarize this campus event:\n\n{description}"
+                    }
+                ]
+            )
+            summary = message.content[0].text.strip()
+            self.cache.set(description, summary)
+            return summary
+        except Exception:
+            return None
+
+
 # Singleton instance
 claude_service = ClaudeService()
+claude_service._bullet_cache = SummaryCache(max_size=500)

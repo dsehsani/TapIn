@@ -156,22 +156,23 @@ struct EventCard: View {
 
             HStack(spacing: 16) {
                 HStack(spacing: 6) {
-                    Image(systemName: "mappin.circle.fill")
+                    Image(systemName: "clock.fill")
                         .font(.system(size: 14))
                         .foregroundColor(Color.ucdBlue)
-                    Text(event.location)
+                    Text(event.date, style: .time)
                         .font(.system(size: 12))
                         .foregroundColor(.textSecondary)
                 }
 
-                if let eventType = event.eventType {
-                    HStack(spacing: 4) {
-                        Image(systemName: "tag.fill")
-                            .font(.system(size: 10))
-                            .foregroundColor(Color.ucdGold)
-                        Text(eventType)
-                            .font(.system(size: 11))
+                if !event.location.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(Color.ucdBlue)
+                        Text(event.location)
+                            .font(.system(size: 12))
                             .foregroundColor(.textSecondary)
+                            .lineLimit(1)
                     }
                 }
 

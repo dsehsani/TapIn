@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		3DA1B8F52F47BA8E001EE7A2 /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = 3DA1B8F42F47BA8E001EE7A2 /* SwiftSoup */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		3DF9C9262F29459B00080F48 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -44,6 +48,7 @@
 				Prompts/EventSummaryPrompt.md,
 				Prompts/FixUI.md,
 				Prompts/LEADERBOARD.md,
+				Prompts/TextRenderingPrompt.md,
 				ViewModels/README.md,
 				Views/README.md,
 			);
@@ -77,6 +82,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3DA1B8F52F47BA8E001EE7A2 /* SwiftSoup in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -137,6 +143,7 @@
 			);
 			name = TapInApp;
 			packageProductDependencies = (
+				3DA1B8F42F47BA8E001EE7A2 /* SwiftSoup */,
 			);
 			productName = TapInApp;
 			productReference = 3DF9C9162F29459A00080F48 /* TapInApp.app */;
@@ -220,6 +227,9 @@
 			);
 			mainGroup = 3DF9C90D2F29459A00080F48;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				3DA1B8F32F47BA8E001EE7A2 /* XCRemoteSwiftPackageReference "SwiftSoup" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3DF9C9172F29459A00080F48 /* Products */;
 			projectDirPath = "";
@@ -605,6 +615,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		3DA1B8F32F47BA8E001EE7A2 /* XCRemoteSwiftPackageReference "SwiftSoup" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/scinfu/SwiftSoup";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.11.3;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3DA1B8F42F47BA8E001EE7A2 /* SwiftSoup */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3DA1B8F32F47BA8E001EE7A2 /* XCRemoteSwiftPackageReference "SwiftSoup" */;
+			productName = SwiftSoup;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 3DF9C90E2F29459A00080F48 /* Project object */;
 }

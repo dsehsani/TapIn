@@ -82,11 +82,80 @@ struct AISummaryBadge: View {
     }
 }
 
+// MARK: - AI Badge Pill
+// A compact glowing pill used as a label next to section headers.
+
+struct AIBadgePill: View {
+    @Environment(\.colorScheme) var colorScheme
+
+    @State private var rotation: Double = 0
+    @State private var glowOpacity: Double = 0.4
+
+    private let gradientColors: [Color] = [
+        Color(hex: "#3b82f6"),
+        Color(hex: "#8b5cf6"),
+        Color(hex: "#FFBF00"),
+        Color(hex: "#ec4899"),
+        Color(hex: "#3b82f6")
+    ]
+
+    var body: some View {
+        Text("✦ AI")
+            .font(.system(size: 10, weight: .bold, design: .rounded))
+            .tracking(0.5)
+            .foregroundColor(colorScheme == .dark ? .white.opacity(0.9) : Color(hex: "#6d28d9"))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(colorScheme == .dark ? Color(hex: "#1a1a2e").opacity(0.8) : Color(hex: "#faf5ff").opacity(0.9))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(
+                        AngularGradient(
+                            colors: gradientColors,
+                            center: .center,
+                            angle: .degrees(rotation)
+                        ),
+                        lineWidth: 1.2
+                    )
+            )
+            .background(
+                Capsule()
+                    .fill(
+                        AngularGradient(
+                            colors: gradientColors,
+                            center: .center,
+                            angle: .degrees(rotation + 90)
+                        )
+                    )
+                    .blur(radius: 6)
+                    .opacity(glowOpacity)
+                    .scaleEffect(1.1)
+            )
+            .onAppear {
+                withAnimation(.linear(duration: 6).repeatForever(autoreverses: false)) {
+                    rotation = 360
+                }
+                withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) {
+                    glowOpacity = 0.15
+                }
+            }
+    }
+}
+
 #Preview {
     VStack(spacing: 16) {
         AISummaryBadge(summary: "Connect with top Bay Area employers at this career fair featuring tech, biotech, and finance companies.")
 
         AISummaryBadge(summary: "Weekly study session for ECS 170 students to practice AI algorithms and prep for the midterm.")
+
+        HStack {
+            Text("About")
+                .font(.system(size: 18, weight: .semibold))
+            AIBadgePill()
+        }
     }
     .padding()
 }

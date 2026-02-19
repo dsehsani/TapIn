@@ -18,7 +18,12 @@ enum APIConfig {
     /// The backend server base URL.
     /// - Local development: "http://localhost:8080"
     /// - Google App Engine:  "https://YOUR_PROJECT.appspot.com"
-    static let baseURL = "http://localhost:8080"
+    static let baseURL = "https://tapin-backend-516122189377.us-west2.run.app/"
+
+    // MARK: - Events Endpoint
+
+    /// GET - All AI-processed campus events (with aiSummary + aiBulletPoints)
+    static var eventsURL: String { "\(baseURL)/api/events" }
 
     // MARK: - Claude Endpoints
 
