@@ -106,8 +106,8 @@ struct GamesView: View {
                 viewModel.dismissGame()
             })
         }
-        .fullScreenCover(isPresented: $viewModel.showingCrossword) {
-            MiniCrosswordGameView(onDismiss: {
+        .fullScreenCover(isPresented: $viewModel.showingPipes) {
+            PipesGameView(onDismiss: {
                 viewModel.dismissGame()
             })
         }

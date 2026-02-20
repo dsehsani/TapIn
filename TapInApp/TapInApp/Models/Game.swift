@@ -17,15 +17,15 @@ import Foundation
 enum GameType: String, Codable, CaseIterable {
     case wordle = "wordle"
     case trivia = "trivia"
-    case crossword = "crossword"
     case echo = "echo"
+    case pipes = "pipes"
 
     var displayName: String {
         switch self {
         case .wordle: return "Aggie Wordle"
         case .trivia: return "Campus Trivia"
-        case .crossword: return "Aggie Crossword"
         case .echo: return "Echo"
+        case .pipes: return "Pipes"
         }
     }
 }
@@ -156,20 +156,20 @@ extension Game {
             hasLeaderboard: true
         ),
         Game(
-            type: .crossword,
-            name: "Aggie Crossword",
-            description: "Weekly campus-themed crossword",
-            iconName: "square.grid.3x3.fill",
-            isMultiplayer: false,
-            hasLeaderboard: true
-        ),
-        Game(
             type: .echo,
             name: "Echo",
             description: "Memory meets logic — transform the sequence",
             iconName: "waveform.path",
             isMultiplayer: false,
             hasLeaderboard: true
+        ),
+        Game(
+            type: .pipes,
+            name: "Pipes",
+            description: "Connect the dots — fill every cell",
+            iconName: "point.topleft.down.to.point.bottomright.curvepath.fill",
+            isMultiplayer: false,
+            hasLeaderboard: false
         )
     ]
 }

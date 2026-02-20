@@ -20,7 +20,7 @@ class GamesViewModel: ObservableObject {
     @Published var userStats: GameStats = GameStats()
     @Published var showingWordle: Bool = false
     @Published var showingEcho: Bool = false
-    @Published var showingCrossword: Bool = false
+    @Published var showingPipes: Bool = false
 
     init() {
         loadAvailableGames()
@@ -46,8 +46,8 @@ class GamesViewModel: ObservableObject {
             showingWordle = true
         case .echo:
             showingEcho = true
-        case .crossword:
-            showingCrossword = true
+        case .pipes:
+            showingPipes = true
         case .trivia:
             break // TODO: Implement trivia game
         }
@@ -56,7 +56,7 @@ class GamesViewModel: ObservableObject {
     func dismissGame() {
         showingWordle = false
         showingEcho = false
-        showingCrossword = false
+        showingPipes = false
         currentGame = nil
     }
 

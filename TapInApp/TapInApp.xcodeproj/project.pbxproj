@@ -48,6 +48,7 @@
 				Prompts/EventSummaryPrompt.md,
 				Prompts/FixUI.md,
 				Prompts/LEADERBOARD.md,
+				Prompts/PipesMVPPrompt.md,
 				Prompts/TextRenderingPrompt.md,
 				ViewModels/README.md,
 				Views/README.md,
