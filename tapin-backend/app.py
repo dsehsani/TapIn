@@ -29,6 +29,7 @@ from api.leaderboard import leaderboard_bp
 from api.claude import claude_bp
 from api.events import events_bp
 from api.articles import articles_bp
+from api.users import users_bp
 
 # Load environment variables from .env file (for local development)
 load_dotenv()
@@ -67,8 +68,8 @@ def create_app() -> Flask:
     CORS(app, resources={
         r"/api/*": {
             "origins": "*",  # Allow all origins for development
-            "methods": ["GET", "POST", "OPTIONS"],
-            "allow_headers": ["Content-Type"]
+            "methods": ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"]
         }
     })
 
@@ -91,6 +92,10 @@ def create_app() -> Flask:
     # Register the Articles blueprint
     # All article endpoints will be prefixed with /api/articles
     app.register_blueprint(articles_bp)
+
+    # Register the Users blueprint
+    # All user profile endpoints will be prefixed with /api/users
+    app.register_blueprint(users_bp)
 
     # --------------------------------------------------------------------------
     # MARK: - Root Endpoint
@@ -126,8 +131,23 @@ def create_app() -> Flask:
                 "refresh_events": "POST /api/events/refresh",
                 "events_health": "GET /api/events/health",
                 "get_articles": "GET /api/articles?category=all",
+                "get_article_content": "GET /api/articles/<article_id>/content?url=<article_url>",
                 "refresh_articles": "POST /api/articles/refresh",
                 "articles_health": "GET /api/articles/health",
+                "register": "POST /api/users/register",
+                "login": "POST /api/users/login",
+                "get_profile": "GET /api/users/me",
+                "delete_account": "DELETE /api/users/me",
+                "update_game_stats": "PATCH /api/users/me/games/<game_type>",
+                "get_saved_articles": "GET /api/users/me/articles/saved",
+                "save_article": "POST /api/users/me/articles/saved",
+                "unsave_article": "DELETE /api/users/me/articles/saved/<article_id>",
+                "mark_article_read": "POST /api/users/me/articles/read",
+                "get_read_articles": "GET /api/users/me/articles/read",
+                "get_event_rsvps": "GET /api/users/me/events",
+                "rsvp_event": "POST /api/users/me/events",
+                "cancel_rsvp": "DELETE /api/users/me/events/<event_id>",
+                "users_health": "GET /api/users/health",
             }
         })
 

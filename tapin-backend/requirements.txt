@@ -23,11 +23,23 @@ anthropic>=0.39.0
 # Environment variable loading from .env files
 python-dotenv>=1.0.0
 
-# Google Cloud Firestore (persistent storage for processed events)
+# Google Cloud Storage (primary data store for articles and events)
+google-cloud-storage>=2.14.0
+
+# Google Cloud Firestore (user profile storage)
 google-cloud-firestore>=2.14.0
+
+# Password hashing for user authentication
+bcrypt>=4.1.0
+
+# JWT token generation and verification for user sessions
+PyJWT>=2.8.0
 
 # RSS feed parsing (for The Aggie article caching)
 feedparser>=6.0.0
 
-# HTML parsing for article body extraction (server-side)
+# HTML parsing for article body extraction (server-side scraper + RSS image extraction)
 beautifulsoup4>=4.12.0
+
+# HTTP client for article scraping and image mirroring
+requests>=2.31.0

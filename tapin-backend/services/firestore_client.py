@@ -6,18 +6,21 @@
 #  Singleton Firestore client. Supports local dev (service account JSON)
 #  and Cloud Run / App Engine (default credentials).
 #
+#  The google.cloud.firestore import is lazy (deferred until first call) to
+#  avoid loading the protobuf C extension at module level, which is
+#  incompatible with Python 3.14's stricter metaclass handling.
+#
 
 import os
 import logging
-from typing import Optional
-from google.cloud import firestore
 
 logger = logging.getLogger(__name__)
 
-_firestore_client: Optional[firestore.Client] = None
+# Initialized lazily on first call to get_firestore_client().
+_firestore_client = None
 
 
-def get_firestore_client() -> firestore.Client:
+def get_firestore_client():
     """Returns a singleton Firestore client, initializing it on first call."""
     global _firestore_client
 
@@ -25,6 +28,8 @@ def get_firestore_client() -> firestore.Client:
         return _firestore_client
 
     try:
+        from google.cloud import firestore  # lazy — avoids protobuf C extension at import time
+
         project_id = os.environ.get("GCP_PROJECT")
         if project_id:
             logger.info(f"Initializing Firestore for project: {project_id}")

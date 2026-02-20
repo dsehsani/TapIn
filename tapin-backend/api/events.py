@@ -32,9 +32,9 @@ events_bp = Blueprint("events", __name__, url_prefix="/api/events")
 @events_bp.route("", methods=["GET"])
 def get_all_events():
     """
-    Returns all AI-processed campus events from Firestore.
+    Returns all AI-processed campus events from GCS.
 
-    If Firestore is empty (cold start / first deploy), triggers a background
+    If GCS is empty (cold start / first deploy), triggers a background
     refresh and returns an empty list with refreshing=true so the client
     can poll or retry.
 
@@ -51,9 +51,9 @@ def get_all_events():
 
         refreshing = is_refreshing()
 
-        # Cold start: Firestore is empty — kick off background refresh
+        # Cold start: GCS file is empty — kick off background refresh
         if not events and not refreshing:
-            logger.info("Firestore empty — starting background refresh")
+            logger.info("GCS events empty — starting background refresh")
             refresh_events_background()
             refreshing = True
 
@@ -106,26 +106,25 @@ def trigger_refresh():
 
 @events_bp.route("/health", methods=["GET"])
 def health_check():
-    """Health check including Firestore connectivity and event count."""
+    """Health check including GCS connectivity and event count."""
     try:
-        from services.firestore_client import is_firestore_connected
-        firestore_ok = is_firestore_connected()
-        count = 0
-        if firestore_ok:
-            from repositories.event_repository import event_repository
-            count = event_repository.count()
+        from services.gcs_client import is_gcs_connected
+        from repositories.event_repository import event_repository
+        gcs_ok = is_gcs_connected()
+        count = event_repository.count() if gcs_ok else 0
 
         return jsonify({
-            "status": "healthy",
-            "service": "campus-events",
-            "firestore": "connected" if firestore_ok else "disconnected",
+            "status":      "healthy",
+            "service":     "campus-events",
+            "storage":     "gcs",
+            "gcs":         "connected" if gcs_ok else "disconnected",
             "event_count": count,
-            "refreshing": is_refreshing(),
+            "refreshing":  is_refreshing(),
         }), 200
 
     except Exception as e:
         return jsonify({
-            "status": "degraded",
+            "status":  "degraded",
             "service": "campus-events",
-            "error": str(e),
+            "error":   str(e),
         }), 200
