@@ -17,6 +17,8 @@
 
 from flask import Blueprint, request, jsonify
 from services.leaderboard_service import leaderboard_service
+from services.unified_leaderboard_service import unified_leaderboard_service
+from models import VALID_GAME_TYPES
 
 
 # ------------------------------------------------------------------------------
@@ -28,116 +30,10 @@ leaderboard_bp = Blueprint("leaderboard", __name__, url_prefix="/api/leaderboard
 
 
 # ------------------------------------------------------------------------------
-# MARK: - POST /api/leaderboard/score
+# MARK: - Legacy POST /api/leaderboard/score (Now handled by unified endpoint below)
 # ------------------------------------------------------------------------------
-
-@leaderboard_bp.route("/score", methods=["POST"])
-def submit_score():
-    """
-    Submit a new score to the leaderboard.
-
-    Request Body (JSON):
-        {
-            "guesses": int,        # Number of guesses (1-6), required
-            "time_seconds": int,   # Time taken in seconds, required
-            "puzzle_date": str     # Date in YYYY-MM-DD format, required
-        }
-
-    Response (201 Created):
-        {
-            "success": true,
-            "score": {
-                "id": "uuid-string",
-                "username": "SwiftFalcon",
-                "guesses": 4,
-                "time_seconds": 120,
-                "puzzle_date": "2026-02-02"
-            }
-        }
-
-    Error Response (400 Bad Request):
-        {
-            "success": false,
-            "error": "Error message describing what went wrong"
-        }
-
-    Example curl:
-        curl -X POST http://localhost:8080/api/leaderboard/score \
-             -H "Content-Type: application/json" \
-             -d '{"guesses": 4, "time_seconds": 120, "puzzle_date": "2026-02-02"}'
-    """
-    try:
-        # Parse JSON request body
-        data = request.get_json()
-
-        # Validate required fields are present
-        if not data:
-            return jsonify({
-                "success": False,
-                "error": "Request body must be JSON"
-            }), 400
-
-        required_fields = ["guesses", "time_seconds", "puzzle_date"]
-        missing_fields = [field for field in required_fields if field not in data]
-
-        if missing_fields:
-            return jsonify({
-                "success": False,
-                "error": f"Missing required fields: {', '.join(missing_fields)}"
-            }), 400
-
-        # Extract and validate field values
-        guesses = data["guesses"]
-        time_seconds = data["time_seconds"]
-        puzzle_date = data["puzzle_date"]
-
-        # Validate guesses is an integer between 1 and 6
-        if not isinstance(guesses, int) or not 1 <= guesses <= 6:
-            return jsonify({
-                "success": False,
-                "error": "guesses must be an integer between 1 and 6"
-            }), 400
-
-        # Validate time_seconds is a positive integer
-        if not isinstance(time_seconds, int) or time_seconds < 0:
-            return jsonify({
-                "success": False,
-                "error": "time_seconds must be a non-negative integer"
-            }), 400
-
-        # Validate puzzle_date format (basic check for YYYY-MM-DD)
-        if not isinstance(puzzle_date, str) or len(puzzle_date) != 10:
-            return jsonify({
-                "success": False,
-                "error": "puzzle_date must be in YYYY-MM-DD format"
-            }), 400
-
-        # Submit the score using the service
-        score = leaderboard_service.submit_score(
-            guesses=guesses,
-            time_seconds=time_seconds,
-            puzzle_date=puzzle_date
-        )
-
-        # Return success response with created score
-        return jsonify({
-            "success": True,
-            "score": score.to_dict()
-        }), 201
-
-    except ValueError as e:
-        # Handle validation errors from the service
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 400
-
-    except Exception as e:
-        # Handle unexpected errors
-        return jsonify({
-            "success": False,
-            "error": f"Internal server error: {str(e)}"
-        }), 500
+# The submit_score endpoint is now unified and supports both legacy Wordle format
+# and the new unified format with game_type. See submit_unified_score() below.
 
 
 # ------------------------------------------------------------------------------
@@ -240,5 +136,295 @@ def health_check():
     """
     return jsonify({
         "status": "healthy",
-        "service": "wordle-leaderboard"
+        "service": "unified-leaderboard",
+        "supported_games": VALID_GAME_TYPES
     }), 200
+
+
+# ------------------------------------------------------------------------------
+# MARK: - Unified Leaderboard Endpoints
+# ------------------------------------------------------------------------------
+
+@leaderboard_bp.route("/<game_type>/<date>", methods=["GET"])
+def get_unified_leaderboard(game_type: str, date: str):
+    """
+    Get the leaderboard for a specific game type and date.
+
+    URL Parameters:
+        game_type: Type of game (wordle, echo, crossword, trivia)
+        date: The date in YYYY-MM-DD format
+
+    Query Parameters:
+        limit: Optional, max number of entries (default: 5, max: 10)
+
+    Response (200 OK):
+        {
+            "success": true,
+            "game_type": "echo",
+            "date": "2026-02-20",
+            "leaderboard": [
+                {
+                    "id": "uuid",
+                    "rank": 1,
+                    "username": "SwiftFalcon",
+                    "score": 1250,
+                    "game_type": "echo",
+                    "date": "2026-02-20",
+                    "metadata": {...}
+                }
+            ]
+        }
+
+    Example curl:
+        curl http://localhost:8080/api/leaderboard/echo/2026-02-20
+        curl http://localhost:8080/api/leaderboard/wordle/2026-02-20?limit=3
+    """
+    try:
+        # Validate game_type
+        if game_type not in VALID_GAME_TYPES:
+            return jsonify({
+                "success": False,
+                "error": f"Invalid game_type. Must be one of: {', '.join(VALID_GAME_TYPES)}"
+            }), 400
+
+        # Validate date format
+        if len(date) != 10 or date[4] != "-" or date[7] != "-":
+            return jsonify({
+                "success": False,
+                "error": "Invalid date format. Use YYYY-MM-DD"
+            }), 400
+
+        # Get optional limit parameter
+        limit = request.args.get("limit", default=5, type=int)
+        limit = min(max(1, limit), 10)
+
+        # Get leaderboard from unified service
+        entries = unified_leaderboard_service.get_leaderboard(game_type, date, limit=limit)
+        leaderboard_data = [entry.to_dict() for entry in entries]
+
+        return jsonify({
+            "success": True,
+            "game_type": game_type,
+            "date": date,
+            "leaderboard": leaderboard_data
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Internal server error: {str(e)}"
+        }), 500
+
+
+@leaderboard_bp.route("/sync", methods=["POST"])
+def sync_scores():
+    """
+    Batch sync multiple scores at once.
+
+    Request Body (JSON):
+        {
+            "scores": [
+                {
+                    "game_type": "echo",
+                    "score": 1200,
+                    "date": "2026-02-20",
+                    "username": "SwiftFalcon",
+                    "metadata": {...}
+                },
+                ...
+            ]
+        }
+
+    Response (200 OK):
+        {
+            "success": true,
+            "synced_count": 3,
+            "results": [
+                {
+                    "local_id": null,
+                    "remote_id": "uuid",
+                    "success": true,
+                    "error": null
+                },
+                ...
+            ]
+        }
+
+    Example curl:
+        curl -X POST http://localhost:8080/api/leaderboard/sync \
+             -H "Content-Type: application/json" \
+             -d '{"scores": [{"game_type": "echo", "score": 1200, "date": "2026-02-20"}]}'
+    """
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "Request body must be JSON"
+            }), 400
+
+        scores = data.get("scores", [])
+        if not isinstance(scores, list):
+            return jsonify({
+                "success": False,
+                "error": "scores must be an array"
+            }), 400
+
+        results = unified_leaderboard_service.sync_scores(scores)
+        synced_count = sum(1 for r in results if r.get("success"))
+
+        return jsonify({
+            "success": True,
+            "synced_count": synced_count,
+            "results": results
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Internal server error: {str(e)}"
+        }), 500
+
+
+# Override score submission to support game_type parameter
+@leaderboard_bp.route("/score", methods=["POST"])
+def submit_unified_score():
+    """
+    Submit a new score to the leaderboard.
+
+    Supports both legacy Wordle format and unified format:
+
+    Unified Format (JSON):
+        {
+            "game_type": "echo",      # Required for non-Wordle
+            "score": 1200,            # Required
+            "date": "2026-02-20",     # Required
+            "username": "SwiftFalcon",# Optional (auto-generated)
+            "metadata": {...}         # Optional, game-specific data
+        }
+
+    Legacy Wordle Format (JSON):
+        {
+            "guesses": 4,             # Required for Wordle
+            "time_seconds": 120,      # Required for Wordle
+            "puzzle_date": "2026-02-20"
+        }
+
+    Response (201 Created):
+        {
+            "success": true,
+            "id": "uuid",
+            "rank": 1,
+            "username": "SwiftFalcon"
+        }
+
+    Example curl:
+        curl -X POST http://localhost:8080/api/leaderboard/score \
+             -H "Content-Type: application/json" \
+             -d '{"game_type": "echo", "score": 1200, "date": "2026-02-20"}'
+    """
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "Request body must be JSON"
+            }), 400
+
+        # Check if this is unified format (has game_type) or legacy Wordle format
+        if "game_type" in data:
+            # Unified format
+            game_type = data.get("game_type")
+            if game_type not in VALID_GAME_TYPES:
+                return jsonify({
+                    "success": False,
+                    "error": f"Invalid game_type. Must be one of: {', '.join(VALID_GAME_TYPES)}"
+                }), 400
+
+            score_value = data.get("score", 0)
+            date = data.get("date")
+            username = data.get("username")
+            metadata = data.get("metadata", {})
+
+            if not date:
+                return jsonify({
+                    "success": False,
+                    "error": "date is required"
+                }), 400
+
+            game_score = unified_leaderboard_service.submit_score(
+                game_type=game_type,
+                score=score_value,
+                date=date,
+                username=username,
+                metadata=metadata
+            )
+
+            # Calculate rank
+            entries = unified_leaderboard_service.get_leaderboard(game_type, date, limit=100)
+            rank = next((e.rank for e in entries if e.id == game_score.id), None)
+
+            return jsonify({
+                "success": True,
+                "id": game_score.id,
+                "rank": rank,
+                "username": game_score.username
+            }), 201
+
+        else:
+            # Legacy Wordle format - redirect to original handler
+            required_fields = ["guesses", "time_seconds", "puzzle_date"]
+            missing_fields = [field for field in required_fields if field not in data]
+
+            if missing_fields:
+                return jsonify({
+                    "success": False,
+                    "error": f"Missing required fields: {', '.join(missing_fields)}"
+                }), 400
+
+            guesses = data["guesses"]
+            time_seconds = data["time_seconds"]
+            puzzle_date = data["puzzle_date"]
+
+            if not isinstance(guesses, int) or not 1 <= guesses <= 6:
+                return jsonify({
+                    "success": False,
+                    "error": "guesses must be an integer between 1 and 6"
+                }), 400
+
+            if not isinstance(time_seconds, int) or time_seconds < 0:
+                return jsonify({
+                    "success": False,
+                    "error": "time_seconds must be a non-negative integer"
+                }), 400
+
+            if not isinstance(puzzle_date, str) or len(puzzle_date) != 10:
+                return jsonify({
+                    "success": False,
+                    "error": "puzzle_date must be in YYYY-MM-DD format"
+                }), 400
+
+            score = leaderboard_service.submit_score(
+                guesses=guesses,
+                time_seconds=time_seconds,
+                puzzle_date=puzzle_date
+            )
+
+            return jsonify({
+                "success": True,
+                "score": score.to_dict()
+            }), 201
+
+    except ValueError as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Internal server error: {str(e)}"
+        }), 500

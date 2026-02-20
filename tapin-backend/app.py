@@ -104,15 +104,18 @@ def create_app() -> Flask:
         """
         return jsonify({
             "service": "TapIn Backend API",
-            "version": "1.0.0",
+            "version": "1.1.0",
             "endpoints": {
                 "submit_score": "POST /api/leaderboard/score",
-                "get_leaderboard": "GET /api/leaderboard/<date>",
+                "get_leaderboard_legacy": "GET /api/leaderboard/<date>",
+                "get_leaderboard": "GET /api/leaderboard/<game_type>/<date>",
+                "sync_scores": "POST /api/leaderboard/sync",
                 "health_check": "GET /api/leaderboard/health",
                 "summarize_event": "POST /api/claude/summarize",
                 "claude_chat": "POST /api/claude/chat",
                 "claude_health": "GET /api/claude/health"
-            }
+            },
+            "supported_games": ["wordle", "echo", "crossword", "trivia"]
         })
 
     # --------------------------------------------------------------------------
@@ -159,15 +162,20 @@ if __name__ == "__main__":
     # - port=8080 matches Google App Engine's default port
     # - debug=True enables auto-reload and detailed error pages
     print("=" * 60)
-    print("TapIn Backend Server")
+    print("TapIn Backend Server v1.1.0")
     print("=" * 60)
     print("Server starting on http://localhost:8080")
     print("")
-    print("Available endpoints:")
-    print("  POST /api/leaderboard/score     - Submit a score")
-    print("  GET  /api/leaderboard/<date>    - Get leaderboard")
-    print("  GET  /api/leaderboard/health    - Health check")
+    print("Leaderboard endpoints:")
+    print("  POST /api/leaderboard/score          - Submit a score (unified)")
+    print("  GET  /api/leaderboard/<date>         - Get Wordle leaderboard (legacy)")
+    print("  GET  /api/leaderboard/<game>/<date>  - Get leaderboard by game")
+    print("  POST /api/leaderboard/sync           - Batch sync scores")
+    print("  GET  /api/leaderboard/health         - Health check")
     print("")
+    print("  Supported games: wordle, echo, crossword, trivia")
+    print("")
+    print("Claude endpoints:")
     print("  POST /api/claude/summarize      - Summarize event")
     print("  POST /api/claude/chat           - Claude chat")
     print("  GET  /api/claude/health         - Claude health check")

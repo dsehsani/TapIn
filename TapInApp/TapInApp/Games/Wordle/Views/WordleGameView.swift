@@ -33,6 +33,9 @@ struct WordleGameView: View {
     /// Whether the game over overlay is visible
     @State private var showGameOverOverlay = true
 
+    /// Whether the local leaderboard overlay is visible (shows first on game over)
+    @State private var showLocalLeaderboardOverlay = true
+
     // MARK: - Leaderboard State
 
     /// Top 5 leaderboard entries for the current puzzle
@@ -86,27 +89,48 @@ struct WordleGameView: View {
                 .padding(.bottom, 8)
             }
 
-            // Game over overlay (shown when game ends)
+            // Game over overlays (shown when game ends)
             if viewModel.gameState != .playing && !viewModel.isRevealing && showGameOverOverlay {
-                GameOverView(
-                    gameState: viewModel.gameState,
-                    targetWord: viewModel.targetWord,
-                    attempts: viewModel.currentRow,
-                    isArchiveMode: viewModel.isArchiveMode,
-                    isTodayCompleted: viewModel.isTodayCompleted,
-                    leaderboardEntries: leaderboardEntries,
-                    assignedUsername: viewModel.assignedUsername,
-                    isLoadingLeaderboard: isLoadingLeaderboard,
-                    onPlayToday: {
-                        viewModel.loadTodaysGame()
-                        leaderboardEntries = []  // Clear leaderboard for new game
-                        showGameOverOverlay = true
-                    },
-                    onBrowseArchive: { showArchive = true },
-                    onDismiss: { showGameOverOverlay = false },
-                    onBack: onDismiss,
-                    colorScheme: colorScheme
-                )
+                // First: Local leaderboard overlay
+                if showLocalLeaderboardOverlay {
+                    GameOverLeaderboardView(
+                        gameType: .wordle,
+                        gameDate: viewModel.currentDate,
+                        userScore: LocalLeaderboardService.shared.getUserScore(for: .wordle, date: viewModel.currentDate),
+                        resultTitle: viewModel.gameState == .won ? "Congratulations!" : "Game Over",
+                        resultSubtitle: viewModel.gameState == .won
+                            ? "Solved in \(viewModel.currentRow) guess\(viewModel.currentRow == 1 ? "" : "es")"
+                            : "The word was \(viewModel.targetWord.uppercased())",
+                        resultIcon: viewModel.gameState == .won ? "checkmark.circle.fill" : "xmark.circle.fill",
+                        resultColor: viewModel.gameState == .won ? .wordleGreen : .ucdGold,
+                        onDismiss: {
+                            showLocalLeaderboardOverlay = false
+                        },
+                        onBack: onDismiss
+                    )
+                } else {
+                    // Then: Detailed game over view with stats and archive options
+                    GameOverView(
+                        gameState: viewModel.gameState,
+                        targetWord: viewModel.targetWord,
+                        attempts: viewModel.currentRow,
+                        isArchiveMode: viewModel.isArchiveMode,
+                        isTodayCompleted: viewModel.isTodayCompleted,
+                        leaderboardEntries: leaderboardEntries,
+                        assignedUsername: viewModel.assignedUsername,
+                        isLoadingLeaderboard: isLoadingLeaderboard,
+                        onPlayToday: {
+                            viewModel.loadTodaysGame()
+                            leaderboardEntries = []  // Clear leaderboard for new game
+                            showGameOverOverlay = true
+                            showLocalLeaderboardOverlay = true
+                        },
+                        onBrowseArchive: { showArchive = true },
+                        onDismiss: { showGameOverOverlay = false },
+                        onBack: onDismiss,
+                        colorScheme: colorScheme
+                    )
+                }
             }
         }
         // Invalid word alert
@@ -120,6 +144,7 @@ struct WordleGameView: View {
                     viewModel.loadGameForDate(date)
                     leaderboardEntries = []  // Clear leaderboard for new game
                     showGameOverOverlay = true  // Reset overlay when loading new game
+                    showLocalLeaderboardOverlay = true  // Reset local leaderboard overlay
                     showArchive = false
                 },
                 onDismiss: { showArchive = false }
@@ -129,6 +154,10 @@ struct WordleGameView: View {
         .onChange(of: viewModel.gameState) { oldState, newState in
             if newState == .won && !viewModel.isArchiveMode {
                 fetchLeaderboard()
+            }
+            // Reset local leaderboard overlay when entering game over state
+            if newState == .won || newState == .lost {
+                showLocalLeaderboardOverlay = true
             }
         }
     }

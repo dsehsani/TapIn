@@ -12,6 +12,9 @@ struct GamesView: View {
 
     @Environment(\.colorScheme) var colorScheme
 
+    /// Selected game type for per-game leaderboard sheet
+    @State private var leaderboardGameType: GameType?
+
     var body: some View {
         ZStack {
             Color.adaptiveBackground(colorScheme)
@@ -96,9 +99,12 @@ struct GamesView: View {
 
                         LazyVStack(spacing: 12) {
                             ForEach(viewModel.availableGames) { game in
-                                GameRowCard(game: game, colorScheme: colorScheme) {
-                                    viewModel.startGame(game)
-                                }
+                                GameRowCard(
+                                    game: game,
+                                    colorScheme: colorScheme,
+                                    onPlay: { viewModel.startGame(game) },
+                                    onLeaderboard: { leaderboardGameType = game.type }
+                                )
                                 .padding(.horizontal, 16)
                             }
                         }
@@ -128,6 +134,13 @@ struct GamesView: View {
             LeaderboardView(onDismiss: {
                 viewModel.dismissLeaderboard()
             })
+        }
+        // Per-game leaderboard sheet
+        .sheet(item: $leaderboardGameType) { gameType in
+            LeaderboardView(
+                initialGameType: gameType,
+                onDismiss: { leaderboardGameType = nil }
+            )
         }
     }
 }
@@ -214,54 +227,73 @@ struct GameRowCard: View {
     let game: Game
     let colorScheme: ColorScheme
     let onPlay: () -> Void
+    let onLeaderboard: () -> Void
 
     var body: some View {
-        Button(action: onPlay) {
-            HStack(spacing: 16) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.ucdGold.opacity(0.2))
-                        .frame(width: 56, height: 56)
-                    Image(systemName: game.iconName)
-                        .font(.system(size: 24))
-                        .foregroundColor(Color.ucdGold)
-                }
+        HStack(spacing: 16) {
+            // Game icon
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.ucdGold.opacity(0.2))
+                    .frame(width: 56, height: 56)
+                Image(systemName: game.iconName)
+                    .font(.system(size: 24))
+                    .foregroundColor(Color.ucdGold)
+            }
+            .onTapGesture { onPlay() }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(game.name)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
-                    Text(game.description)
-                        .font(.system(size: 12))
-                        .foregroundColor(.textSecondary)
-                        .lineLimit(1)
+            // Game info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(game.name)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
+                Text(game.description)
+                    .font(.system(size: 12))
+                    .foregroundColor(.textSecondary)
+                    .lineLimit(1)
 
-                    if game.isMultiplayer {
-                        HStack(spacing: 4) {
-                            Image(systemName: "person.2.fill")
-                                .font(.system(size: 10))
-                            Text("Multiplayer")
-                                .font(.system(size: 10, weight: .medium))
-                        }
-                        .foregroundColor(Color.ucdBlue)
+                if game.isMultiplayer {
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.2.fill")
+                            .font(.system(size: 10))
+                        Text("Multiplayer")
+                            .font(.system(size: 10, weight: .medium))
                     }
+                    .foregroundColor(Color.ucdBlue)
                 }
+            }
+            .onTapGesture { onPlay() }
 
-                Spacer()
+            Spacer()
 
+            // Leaderboard button
+            Button(action: onLeaderboard) {
+                Image(systemName: "trophy")
+                    .font(.system(size: 14))
+                    .foregroundColor(Color.ucdGold)
+                    .frame(width: 32, height: 32)
+                    .background(
+                        Circle()
+                            .fill(Color.ucdGold.opacity(0.15))
+                    )
+            }
+            .buttonStyle(PlainButtonStyle())
+
+            // Chevron to play
+            Button(action: onPlay) {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.textSecondary)
             }
-            .padding(16)
-            .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"), lineWidth: 1)
-            )
+            .buttonStyle(PlainButtonStyle())
         }
-        .buttonStyle(PlainButtonStyle())
+        .padding(16)
+        .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"), lineWidth: 1)
+        )
     }
 }
 

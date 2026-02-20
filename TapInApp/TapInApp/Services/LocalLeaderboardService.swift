@@ -82,13 +82,19 @@ class LocalLeaderboardService {
             return false
         }
 
-        allScores.append(score)
+        // Auto-assign display name if not set
+        var scoreToSave = score
+        if scoreToSave.username == nil {
+            scoreToSave.username = UsernameGenerator.shared.getDisplayName(for: score.date)
+        }
+
+        allScores.append(scoreToSave)
         saveAllScores(allScores)
 
         // Update user stats
-        updateUserStats(for: score)
+        updateUserStats(for: scoreToSave)
 
-        print("LocalLeaderboardService: Saved \(score.gameType.rawValue) score: \(score.score) for \(score.dateKey)")
+        print("LocalLeaderboardService: Saved \(scoreToSave.gameType.rawValue) score: \(scoreToSave.score) for \(scoreToSave.dateKey) as \(scoreToSave.username ?? "unknown")")
         return true
     }
 
@@ -199,6 +205,40 @@ class LocalLeaderboardService {
         let scores = getScores(for: gameType)
         guard !scores.isEmpty else { return nil }
         return scores.sorted { $0.ranksHigherThan($1) }.first
+    }
+
+    /// Gets the top N scores for a game and date, plus the user's score if not in top N.
+    ///
+    /// This method is designed for the game-over leaderboard display:
+    /// - Returns the top 5 (or N) scores sorted by rank
+    /// - If the user's score is not in the top N, includes it separately
+    /// - Returns the user's overall rank for display
+    ///
+    /// - Parameters:
+    ///   - gameType: The game type
+    ///   - date: The date
+    ///   - limit: Number of top scores to return (default 5)
+    /// - Returns: Tuple of (topScores, userScoreIfNotInTop, userRank)
+    func getLeaderboardData(for gameType: GameType, date: Date, limit: Int = 5) -> (topScores: [LocalScore], userScoreIfNotInTop: LocalScore?, userRank: Int?) {
+        let allScores = getScores(for: gameType, date: date)
+            .sorted { $0.ranksHigherThan($1) }
+
+        let topScores = Array(allScores.prefix(limit))
+        let userScore = getUserScore(for: gameType, date: date)
+
+        var userScoreIfNotInTop: LocalScore? = nil
+        var userRank: Int? = nil
+
+        if let userScore = userScore {
+            if let index = allScores.firstIndex(where: { $0.id == userScore.id }) {
+                userRank = index + 1
+                if index >= limit {
+                    userScoreIfNotInTop = userScore
+                }
+            }
+        }
+
+        return (topScores, userScoreIfNotInTop, userRank)
     }
 
     // MARK: - Sync Management

@@ -14,11 +14,14 @@ import Foundation
 // MARK: - Game Type
 /// Identifies each game type for leaderboards and analytics.
 /// Add new cases here when adding new games.
-enum GameType: String, Codable, CaseIterable {
+enum GameType: String, Codable, CaseIterable, Identifiable {
     case wordle = "wordle"
     case trivia = "trivia"
     case crossword = "crossword"
     case echo = "echo"
+
+    /// Identifiable conformance
+    var id: String { rawValue }
 
     var displayName: String {
         switch self {

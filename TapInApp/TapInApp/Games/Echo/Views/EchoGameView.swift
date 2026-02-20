@@ -16,6 +16,7 @@ struct EchoGameView: View {
 
     @Environment(\.colorScheme) var colorScheme
     @State private var viewModel = EchoGameViewModel()
+    @State private var showLeaderboardOverlay = true  // Show leaderboard first on game over
 
     var body: some View {
         ZStack {
@@ -55,8 +56,33 @@ struct EchoGameView: View {
                     roundCompletePhase
 
                 case .gameOver:
-                    gameOverPhase
+                    ZStack {
+                        gameOverPhase
+
+                        // Show leaderboard overlay on top
+                        if showLeaderboardOverlay {
+                            GameOverLeaderboardView(
+                                gameType: .echo,
+                                gameDate: Date(),
+                                userScore: LocalLeaderboardService.shared.getUserScore(for: .echo, date: Date()),
+                                resultTitle: viewModel.roundsSolved == 5 ? "Perfect Game!" : "Game Complete",
+                                resultSubtitle: "\(viewModel.score) points \u{2022} \(viewModel.roundsSolved)/5 rounds solved",
+                                resultIcon: viewModel.roundsSolved == 5 ? "star.fill" : "checkmark.circle.fill",
+                                resultColor: viewModel.roundsSolved == 5 ? .ucdGold : .green,
+                                onDismiss: {
+                                    showLeaderboardOverlay = false
+                                },
+                                onBack: onDismiss
+                            )
+                        }
+                    }
                 }
+            }
+        }
+        .onChange(of: viewModel.gameState) { oldState, newState in
+            // Reset leaderboard overlay when entering game over
+            if newState == .gameOver {
+                showLeaderboardOverlay = true
             }
         }
     }

@@ -12,10 +12,15 @@ import SwiftUI
 // MARK: - Leaderboard View
 
 struct LeaderboardView: View {
-    @State private var viewModel = LeaderboardViewModel()
+    @State private var viewModel: LeaderboardViewModel
     let onDismiss: () -> Void
 
     @Environment(\.colorScheme) var colorScheme
+
+    init(initialGameType: GameType? = nil, onDismiss: @escaping () -> Void) {
+        self._viewModel = State(initialValue: LeaderboardViewModel(initialGameType: initialGameType))
+        self.onDismiss = onDismiss
+    }
 
     var body: some View {
         ZStack {

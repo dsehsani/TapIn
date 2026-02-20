@@ -9,14 +9,23 @@
 #  All models use dataclasses for clean, type-safe data structures.
 #
 #  Models:
-#  - Score: Represents a single player's score submission
+#  - Score: Represents a single player's score submission (Wordle legacy)
 #  - LeaderboardEntry: Represents a formatted leaderboard entry for display
+#  - GameScore: Unified score model for all game types
+#  - UnifiedLeaderboardEntry: Unified leaderboard entry for all games
 #
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Optional
+from typing import Optional, Dict, Any
 import uuid
+
+
+# ------------------------------------------------------------------------------
+# MARK: - Game Types
+# ------------------------------------------------------------------------------
+
+VALID_GAME_TYPES = ["wordle", "echo", "crossword", "trivia"]
 
 
 # ------------------------------------------------------------------------------
@@ -132,4 +141,116 @@ class LeaderboardEntry:
             "guesses": self.guesses,
             "guesses_display": self.guesses_display,
             "time_seconds": self.time_seconds
+        }
+
+
+# ------------------------------------------------------------------------------
+# MARK: - Unified GameScore Model
+# ------------------------------------------------------------------------------
+
+@dataclass
+class GameScore:
+    """
+    Unified score model for all game types.
+
+    Attributes:
+        id: Unique identifier for this score entry
+        game_type: Type of game (wordle, echo, crossword, trivia)
+        username: Player's username
+        score: Computed score value (game-specific)
+        date: The date of the puzzle/game (YYYY-MM-DD)
+        metadata: Game-specific additional data
+    """
+    game_type: str
+    username: str
+    score: int
+    date: str
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+
+    def to_dict(self) -> dict:
+        """Converts to dictionary for JSON serialization."""
+        return {
+            "id": self.id,
+            "game_type": self.game_type,
+            "username": self.username,
+            "score": self.score,
+            "date": self.date,
+            "metadata": self.metadata
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "GameScore":
+        """Creates a GameScore instance from a dictionary."""
+        return cls(
+            id=data.get("id", str(uuid.uuid4())),
+            game_type=data["game_type"],
+            username=data.get("username", ""),
+            score=data.get("score", 0),
+            date=data["date"],
+            metadata=data.get("metadata", {})
+        )
+
+    def ranks_higher_than(self, other: "GameScore") -> bool:
+        """
+        Compares two scores for ranking.
+        Returns True if self should rank higher than other.
+        """
+        if self.game_type != other.game_type:
+            return False
+
+        if self.game_type == "wordle":
+            # Fewer guesses = better, then faster time
+            self_guesses = int(self.metadata.get("guesses", 999))
+            other_guesses = int(other.metadata.get("guesses", 999))
+            if self_guesses != other_guesses:
+                return self_guesses < other_guesses
+            self_time = int(self.metadata.get("time_seconds", 999999))
+            other_time = int(other.metadata.get("time_seconds", 999999))
+            return self_time < other_time
+
+        elif self.game_type == "echo":
+            # Higher score = better
+            return self.score > other.score
+
+        elif self.game_type == "crossword":
+            # Faster time = better
+            self_time = int(self.metadata.get("completion_time_seconds", 999999))
+            other_time = int(other.metadata.get("completion_time_seconds", 999999))
+            return self_time < other_time
+
+        elif self.game_type == "trivia":
+            # Higher score = better
+            return self.score > other.score
+
+        return False
+
+
+# ------------------------------------------------------------------------------
+# MARK: - Unified LeaderboardEntry Model
+# ------------------------------------------------------------------------------
+
+@dataclass
+class UnifiedLeaderboardEntry:
+    """
+    Unified leaderboard entry for all game types.
+    """
+    id: str
+    rank: int
+    username: str
+    score: int
+    game_type: str
+    date: str
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        """Converts to dictionary for JSON serialization."""
+        return {
+            "id": self.id,
+            "rank": self.rank,
+            "username": self.username,
+            "score": self.score,
+            "game_type": self.game_type,
+            "date": self.date,
+            "metadata": self.metadata
         }

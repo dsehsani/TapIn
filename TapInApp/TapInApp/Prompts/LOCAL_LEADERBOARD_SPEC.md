@@ -1,8 +1,8 @@
 # Local Leaderboards Implementation Spec
 
 > **Owner:** Yash Pradhan
-> **Last Updated:** 2026-02-12
-> **Status:** In Progress
+> **Last Updated:** 2026-02-20
+> **Status:** Phase 4 Complete - Remote Infrastructure Ready
 
 ---
 
@@ -2078,8 +2078,1280 @@ Header components including:
 
 After Phase 2 is complete and tested:
 
-1. **Remote Sync** - Implement background sync for pending scores
-2. **Real-time Updates** - Pull remote leaderboard data
-3. **Profile Integration** - Add leaderboard summary to ProfileView
-4. **Game Over Integration** - Show rank on game completion screens
-5. **Notifications** - Notify when someone beats your score
+1. **Game Over Leaderboard** - Auto-show leaderboard when game ends
+2. **Username Generator** - Random display names (e.g., "SwiftFalcon")
+3. **Per-Game Leaderboard Buttons** - Quick access from game cards
+4. **Remote Sync** - (Future) Backend for multi-user leaderboards
+
+---
+
+# Phase 3 Implementation Prompt
+
+> **Purpose:** This section provides detailed implementation instructions for Phase 3: Game Over Leaderboard Integration. An AI assistant or developer can follow this prompt to implement the feature correctly.
+> **Last Updated:** 2026-02-20
+
+---
+
+## Phase 3 Overview
+
+### Goals
+1. **Auto-show leaderboard on game completion** - When any game ends, display a leaderboard overlay
+2. **Random display names** - Generate fun usernames like "SwiftFalcon" (400 unique per day)
+3. **Top 5 + user rank** - Show top 5 scores; if user not in top 5, show their rank as 6th entry
+4. **Per-game leaderboard buttons** - Add leaderboard access next to each game in GamesView
+
+### Key Decisions (Confirmed 2026-02-20)
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Score handling** | Ignore duplicates (first score only) | Simplicity; replacement logic deferred to future version |
+| **Display name** | Random generated (e.g., "SwiftFalcon") | Privacy; fun factor |
+| **Name uniqueness** | 400 unique per day (20 adj × 20 nouns) | Sufficient for daily active users |
+| **Replay same day** | Not allowed | Matches current daily puzzle behavior |
+| **Leaderboard trigger** | Auto-appear on game over | No extra tap required |
+| **Data source** | Local only (single device, single user) | Remote sync is future phase |
+
+---
+
+## Architecture
+
+### New Components
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Game Over Flow                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Game Ends → Save Score → Generate Username → Show Leaderboard  │
+│                                                                  │
+│  ┌─────────────┐    ┌──────────────────┐    ┌────────────────┐  │
+│  │ GameViewModel│───▶│LocalLeaderboard  │───▶│GameOverLeader- │  │
+│  │ (any game)  │    │Service           │    │boardView       │  │
+│  └─────────────┘    └──────────────────┘    └────────────────┘  │
+│                              │                       │           │
+│                              ▼                       ▼           │
+│                     ┌──────────────────┐    ┌────────────────┐  │
+│                     │UsernameGenerator │    │LeaderboardRow  │  │
+│                     │Service           │    │View (reused)   │  │
+│                     └──────────────────┘    └────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Files to Create
+
+| File | Location | Purpose |
+|------|----------|---------|
+| `UsernameGenerator.swift` | `Services/` | Generate random display names |
+| `GameOverLeaderboardView.swift` | `Components/` | Leaderboard overlay for game completion |
+| `GameOverLeaderboardViewModel.swift` | `ViewModels/` | State management for game over leaderboard |
+
+### Files to Modify
+
+| File | Change |
+|------|--------|
+| `LocalLeaderboardService.swift` | Integrate username generation on save, add ranking helpers |
+| `EchoGameView.swift` | Replace game over phase with GameOverLeaderboardView |
+| `MiniCrosswordGameView.swift` | Replace CrosswordCompletionView with GameOverLeaderboardView |
+| `WordleGameView.swift` / `GameOverView.swift` | Integrate GameOverLeaderboardView |
+| `GamesView.swift` | Add per-game leaderboard buttons |
+| `GameRowCard` | Add trophy button |
+
+---
+
+## Step 1: Create UsernameGenerator Service
+
+**Location:** `TapInApp/TapInApp/Services/UsernameGenerator.swift`
+
+**Purpose:** Generates random, fun display names like "SwiftFalcon" or "BraveTiger". Designed to produce up to 400 unique names per day (20 adjectives × 20 nouns).
+
+### Requirements
+- Deterministic: Same user + same date = same username
+- Fun and memorable names
+- 20 adjectives × 20 nouns = 400 unique combinations
+- Persists generated name for the day in UserDefaults
+
+### Implementation
+
+```swift
+//
+//  UsernameGenerator.swift
+//  TapInApp
+//
+//  MARK: - Username Generator Service
+//  Generates random display names for leaderboard entries.
+//  Names are deterministic per user per day (same user gets same name each day).
+//
+
+import Foundation
+
+/// Service for generating random display names for leaderboard entries.
+///
+/// Generates names in the format "AdjectiveNoun" (e.g., "SwiftFalcon", "BraveTiger").
+/// Names are deterministic: the same user on the same day always gets the same name.
+/// Supports up to 400 unique names per day (20 adjectives × 20 nouns).
+///
+class UsernameGenerator {
+
+    // MARK: - Singleton
+
+    static let shared = UsernameGenerator()
+
+    // MARK: - Storage Key
+
+    private let storageKeyPrefix = "generatedUsername_"
+
+    // MARK: - Word Lists (20 × 20 = 400 combinations)
+
+    private let adjectives: [String] = [
+        "Swift", "Brave", "Clever", "Bold", "Mighty",
+        "Noble", "Agile", "Fierce", "Cosmic", "Golden",
+        "Silver", "Crystal", "Thunder", "Shadow", "Blazing",
+        "Rapid", "Lucky", "Mystic", "Royal", "Epic"
+    ]
+
+    private let nouns: [String] = [
+        "Falcon", "Tiger", "Phoenix", "Dragon", "Eagle",
+        "Wolf", "Panther", "Hawk", "Lion", "Bear",
+        "Fox", "Raven", "Shark", "Cobra", "Mustang",
+        "Jaguar", "Viper", "Griffin", "Pegasus", "Titan"
+    ]
+
+    // MARK: - Initialization
+
+    private init() {}
+
+    // MARK: - Public Methods
+
+    /// Gets or generates a display name for the current user for today.
+    ///
+    /// If a name was already generated today, returns the cached name.
+    /// Otherwise, generates a new deterministic name based on user ID and date.
+    ///
+    /// - Returns: A display name like "SwiftFalcon"
+    func getDisplayName() -> String {
+        let dateKey = formatDateKey(Date())
+        let storageKey = storageKeyPrefix + dateKey
+
+        // Check if we already have a name for today
+        if let cachedName = UserDefaults.standard.string(forKey: storageKey) {
+            return cachedName
+        }
+
+        // Generate a new name
+        let name = generateName(for: Date())
+
+        // Cache it for today
+        UserDefaults.standard.set(name, forKey: storageKey)
+
+        // Clean up old cached names (keep only last 7 days)
+        cleanupOldNames()
+
+        return name
+    }
+
+    /// Gets the display name for a specific date.
+    ///
+    /// Useful for displaying historical scores with consistent names.
+    ///
+    /// - Parameter date: The date to get the name for
+    /// - Returns: A display name
+    func getDisplayName(for date: Date) -> String {
+        let dateKey = formatDateKey(date)
+        let storageKey = storageKeyPrefix + dateKey
+
+        if let cachedName = UserDefaults.standard.string(forKey: storageKey) {
+            return cachedName
+        }
+
+        // For past dates, generate deterministically but don't cache
+        return generateName(for: date)
+    }
+
+    /// Generates a preview name (not cached).
+    ///
+    /// - Returns: Today's display name without caching
+    func previewTodaysName() -> String {
+        return generateName(for: Date())
+    }
+
+    // MARK: - Private Methods
+
+    /// Generates a deterministic name based on date and device ID.
+    private func generateName(for date: Date) -> String {
+        // Create a seed from date + device identifier
+        let dateString = formatDateKey(date)
+        let deviceId = getDeviceIdentifier()
+        let seed = "\(dateString)_\(deviceId)"
+
+        // Use hash to get deterministic indices
+        let hash = abs(seed.hashValue)
+        let adjIndex = hash % adjectives.count
+        let nounIndex = (hash / adjectives.count) % nouns.count
+
+        return adjectives[adjIndex] + nouns[nounIndex]
+    }
+
+    /// Gets a stable device identifier.
+    private func getDeviceIdentifier() -> String {
+        let key = "deviceIdentifier"
+
+        if let existing = UserDefaults.standard.string(forKey: key) {
+            return existing
+        }
+
+        // Generate new identifier
+        let newId = UUID().uuidString
+        UserDefaults.standard.set(newId, forKey: key)
+        return newId
+    }
+
+    /// Formats a date as yyyy-MM-dd.
+    private func formatDateKey(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    /// Cleans up cached names older than 7 days.
+    private func cleanupOldNames() {
+        let calendar = Calendar.current
+        let defaults = UserDefaults.standard
+
+        let allKeys = defaults.dictionaryRepresentation().keys
+        let usernameKeys = allKeys.filter { $0.hasPrefix(storageKeyPrefix) }
+
+        let cutoffDate = calendar.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+        let cutoffKey = storageKeyPrefix + formatDateKey(cutoffDate)
+
+        for key in usernameKeys {
+            if key < cutoffKey {
+                defaults.removeObject(forKey: key)
+            }
+        }
+    }
+}
+```
+
+---
+
+## Step 2: Update LocalLeaderboardService
+
+**Location:** `TapInApp/TapInApp/Services/LocalLeaderboardService.swift`
+
+**Changes needed:**
+1. Auto-assign display name when saving scores (if not already set)
+2. Add helper method for getting leaderboard data with user rank
+
+### Modify `saveScore` Method
+
+Find the `saveScore` method and update it to auto-assign username:
+
+```swift
+@discardableResult
+func saveScore(_ score: LocalScore) -> Bool {
+    var allScores = loadAllScores()
+
+    // Check if a score already exists for this game/date combination
+    let isDuplicate = allScores.contains { existing in
+        existing.gameType == score.gameType &&
+        existing.dateKey == score.dateKey
+    }
+
+    if isDuplicate {
+        print("LocalLeaderboardService: Score already exists for \(score.gameType.rawValue) on \(score.dateKey)")
+        return false
+    }
+
+    // Auto-assign display name if not set
+    var scoreToSave = score
+    if scoreToSave.username == nil {
+        scoreToSave.username = UsernameGenerator.shared.getDisplayName(for: score.date)
+    }
+
+    allScores.append(scoreToSave)
+    saveAllScores(allScores)
+
+    // Update user stats
+    updateUserStats(for: scoreToSave)
+
+    print("LocalLeaderboardService: Saved \(scoreToSave.gameType.rawValue) score: \(scoreToSave.score) for \(scoreToSave.dateKey) as \(scoreToSave.username ?? "unknown")")
+    return true
+}
+```
+
+### Add Helper Method for Leaderboard Data
+
+Add this method to `LocalLeaderboardService`:
+
+```swift
+/// Gets the top N scores for a game and date, plus the user's score if not in top N.
+///
+/// - Parameters:
+///   - gameType: The game type
+///   - date: The date
+///   - limit: Number of top scores to return (default 5)
+/// - Returns: Tuple of (topScores, userScoreIfNotInTop, userRank)
+func getLeaderboardData(for gameType: GameType, date: Date, limit: Int = 5) -> (topScores: [LocalScore], userScoreIfNotInTop: LocalScore?, userRank: Int?) {
+    let allScores = getScores(for: gameType, date: date)
+        .sorted { $0.ranksHigherThan($1) }
+
+    let topScores = Array(allScores.prefix(limit))
+    let userScore = getUserScore(for: gameType, date: date)
+
+    var userScoreIfNotInTop: LocalScore? = nil
+    var userRank: Int? = nil
+
+    if let userScore = userScore {
+        if let index = allScores.firstIndex(where: { $0.id == userScore.id }) {
+            userRank = index + 1
+            if index >= limit {
+                userScoreIfNotInTop = userScore
+            }
+        }
+    }
+
+    return (topScores, userScoreIfNotInTop, userRank)
+}
+```
+
+---
+
+## Step 3: Create GameOverLeaderboardViewModel
+
+**Location:** `TapInApp/TapInApp/ViewModels/GameOverLeaderboardViewModel.swift`
+
+```swift
+//
+//  GameOverLeaderboardViewModel.swift
+//  TapInApp
+//
+//  MARK: - Game Over Leaderboard ViewModel
+//  Manages state for the leaderboard shown after game completion.
+//
+
+import Foundation
+import SwiftUI
+
+/// ViewModel for the game over leaderboard overlay.
+@Observable
+class GameOverLeaderboardViewModel {
+
+    // MARK: - Properties
+
+    let gameType: GameType
+    let gameDate: Date
+    let userScore: LocalScore?
+
+    var topScores: [LocalScore] = []
+    var userScoreIfNotInTop: LocalScore? = nil
+    var userRank: Int? = nil
+    var displayName: String = ""
+    var totalPlayers: Int = 0
+    var isLoading: Bool = true
+
+    // MARK: - Computed Properties
+
+    var isUserInTop5: Bool {
+        guard let rank = userRank else { return false }
+        return rank <= 5
+    }
+
+    var gameDisplayName: String {
+        switch gameType {
+        case .wordle: return "Aggie Wordle"
+        case .echo: return "Echo"
+        case .crossword: return "Mini Crossword"
+        case .trivia: return "Trivia"
+        }
+    }
+
+    // MARK: - Initialization
+
+    init(gameType: GameType, gameDate: Date = Date(), userScore: LocalScore? = nil) {
+        self.gameType = gameType
+        self.gameDate = gameDate
+        self.userScore = userScore
+        loadData()
+    }
+
+    // MARK: - Methods
+
+    func loadData() {
+        isLoading = true
+        displayName = UsernameGenerator.shared.getDisplayName(for: gameDate)
+
+        let data = LocalLeaderboardService.shared.getLeaderboardData(
+            for: gameType,
+            date: gameDate,
+            limit: 5
+        )
+
+        topScores = data.topScores
+        userScoreIfNotInTop = data.userScoreIfNotInTop
+        userRank = data.userRank
+        totalPlayers = LocalLeaderboardService.shared.getScores(for: gameType, date: gameDate).count
+
+        isLoading = false
+    }
+
+    func rank(for score: LocalScore) -> Int {
+        if let index = topScores.firstIndex(where: { $0.id == score.id }) {
+            return index + 1
+        }
+        return userRank ?? 0
+    }
+
+    func isUserScore(_ score: LocalScore) -> Bool {
+        return score.id == userScore?.id
+    }
+}
+```
+
+---
+
+## Step 4: Create GameOverLeaderboardView
+
+**Location:** `TapInApp/TapInApp/Components/GameOverLeaderboardView.swift`
+
+```swift
+//
+//  GameOverLeaderboardView.swift
+//  TapInApp
+//
+//  MARK: - Game Over Leaderboard View
+//  Overlay shown after game completion displaying leaderboard and user info.
+//
+
+import SwiftUI
+
+struct GameOverLeaderboardView: View {
+
+    @State private var viewModel: GameOverLeaderboardViewModel
+
+    let resultTitle: String
+    let resultSubtitle: String
+    let resultIcon: String
+    let resultColor: Color
+
+    let onDismiss: () -> Void
+    let onBack: () -> Void
+
+    @Environment(\.colorScheme) var colorScheme
+
+    init(
+        gameType: GameType,
+        gameDate: Date = Date(),
+        userScore: LocalScore? = nil,
+        resultTitle: String,
+        resultSubtitle: String,
+        resultIcon: String = "trophy.fill",
+        resultColor: Color = .ucdGold,
+        onDismiss: @escaping () -> Void,
+        onBack: @escaping () -> Void
+    ) {
+        self._viewModel = State(initialValue: GameOverLeaderboardViewModel(
+            gameType: gameType,
+            gameDate: gameDate,
+            userScore: userScore
+        ))
+        self.resultTitle = resultTitle
+        self.resultSubtitle = resultSubtitle
+        self.resultIcon = resultIcon
+        self.resultColor = resultColor
+        self.onDismiss = onDismiss
+        self.onBack = onBack
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.6)
+                .ignoresSafeArea()
+                .onTapGesture { onDismiss() }
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 24) {
+                    resultHeader
+                    leaderboardSection
+                    userInfoSection
+                    actionButtons
+                }
+                .padding(24)
+                .background(
+                    RoundedRectangle(cornerRadius: 24)
+                        .fill(colorScheme == .dark ? Color(hex: "#1a1a2e") : .white)
+                )
+                .padding(.horizontal, 24)
+                .padding(.vertical, 48)
+            }
+        }
+    }
+
+    private var resultHeader: some View {
+        VStack(spacing: 12) {
+            Image(systemName: resultIcon)
+                .font(.system(size: 48))
+                .foregroundColor(resultColor)
+
+            Text(resultTitle)
+                .font(.system(size: 24, weight: .bold))
+                .foregroundColor(colorScheme == .dark ? .white : Color.ucdBlue)
+
+            Text(resultSubtitle)
+                .font(.system(size: 16))
+                .foregroundColor(.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+    }
+
+    private var leaderboardSection: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Image(systemName: "trophy.fill")
+                    .foregroundColor(.ucdGold)
+                Text("Today's Leaderboard")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(colorScheme == .dark ? .white : Color.ucdBlue)
+
+                Spacer()
+
+                if viewModel.totalPlayers > 0 {
+                    Text("\(viewModel.totalPlayers) player\(viewModel.totalPlayers == 1 ? "" : "s")")
+                        .font(.system(size: 12))
+                        .foregroundColor(.textSecondary)
+                }
+            }
+
+            if viewModel.isLoading {
+                ProgressView()
+                    .padding(.vertical, 20)
+            } else if viewModel.topScores.isEmpty {
+                emptyState
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(viewModel.topScores) { score in
+                        LeaderboardRowView(
+                            score: score,
+                            rank: viewModel.rank(for: score),
+                            isCurrentUser: viewModel.isUserScore(score),
+                            colorScheme: colorScheme
+                        )
+                    }
+
+                    if let userScore = viewModel.userScoreIfNotInTop,
+                       let userRank = viewModel.userRank {
+                        Divider().padding(.vertical, 4)
+
+                        LeaderboardRowView(
+                            score: userScore,
+                            rank: userRank,
+                            isCurrentUser: true,
+                            colorScheme: colorScheme
+                        )
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(colorScheme == .dark ? Color.black.opacity(0.3) : Color.gray.opacity(0.1))
+        )
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 8) {
+            Text("No scores yet today")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.textSecondary)
+            Text("Be the first to set a score!")
+                .font(.system(size: 12))
+                .foregroundColor(.textSecondary)
+        }
+        .padding(.vertical, 16)
+    }
+
+    private var userInfoSection: some View {
+        VStack(spacing: 8) {
+            Text("Your display name is:")
+                .font(.system(size: 14))
+                .foregroundColor(.textSecondary)
+
+            Text(viewModel.displayName)
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundColor(Color.ucdGold)
+
+            if let rank = viewModel.userRank {
+                Text("You ranked #\(rank) out of \(viewModel.totalPlayers)")
+                    .font(.system(size: 12))
+                    .foregroundColor(.textSecondary)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.ucdGold.opacity(0.15))
+        )
+    }
+
+    private var actionButtons: some View {
+        VStack(spacing: 12) {
+            Button(action: onDismiss) {
+                Text("View \(viewModel.gameDisplayName)")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color.ucdBlue)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.ucdGold)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+
+            Button(action: onBack) {
+                Text("Back to Games")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(colorScheme == .dark ? .white : Color.ucdBlue)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(colorScheme == .dark ? Color.white.opacity(0.3) : Color.ucdBlue.opacity(0.3), lineWidth: 1)
+                    )
+            }
+        }
+    }
+}
+
+#Preview {
+    GameOverLeaderboardView(
+        gameType: .wordle,
+        resultTitle: "Puzzle Complete!",
+        resultSubtitle: "Solved in 4 guesses",
+        onDismiss: {},
+        onBack: {}
+    )
+}
+```
+
+---
+
+## Step 5: Integrate with Echo Game
+
+**Location:** `TapInApp/TapInApp/Games/Echo/Views/EchoGameView.swift`
+
+**Find the `gameOverPhase` section (case `.gameOver:`) and replace with:**
+
+```swift
+case .gameOver:
+    GameOverLeaderboardView(
+        gameType: .echo,
+        gameDate: Date(),
+        userScore: LocalLeaderboardService.shared.getUserScore(for: .echo, date: Date()),
+        resultTitle: viewModel.roundsSolved == 5 ? "Perfect Game!" : "Game Complete",
+        resultSubtitle: "\(viewModel.score) points • \(viewModel.roundsSolved)/5 rounds solved",
+        resultIcon: viewModel.roundsSolved == 5 ? "star.fill" : "checkmark.circle.fill",
+        resultColor: viewModel.roundsSolved == 5 ? .ucdGold : .wordleGreen,
+        onDismiss: {
+            // Stay in game but dismiss overlay if needed
+        },
+        onBack: onDismiss
+    )
+```
+
+---
+
+## Step 6: Integrate with MiniCrossword Game
+
+**Location:** `TapInApp/TapInApp/Games/MiniCrossWord/Views/MiniCrosswordGameView.swift`
+
+**Find where `CrosswordCompletionView` is shown and replace:**
+
+```swift
+// Find:
+if viewModel.gameState == .completed && showCompletionOverlay {
+    CrosswordCompletionView(...)
+}
+
+// Replace with:
+if viewModel.gameState == .completed && showCompletionOverlay {
+    GameOverLeaderboardView(
+        gameType: .crossword,
+        gameDate: viewModel.currentDate,
+        userScore: LocalLeaderboardService.shared.getUserScore(for: .crossword, date: viewModel.currentDate),
+        resultTitle: "Puzzle Complete!",
+        resultSubtitle: "Solved in \(formatTime(viewModel.elapsedSeconds))",
+        resultIcon: "trophy.fill",
+        resultColor: .ucdGold,
+        onDismiss: { showCompletionOverlay = false },
+        onBack: onDismiss
+    )
+}
+
+// Add helper if not present:
+private func formatTime(_ seconds: Int) -> String {
+    let minutes = seconds / 60
+    let secs = seconds % 60
+    return String(format: "%d:%02d", minutes, secs)
+}
+```
+
+---
+
+## Step 7: Integrate with Wordle Game
+
+**Location:** `TapInApp/TapInApp/Games/Wordle/Views/` (wherever `GameOverView` is presented)
+
+**Replace GameOverView with GameOverLeaderboardView:**
+
+```swift
+// Find the GameOverView presentation and replace with:
+if viewModel.showGameOver {
+    GameOverLeaderboardView(
+        gameType: .wordle,
+        gameDate: viewModel.currentDate,
+        userScore: LocalLeaderboardService.shared.getUserScore(for: .wordle, date: viewModel.currentDate),
+        resultTitle: viewModel.gameState == .won ? "Congratulations!" : "Game Over",
+        resultSubtitle: viewModel.gameState == .won
+            ? "Solved in \(viewModel.currentRow) guess\(viewModel.currentRow == 1 ? "" : "es")"
+            : "The word was \(viewModel.targetWord)",
+        resultIcon: viewModel.gameState == .won ? "checkmark.circle.fill" : "xmark.circle.fill",
+        resultColor: viewModel.gameState == .won ? .wordleGreen : .ucdGold,
+        onDismiss: { viewModel.showGameOver = false },
+        onBack: onDismiss
+    )
+}
+```
+
+---
+
+## Step 8: Add Per-Game Leaderboard Buttons
+
+**Location:** `TapInApp/TapInApp/Views/GamesView.swift`
+
+### Modify GameRowCard to include leaderboard button:
+
+```swift
+struct GameRowCard: View {
+    let game: Game
+    let colorScheme: ColorScheme
+    let onPlay: () -> Void
+    let onLeaderboard: () -> Void  // ADD THIS
+
+    var body: some View {
+        HStack(spacing: 16) {
+            // ... existing icon code ...
+
+            VStack(alignment: .leading, spacing: 4) {
+                // ... existing name and description ...
+            }
+
+            Spacer()
+
+            // ADD: Leaderboard button
+            Button(action: onLeaderboard) {
+                Image(systemName: "trophy")
+                    .font(.system(size: 16))
+                    .foregroundColor(Color.ucdGold)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        Circle()
+                            .fill(Color.ucdGold.opacity(0.15))
+                    )
+            }
+            .buttonStyle(PlainButtonStyle())
+
+            Image(systemName: "chevron.right")
+            // ... rest of styling ...
+        }
+    }
+}
+```
+
+### Update GamesView to handle per-game leaderboard:
+
+```swift
+// Add state in GamesView
+@State private var leaderboardGameType: GameType? = nil
+
+// Add sheet presentation
+.sheet(item: $leaderboardGameType) { gameType in
+    LeaderboardView(
+        initialGameType: gameType,
+        onDismiss: { leaderboardGameType = nil }
+    )
+}
+
+// Update GameRowCard usage
+ForEach(viewModel.availableGames) { game in
+    GameRowCard(
+        game: game,
+        colorScheme: colorScheme,
+        onPlay: { viewModel.startGame(game) },
+        onLeaderboard: { leaderboardGameType = game.type }
+    )
+}
+```
+
+### Make GameType Identifiable (if not already):
+
+```swift
+// In Game.swift or Models
+extension GameType: Identifiable {
+    var id: String { rawValue }
+}
+```
+
+---
+
+## Verification Checklist
+
+After implementing Phase 3, verify:
+
+- [ ] `UsernameGenerator.swift` compiles and generates names like "SwiftFalcon"
+- [ ] `UsernameGenerator.shared.getDisplayName()` returns consistent name for same day
+- [ ] `LocalLeaderboardService.saveScore()` auto-assigns username
+- [ ] `GameOverLeaderboardView` displays correctly
+- [ ] Echo game shows leaderboard on game over
+- [ ] Crossword game shows leaderboard on completion
+- [ ] Wordle game shows leaderboard on win/loss
+- [ ] Leaderboard shows "Your display name is: [name]"
+- [ ] If user not in top 5, 6th row shows their rank
+- [ ] Per-game leaderboard button appears next to each game
+- [ ] Build succeeds with no errors
+
+---
+
+## Files Created/Modified Summary (Phase 3)
+
+| Action | File | Purpose |
+|--------|------|---------|
+| CREATE | `Services/UsernameGenerator.swift` | Random display name generation |
+| CREATE | `ViewModels/GameOverLeaderboardViewModel.swift` | Game over leaderboard state |
+| CREATE | `Components/GameOverLeaderboardView.swift` | Game over leaderboard UI |
+| MODIFY | `Services/LocalLeaderboardService.swift` | Auto-assign username, add ranking helpers |
+| MODIFY | `Games/Echo/Views/EchoGameView.swift` | Integrate GameOverLeaderboardView |
+| MODIFY | `Games/MiniCrossWord/Views/MiniCrosswordGameView.swift` | Replace CrosswordCompletionView |
+| MODIFY | `Games/Wordle/Views/*` | Integrate GameOverLeaderboardView |
+| MODIFY | `Views/GamesView.swift` | Add per-game leaderboard buttons |
+
+---
+
+## Future Considerations (Phase 5+)
+
+### Score Replacement Feature
+When ready to implement "most recent score replaces old":
+
+1. Add `saveOrReplaceScore()` method to `LocalLeaderboardService`
+2. Update game ViewModels to call replacement method
+3. Add "Play Again" button to GameOverLeaderboardView
+
+### Friends & Social Features
+1. Add friends list with friend-only leaderboards
+2. Implement score sharing to social media
+3. Add notifications for when friends beat your score
+
+---
+
+## Phase 4: Remote Server Infrastructure
+
+> **Status:** ✅ IMPLEMENTED (2026-02-20)
+> **Purpose:** Enable remote sync of leaderboard scores across users when authentication is ready.
+
+---
+
+### Overview
+
+Phase 4 adds the infrastructure for syncing local leaderboard scores to a remote server. This enables:
+- Multi-user leaderboards (global rankings)
+- Score persistence across devices
+- Future integration with user authentication
+
+The implementation follows an **offline-first architecture**: scores are always saved locally first, then synced to the server when available.
+
+### Key Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Primary data source** | Local (LocalLeaderboardService) | Offline-first; always save locally first |
+| **Sync trigger** | After local save | Immediate sync attempt, with retry on failure |
+| **Remote toggle** | `APIConfig.useLocalOnlyLeaderboards` | Easy to enable/disable remote sync |
+| **Backend** | Flask (tapin-backend) | Reuses existing backend infrastructure |
+| **Storage** | In-memory (MVP) | Future: Firestore for persistence |
+
+---
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     Remote Sync Architecture                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌──────────────┐     ┌──────────────────┐     ┌────────────────────┐  │
+│  │ Game         │────▶│ LocalLeaderboard │────▶│ LeaderboardSync    │  │
+│  │ ViewModel    │     │ Service          │     │ Service            │  │
+│  └──────────────┘     └──────────────────┘     └────────────────────┘  │
+│                              │                          │               │
+│                              │ Save Score               │ Sync          │
+│                              ▼                          ▼               │
+│                     ┌──────────────────┐     ┌────────────────────┐    │
+│                     │ UserDefaults     │     │ RemoteLeaderboard  │    │
+│                     │ (Local Storage)  │     │ Service            │    │
+│                     └──────────────────┘     └────────────────────┘    │
+│                                                         │               │
+│                                                         │ HTTP          │
+│                                                         ▼               │
+│                                              ┌────────────────────┐    │
+│                                              │ tapin-backend      │    │
+│                                              │ (Flask Server)     │    │
+│                                              └────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Files Created
+
+| File | Location | Purpose |
+|------|----------|---------|
+| `RemoteLeaderboardService.swift` | `Services/` | HTTP client for remote leaderboard API |
+| `LeaderboardSyncService.swift` | `Services/` | Orchestrates local-to-remote sync |
+| `unified_leaderboard_service.py` | `tapin-backend/services/` | Backend service for all game types |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `APIConfig.swift` | Added leaderboard endpoints, auth placeholders, sync settings |
+| `LocalScore.swift` | Added `userId`, `deviceId`, `isAuthenticated` auth fields |
+| `models.py` | Added `GameScore`, `UnifiedLeaderboardEntry` models |
+| `api/leaderboard.py` | Added unified endpoints for all game types |
+| `app.py` | Updated endpoint documentation |
+
+---
+
+### iOS Client Implementation
+
+#### APIConfig.swift Additions
+
+```swift
+// MARK: - Leaderboard Endpoints
+
+/// Leaderboard API base path
+static var leaderboardBaseURL: String { "\(baseURL)/api/leaderboard" }
+
+/// POST - Submit a score for any game type
+/// Request: { game_type, score, date, username?, metadata }
+static var submitScoreURL: String { "\(leaderboardBaseURL)/score" }
+
+/// GET - Get leaderboard for a specific game and date
+/// Path: /api/leaderboard/{game_type}/{date}?limit=5
+static func leaderboardURL(gameType: String, date: String) -> String {
+    "\(leaderboardBaseURL)/\(gameType)/\(date)"
+}
+
+/// POST - Sync multiple scores at once (batch upload)
+/// Request: { scores: [...] }
+static var syncScoresURL: String { "\(leaderboardBaseURL)/sync" }
+
+/// GET - Leaderboard health check
+static var leaderboardHealthURL: String { "\(leaderboardBaseURL)/health" }
+
+// MARK: - Auth Endpoints (Placeholder for friend's implementation)
+
+static var authBaseURL: String { "\(baseURL)/api/auth" }
+static var loginURL: String { "\(authBaseURL)/login" }
+static var registerURL: String { "\(authBaseURL)/register" }
+static var profileURL: String { "\(authBaseURL)/profile" }
+
+// MARK: - Mode Toggles
+
+/// Set to true to use local-only leaderboards (no remote sync)
+/// Set to false when backend is ready
+static let useLocalOnlyLeaderboards = true
+
+// MARK: - Sync Settings
+
+/// How often to attempt background sync (in seconds)
+static let syncIntervalSeconds: TimeInterval = 60
+
+/// Maximum number of scores to sync in a single batch
+static let syncBatchSize = 50
+
+/// Number of retry attempts for failed syncs
+static let syncMaxRetries = 3
+```
+
+#### RemoteLeaderboardService.swift
+
+Unified HTTP client for remote leaderboard API:
+
+```swift
+@MainActor
+class RemoteLeaderboardService: ObservableObject {
+    static let shared = RemoteLeaderboardService()
+
+    @Published var isLoading: Bool = false
+    @Published var lastError: AppError?
+
+    /// Submits a score to the remote leaderboard
+    func submitScore(_ score: LocalScore) async throws -> RemoteScoreResponse
+
+    /// Fetches leaderboard for a specific game and date
+    func fetchLeaderboard(gameType: GameType, date: String, limit: Int = 5)
+        async throws -> [RemoteLeaderboardEntry]
+
+    /// Batch syncs multiple scores
+    func syncScores(_ scores: [LocalScore]) async throws -> RemoteSyncResponse
+
+    /// Health check
+    func isServerHealthy() async -> Bool
+}
+```
+
+#### LeaderboardSyncService.swift
+
+Orchestrates sync between local and remote:
+
+```swift
+@MainActor
+class LeaderboardSyncService: ObservableObject {
+    static let shared = LeaderboardSyncService()
+
+    @Published var isSyncing: Bool = false
+    @Published var lastSyncDate: Date?
+    @Published var pendingCount: Int = 0
+
+    /// Syncs a single score after local save
+    @discardableResult
+    func syncScore(_ score: LocalScore) async -> Bool
+
+    /// Syncs all pending scores (batch)
+    @discardableResult
+    func syncPendingScores() async -> Int
+
+    /// Saves locally and attempts remote sync
+    @discardableResult
+    func saveAndSync(_ score: LocalScore) async -> Bool
+
+    /// Starts periodic background sync
+    func startBackgroundSync()
+
+    /// Stops background sync
+    func stopBackgroundSync()
+
+    /// Checks if remote sync is available
+    func isRemoteSyncAvailable() async -> Bool
+}
+```
+
+#### LocalScore.swift Auth Fields
+
+```swift
+struct LocalScore: Identifiable, Codable, Equatable {
+    // ... existing fields ...
+
+    // MARK: - Auth Fields (for future auth integration)
+
+    /// The authenticated user's ID (nil if anonymous/not logged in)
+    var userId: String?
+
+    /// Whether this score was submitted by a logged-in user
+    var isAuthenticated: Bool {
+        userId != nil
+    }
+
+    /// Device identifier for anonymous tracking
+    var deviceId: String?
+}
+```
+
+---
+
+### Backend Implementation
+
+#### New Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/leaderboard/score` | Submit score (unified format with game_type) |
+| GET | `/api/leaderboard/{game_type}/{date}` | Get leaderboard for any game |
+| POST | `/api/leaderboard/sync` | Batch sync multiple scores |
+| GET | `/api/leaderboard/health` | Health check with supported games |
+
+#### Unified Score Submission
+
+```python
+# POST /api/leaderboard/score
+# Supports both unified format and legacy Wordle format
+
+# Unified Format:
+{
+    "game_type": "echo",      # Required: wordle, echo, crossword, trivia
+    "score": 1200,            # Required
+    "date": "2026-02-20",     # Required (YYYY-MM-DD)
+    "username": "SwiftFalcon",# Optional (auto-generated if not provided)
+    "metadata": {...}         # Optional, game-specific data
+}
+
+# Response:
+{
+    "success": true,
+    "id": "uuid-string",
+    "rank": 1,
+    "username": "SwiftFalcon"
+}
+```
+
+#### Fetch Leaderboard
+
+```python
+# GET /api/leaderboard/{game_type}/{date}?limit=5
+
+# Response:
+{
+    "success": true,
+    "game_type": "echo",
+    "date": "2026-02-20",
+    "leaderboard": [
+        {
+            "id": "uuid",
+            "rank": 1,
+            "username": "SwiftFalcon",
+            "score": 1250,
+            "game_type": "echo",
+            "date": "2026-02-20",
+            "metadata": {...}
+        }
+    ]
+}
+```
+
+#### Batch Sync
+
+```python
+# POST /api/leaderboard/sync
+{
+    "scores": [
+        {
+            "game_type": "echo",
+            "score": 1200,
+            "date": "2026-02-20",
+            "username": "SwiftFalcon",
+            "metadata": {...}
+        }
+    ]
+}
+
+# Response:
+{
+    "success": true,
+    "synced_count": 3,
+    "results": [
+        {
+            "local_id": null,
+            "remote_id": "uuid",
+            "success": true,
+            "error": null
+        }
+    ]
+}
+```
+
+---
+
+### How to Enable Remote Sync
+
+When authentication is implemented and backend is deployed:
+
+1. **Update APIConfig.swift:**
+   ```swift
+   // Change from true to false
+   static let useLocalOnlyLeaderboards = false
+
+   // Update to production URL
+   static let baseURL = "https://your-backend.appspot.com"
+   ```
+
+2. **Start background sync in app launch:**
+   ```swift
+   // In AppDelegate or App init
+   LeaderboardSyncService.shared.startBackgroundSync()
+   ```
+
+3. **Sync scores after game completion:**
+   ```swift
+   // Already handled by LocalLeaderboardService.saveScore()
+   // which calls LeaderboardSyncService.syncScore() when remote is enabled
+   ```
+
+---
+
+### Integration with Auth (for friend's implementation)
+
+When implementing user authentication:
+
+1. **After successful login**, update `LocalScore` entries with user ID:
+   ```swift
+   // Update pending scores with authenticated user ID
+   let pendingScores = LocalLeaderboardService.shared.getPendingScores()
+   for var score in pendingScores {
+       score.userId = AuthService.shared.currentUser?.id
+       LocalLeaderboardService.shared.updateScore(score)
+   }
+   ```
+
+2. **On new score submission**, attach user ID:
+   ```swift
+   let score = LocalScore(
+       gameType: .echo,
+       score: 1200,
+       date: Date(),
+       metadata: metadata,
+       userId: AuthService.shared.currentUser?.id,  // Attach user ID
+       deviceId: UIDevice.current.identifierForVendor?.uuidString
+   )
+   LocalLeaderboardService.shared.saveScore(score)
+   ```
+
+3. **Backend**: Update score submission to validate user tokens and associate scores with authenticated users.
+
+---
+
+### Verification Checklist
+
+After enabling remote sync, verify:
+
+- [ ] `APIConfig.useLocalOnlyLeaderboards = false` is set
+- [ ] `APIConfig.baseURL` points to correct server
+- [ ] Backend server is running and healthy (`/api/leaderboard/health`)
+- [ ] `RemoteLeaderboardService.submitScore()` succeeds
+- [ ] `RemoteLeaderboardService.fetchLeaderboard()` returns data
+- [ ] `LeaderboardSyncService.syncPendingScores()` syncs pending scores
+- [ ] Scores appear on backend after game completion
+- [ ] Leaderboard shows global rankings (not just local)
+
+---
+
+### Files Created/Modified Summary (Phase 4)
+
+| Action | File | Purpose |
+|--------|------|---------|
+| CREATE | `Services/RemoteLeaderboardService.swift` | HTTP client for remote API |
+| CREATE | `Services/LeaderboardSyncService.swift` | Sync orchestration |
+| CREATE | `tapin-backend/services/unified_leaderboard_service.py` | Backend unified service |
+| MODIFY | `Services/APIConfig.swift` | Leaderboard endpoints, auth placeholders |
+| MODIFY | `Models/LocalScore.swift` | Added userId, deviceId auth fields |
+| MODIFY | `tapin-backend/models.py` | GameScore, UnifiedLeaderboardEntry models |
+| MODIFY | `tapin-backend/api/leaderboard.py` | Unified endpoints |
+| MODIFY | `tapin-backend/app.py` | Endpoint documentation |
+
+---
+
+## Change Log
+
+| Date | Change |
+|------|--------|
+| 2026-02-12 | Initial spec created with architecture decisions |
+| 2026-02-17 | Phase 1 Implementation Complete |
+| 2026-02-17 | Phase 2 Implementation Complete |
+| 2026-02-20 | **Phase 3 Spec Added** - Game over leaderboard, username generator, per-game buttons |
+| 2026-02-20 | **Phase 4 Implemented** - Remote server infrastructure for leaderboard sync |

@@ -98,6 +98,7 @@ struct GameMetadata: Codable, Equatable {
 /// - Sync status tracking for eventual consistency
 /// - Game-specific metadata for different game types
 /// - Date-based organization for daily leaderboards
+/// - User authentication fields for future auth integration
 ///
 struct LocalScore: Identifiable, Codable, Equatable {
     let id: UUID
@@ -108,7 +109,20 @@ struct LocalScore: Identifiable, Codable, Equatable {
     let createdAt: Date                 // When this score was created locally
     var syncStatus: SyncStatus          // Sync state with server
     var remoteId: String?               // Server-assigned ID after sync
-    var username: String?               // Username (assigned by server or generated)
+    var username: String?               // Display name (assigned by server or generated)
+
+    // MARK: - Auth Fields (for future auth integration)
+
+    /// The authenticated user's ID (nil if anonymous/not logged in)
+    var userId: String?
+
+    /// Whether this score was submitted by a logged-in user
+    var isAuthenticated: Bool {
+        userId != nil
+    }
+
+    /// Device identifier for anonymous tracking
+    var deviceId: String?
 
     init(
         id: UUID = UUID(),
@@ -119,7 +133,9 @@ struct LocalScore: Identifiable, Codable, Equatable {
         createdAt: Date = Date(),
         syncStatus: SyncStatus = .pending,
         remoteId: String? = nil,
-        username: String? = nil
+        username: String? = nil,
+        userId: String? = nil,
+        deviceId: String? = nil
     ) {
         self.id = id
         self.gameType = gameType
@@ -130,6 +146,8 @@ struct LocalScore: Identifiable, Codable, Equatable {
         self.syncStatus = syncStatus
         self.remoteId = remoteId
         self.username = username
+        self.userId = userId
+        self.deviceId = deviceId
     }
 
     // MARK: - Date Key

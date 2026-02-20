@@ -86,7 +86,10 @@ class LeaderboardViewModel {
 
     // MARK: - Initialization
 
-    init() {
+    init(initialGameType: GameType? = nil) {
+        if let gameType = initialGameType {
+            self.selectedGameType = gameType
+        }
         loadData()
     }
 

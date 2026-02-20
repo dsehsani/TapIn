@@ -90,16 +90,28 @@ struct MiniCrosswordGameView: View {
                 .padding(.bottom, 8)
             }
 
-            // Completion overlay
+            // Completion overlay with leaderboard
             if viewModel.gameState == .completed && showCompletionOverlay {
-                CrosswordCompletionView(
-                    elapsedSeconds: viewModel.elapsedSeconds,
+                GameOverLeaderboardView(
+                    gameType: .crossword,
+                    gameDate: viewModel.currentDate,
+                    userScore: LocalLeaderboardService.shared.getUserScore(for: .crossword, date: viewModel.currentDate),
+                    resultTitle: "Puzzle Complete!",
+                    resultSubtitle: "Solved in \(formatTime(viewModel.elapsedSeconds))",
+                    resultIcon: "trophy.fill",
+                    resultColor: .ucdGold,
                     onDismiss: { showCompletionOverlay = false },
-                    onBack: onDismiss,
-                    colorScheme: colorScheme
+                    onBack: onDismiss
                 )
             }
         }
+    }
+
+    /// Formats seconds into a readable time string (e.g., "1:23")
+    private func formatTime(_ seconds: Int) -> String {
+        let minutes = seconds / 60
+        let secs = seconds % 60
+        return String(format: "%d:%02d", minutes, secs)
     }
 }
 
