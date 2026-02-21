@@ -9,7 +9,6 @@ import SwiftUI
 
 struct NewsView: View {
     @ObservedObject var viewModel: NewsViewModel
-    @ObservedObject var gamesViewModel: GamesViewModel
     @ObservedObject var savedViewModel: SavedViewModel
     @Binding var selectedTab: TabItem
 
@@ -38,10 +37,12 @@ struct NewsView: View {
                     )
                     .padding(.vertical, 12)
 
-                    // Games Banner
-                    GamesBannerView(onPlayTap: {
-                        selectedTab = .games
-                    })
+                    // AI Daily Briefing
+                    DailyBriefingCard(
+                        briefing: viewModel.dailyBriefing,
+                        isLoading: viewModel.isBriefingLoading,
+                        hasError: viewModel.briefingError
+                    )
                     .padding(.bottom, 24)
 
                     // Featured Article
@@ -239,7 +240,6 @@ struct ArticleRowCard: View {
 #Preview {
     NewsView(
         viewModel: NewsViewModel(),
-        gamesViewModel: GamesViewModel(),
         savedViewModel: SavedViewModel(),
         selectedTab: .constant(.news)
     )

@@ -40,6 +40,11 @@ enum APIConfig {
         return "\(baseURL)api/articles/content?url=\(encoded)"
     }
 
+    // MARK: - Daily Briefing Endpoint
+
+    /// GET /api/articles/daily-briefing — Today's AI news summary
+    static var dailyBriefingURL: String { "\(baseURL)api/articles/daily-briefing" }
+
     // MARK: - Claude Endpoints
 
     /// POST - Summarize an event description

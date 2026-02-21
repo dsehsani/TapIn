@@ -132,6 +132,7 @@ def create_app() -> Flask:
                 "events_health": "GET /api/events/health",
                 "get_articles": "GET /api/articles?category=all",
                 "get_article_content": "GET /api/articles/content?url=<encoded_url>",
+                "daily_briefing": "GET /api/articles/daily-briefing",
                 "refresh_articles": "POST /api/articles/refresh",
                 "articles_health": "GET /api/articles/health",
                 "auth_apple": "POST /api/users/auth/apple",

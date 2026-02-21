@@ -32,7 +32,6 @@ struct ContentView: View {
             case .news:
                 NewsView(
                     viewModel: newsViewModel,
-                    gamesViewModel: gamesViewModel,
                     savedViewModel: savedViewModel,
                     selectedTab: $selectedTab
                 )

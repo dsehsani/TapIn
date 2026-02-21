@@ -7,6 +7,7 @@
 #  Endpoints:
 #  GET  /api/articles?category=all         - Returns cached article list (refreshes if stale)
 #  GET  /api/articles/content?url=<url>    - Returns scraped article content (Firestore-cached)
+#  GET  /api/articles/daily-briefing       - Today's AI-generated news briefing
 #  POST /api/articles/refresh              - Forces re-fetch from The Aggie RSS
 #  GET  /api/articles/health               - Health check + cache stats
 #
@@ -137,6 +138,44 @@ def get_article_content():
 
     except Exception as e:
         logger.error(f"GET /api/articles/content failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ------------------------------------------------------------------------------
+# MARK: - GET /api/articles/daily-briefing
+# ------------------------------------------------------------------------------
+
+@articles_bp.route("/daily-briefing", methods=["GET"])
+def get_daily_briefing():
+    """
+    Returns today's AI-generated news briefing.
+    Cached in Firestore — at most 1 Claude API call per day.
+
+    Response (200):
+        {
+            "success": true,
+            "briefing": {
+                "summary": "...",
+                "bulletPoints": [...],
+                "articleCount": 10,
+                "generatedAt": "2026-02-20T..."
+            }
+        }
+    """
+    try:
+        from services.briefing_service import get_daily_briefing as generate
+        result = generate()
+        return jsonify({
+            "success": True,
+            "briefing": {
+                "summary": result["summary"],
+                "bulletPoints": result["bullet_points"],
+                "articleCount": result["article_count"],
+                "generatedAt": result["generated_at"],
+            }
+        }), 200
+    except Exception as e:
+        logger.error(f"GET /api/articles/daily-briefing failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

@@ -24,12 +24,19 @@ class NewsViewModel: ObservableObject {
     @Published var searchText: String = ""
     @Published var categories: [Category] = Category.allCategories
 
+    // Daily AI Briefing
+    @Published var dailyBriefing: DailyBriefing?
+    @Published var isBriefingLoading: Bool = false
+    @Published var briefingError: Bool = false
+
     private let newsService = NewsService()
+    private let briefingService = DailyBriefingService.shared
     private var allFetchedArticles: [NewsArticle] = []
 
     init() {
         Task {
             await fetchArticles()
+            await fetchDailyBriefing()
         }
     }
 
@@ -88,6 +95,19 @@ class NewsViewModel: ObservableObject {
 
     func refreshArticles() async {
         await fetchArticles()
+        await fetchDailyBriefing()
+    }
+
+    // MARK: - Daily Briefing
+
+    func fetchDailyBriefing() async {
+        isBriefingLoading = true
+        briefingError = false
+
+        let result = await briefingService.fetchBriefing()
+        dailyBriefing = result
+        briefingError = (result == nil)
+        isBriefingLoading = false
     }
 
     // MARK: - Private Helpers
