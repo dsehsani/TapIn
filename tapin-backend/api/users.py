@@ -2,10 +2,11 @@
 #  users.py
 #  TapIn Backend
 #
-#  User API with social auth (Apple, Phone) and email/password.
+#  User API with social auth (Apple, Google, Phone) and email/password.
 #
 #  Public endpoints:
 #    POST /api/users/auth/apple    — Apple Sign-In
+#    POST /api/users/auth/google   — Google Sign-In
 #    POST /api/users/auth/phone    — Phone (SMS) auth
 #    POST /api/users/register      — Email/password registration
 #    POST /api/users/login         — Email/password login
@@ -13,6 +14,7 @@
 #
 #  Protected endpoints (Bearer token):
 #    GET    /api/users/me                       — fetch profile
+#    PATCH  /api/users/me                       — update profile (email, username)
 #    DELETE /api/users/me                       — delete account
 #    PATCH  /api/users/me/games/<game_type>     — update game stats
 #    GET    /api/users/me/articles/saved        — list saved articles
@@ -77,7 +79,7 @@ def auth_apple():
         if claims.get("sub") != apple_user_id:
             return jsonify({"success": False, "error": "Token subject mismatch"}), 401
 
-        # Check if user already exists
+        # Check if user already exists by Apple ID
         existing = user_repository.get_user_by_apple_id(apple_user_id)
         if existing:
             token = auth_service.create_token(existing["id"])
@@ -86,10 +88,24 @@ def auth_apple():
                 "user": _public_profile(existing), "isNewUser": False,
             }), 200
 
-        # Create new user
         display_name = data.get("displayName", "").strip() or "Aggie Student"
-        email = data.get("email", claims.get("email", "")).strip()
+        email = data.get("email", claims.get("email", "")).strip().lower()
 
+        # Check if a user with this email already exists (e.g. created via phone auth).
+        # If so, link the Apple ID to the existing account instead of creating a duplicate.
+        if email:
+            existing_by_email = user_repository.get_user_by_email(email)
+            if existing_by_email:
+                linked = user_repository.link_auth_provider(
+                    existing_by_email["id"], appleUserId=apple_user_id
+                )
+                token = auth_service.create_token(existing_by_email["id"])
+                return jsonify({
+                    "success": True, "token": token,
+                    "user": _public_profile(linked), "isNewUser": False,
+                }), 200
+
+        # Create new user
         user = user_repository.create_social_user(
             auth_provider="apple",
             username=display_name,
@@ -106,6 +122,87 @@ def auth_apple():
         return jsonify({"success": False, "error": str(e)}), 401
     except Exception as e:
         logger.error(f"Apple auth error: {e}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+# --------------------------------------------------------------------------
+# Google Sign-In
+# --------------------------------------------------------------------------
+
+@users_bp.route("/auth/google", methods=["POST"])
+def auth_google():
+    """
+    Authenticate via Google Sign-In.
+
+    Request JSON: {
+        "idToken": str,          — Google ID token (JWT)
+        "googleUserId": str,     — Google user ID (sub claim)
+        "displayName": str,      — (optional) user's name
+        "email": str             — (optional) user's email
+    }
+    Response: { "success": true, "token": str, "user": {...}, "isNewUser": bool }
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"success": False, "error": "Request body must be JSON"}), 400
+
+    id_token = data.get("idToken", "")
+    google_user_id = data.get("googleUserId", "")
+
+    if not id_token or not google_user_id:
+        return jsonify({"success": False, "error": "idToken and googleUserId are required"}), 400
+
+    try:
+        # Verify the Google ID token
+        claims = auth_service.verify_google_token(id_token)
+
+        # Ensure the token's subject matches the provided Google user ID
+        if claims.get("sub") != google_user_id:
+            return jsonify({"success": False, "error": "Token subject mismatch"}), 401
+
+        # Check if user already exists by Google ID
+        existing = user_repository.get_user_by_google_id(google_user_id)
+        if existing:
+            token = auth_service.create_token(existing["id"])
+            return jsonify({
+                "success": True, "token": token,
+                "user": _public_profile(existing), "isNewUser": False,
+            }), 200
+
+        display_name = data.get("displayName", "").strip() or "Aggie Student"
+        email = data.get("email", claims.get("email", "")).strip().lower()
+
+        # Check if a user with this email already exists (e.g. created via Apple/phone).
+        # If so, link the Google ID to the existing account instead of creating a duplicate.
+        if email:
+            existing_by_email = user_repository.get_user_by_email(email)
+            if existing_by_email:
+                linked = user_repository.link_auth_provider(
+                    existing_by_email["id"], googleUserId=google_user_id
+                )
+                token = auth_service.create_token(existing_by_email["id"])
+                return jsonify({
+                    "success": True, "token": token,
+                    "user": _public_profile(linked), "isNewUser": False,
+                }), 200
+
+        # Create new user
+        user = user_repository.create_social_user(
+            auth_provider="google",
+            username=display_name,
+            email=email,
+            google_user_id=google_user_id,
+        )
+        token = auth_service.create_token(user["id"])
+        return jsonify({
+            "success": True, "token": token,
+            "user": user, "isNewUser": True,
+        }), 201
+
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 401
+    except Exception as e:
+        logger.error(f"Google auth error: {e}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
@@ -267,6 +364,30 @@ def get_me():
         return jsonify({"success": True, "user": _public_profile(user)}), 200
     except Exception as e:
         logger.error(f"get_me error: {e}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@users_bp.route("/me", methods=["PATCH"])
+@require_auth
+def update_me():
+    """
+    Update the current user's profile.
+
+    Request JSON: { "email": str (optional), "username": str (optional) }
+    Response: { "success": true, "user": {...} }
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"success": False, "error": "Request body must be JSON"}), 400
+
+    try:
+        user_repository.update_profile(g.user_id, data)
+        updated = user_repository.get_user_by_id(g.user_id)
+        return jsonify({"success": True, "user": _public_profile(updated)}), 200
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 409
+    except Exception as e:
+        logger.error(f"update_me error: {e}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 

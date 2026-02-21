@@ -61,6 +61,9 @@ enum APIConfig {
     /// POST - Apple Sign-In (sends identityToken + appleUserId)
     static var authAppleURL: String { "\(baseURL)api/users/auth/apple" }
 
+    /// POST - Google Sign-In (sends idToken + googleUserId)
+    static var authGoogleURL: String { "\(baseURL)api/users/auth/google" }
+
     /// POST - Phone auth (sends phoneNumber + smsToken)
     static var authPhoneURL: String { "\(baseURL)api/users/auth/phone" }
 

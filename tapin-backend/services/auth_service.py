@@ -6,6 +6,7 @@
 #
 #  Supported auth providers:
 #    - Apple Sign-In (verifies identity token via Apple JWKS)
+#    - Google Sign-In (verifies ID token via Google JWKS)
 #    - Phone (verifies via external SMS auth service)
 #    - Email/Password (bcrypt hashing)
 #
@@ -149,6 +150,85 @@ def verify_apple_token(identity_token: str) -> dict:
         raise ValueError(f"Invalid Apple identity token: {e}")
     except Exception as e:
         raise ValueError(f"Apple token verification failed: {e}")
+
+
+# --------------------------------------------------------------------------
+# Google Sign-In Verification
+# --------------------------------------------------------------------------
+
+_google_keys_cache = None
+_google_keys_fetched_at = None
+
+
+def _get_google_public_keys():
+    """Fetch Google's JWKS public keys (cached for 24h)."""
+    global _google_keys_cache, _google_keys_fetched_at
+    import jwt
+
+    now = datetime.now(tz=timezone.utc)
+    if _google_keys_cache and _google_keys_fetched_at:
+        age = (now - _google_keys_fetched_at).total_seconds()
+        if age < 86400:  # 24 hours
+            return _google_keys_cache
+
+    try:
+        resp = http_requests.get("https://www.googleapis.com/oauth2/v3/certs", timeout=10)
+        resp.raise_for_status()
+        jwks = resp.json()
+        _google_keys_cache = {
+            k["kid"]: jwt.algorithms.RSAAlgorithm.from_jwk(k)
+            for k in jwks.get("keys", [])
+        }
+        _google_keys_fetched_at = now
+        return _google_keys_cache
+    except Exception as e:
+        logger.error(f"Failed to fetch Google JWKS: {e}")
+        return _google_keys_cache or {}
+
+
+def verify_google_token(id_token: str) -> dict:
+    """
+    Verifies a Google ID token and returns decoded claims.
+    Returns dict with 'sub' (Google user ID), 'email', 'name', etc.
+    Raises ValueError on invalid token.
+    """
+    import jwt
+
+    try:
+        header = jwt.get_unverified_header(id_token)
+        kid = header.get("kid")
+
+        keys = _get_google_public_keys()
+        if not keys:
+            raise ValueError("Could not fetch Google public keys")
+
+        public_key = keys.get(kid)
+        if not public_key:
+            raise ValueError(f"Google key with kid '{kid}' not found")
+
+        # Accept both iOS client ID and web client ID as valid audiences
+        google_client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
+        google_ios_client_id = os.environ.get("GOOGLE_IOS_CLIENT_ID", "")
+        valid_audiences = [a for a in [google_client_id, google_ios_client_id] if a]
+
+        if not valid_audiences:
+            raise ValueError("GOOGLE_CLIENT_ID not configured on server")
+
+        claims = jwt.decode(
+            id_token,
+            public_key,
+            algorithms=["RS256"],
+            audience=valid_audiences,
+            issuer=["https://accounts.google.com", "accounts.google.com"],
+        )
+        return claims
+
+    except jwt.ExpiredSignatureError:
+        raise ValueError("Google ID token has expired")
+    except jwt.InvalidTokenError as e:
+        raise ValueError(f"Invalid Google ID token: {e}")
+    except Exception as e:
+        raise ValueError(f"Google token verification failed: {e}")
 
 
 # --------------------------------------------------------------------------

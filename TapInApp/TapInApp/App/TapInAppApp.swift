@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import GoogleSignIn
 
 @main
 struct TapInAppApp: App {
@@ -31,6 +32,9 @@ struct TapInAppApp: App {
                     OnboardingView()
                         .environmentObject(appState)
                 }
+            }
+            .onOpenURL { url in
+                GIDSignIn.sharedInstance.handle(url)
             }
             .task {
                 await appState.restoreSession()

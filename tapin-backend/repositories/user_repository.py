@@ -7,7 +7,7 @@
 #
 #  Collection: "users"
 #  Document schema:
-#    id, username, email, authProvider, appleUserId, phoneNumber,
+#    id, username, email, authProvider, appleUserId, googleUserId, phoneNumber,
 #    passwordHash, createdAt, updatedAt,
 #    gameStats {}, savedArticles [], readArticles [], eventRSVPs []
 #
@@ -56,18 +56,19 @@ class UserRepository:
 
     def create_social_user(self, auth_provider: str, username: str,
                            email: str = "", apple_user_id: str = "",
-                           phone_number: str = "") -> dict:
-        """Create user from social auth (Apple, Phone). No password needed."""
+                           phone_number: str = "", google_user_id: str = "") -> dict:
+        """Create user from social auth (Apple, Google, Phone). No password needed."""
         return self._create_user_doc(
             username=username, email=email,
             auth_provider=auth_provider,
             apple_user_id=apple_user_id,
             phone_number=phone_number,
+            google_user_id=google_user_id,
         )
 
     def _create_user_doc(self, username: str, email: str, auth_provider: str,
                          password_hash: str = "", apple_user_id: str = "",
-                         phone_number: str = "") -> dict:
+                         phone_number: str = "", google_user_id: str = "") -> dict:
         db = get_firestore_client()
         col = db.collection(_COLLECTION)
 
@@ -79,6 +80,7 @@ class UserRepository:
             "email": email,
             "authProvider": auth_provider,
             "appleUserId": apple_user_id,
+            "googleUserId": google_user_id,
             "phoneNumber": phone_number,
             "passwordHash": password_hash,
             "createdAt": now,
@@ -128,6 +130,14 @@ class UserRepository:
             logger.error(f"get_user_by_apple_id failed: {e}")
             return None
 
+    def get_user_by_google_id(self, google_user_id: str) -> Optional[dict]:
+        try:
+            results = list(self._col().where("googleUserId", "==", google_user_id).limit(1).stream())
+            return results[0].to_dict() if results else None
+        except Exception as e:
+            logger.error(f"get_user_by_google_id failed: {e}")
+            return None
+
     def get_user_by_phone(self, phone_number: str) -> Optional[dict]:
         try:
             results = list(self._col().where("phoneNumber", "==", phone_number).limit(1).stream())
@@ -141,12 +151,35 @@ class UserRepository:
     # --------------------------------------------------------------------------
 
     def update_profile(self, user_id: str, fields: dict) -> None:
-        """Update allowed profile fields (username, email)."""
+        """Update allowed profile fields (username, email).
+        If email is provided, checks uniqueness first."""
         allowed = {"username", "email"}
         updates = {k: v for k, v in fields.items() if k in allowed}
-        if updates:
-            updates["updatedAt"] = _now_iso()
-            self._col().document(user_id).update(updates)
+        if not updates:
+            return
+
+        # Enforce email uniqueness
+        new_email = updates.get("email", "").strip().lower()
+        if new_email:
+            existing = self.get_user_by_email(new_email)
+            if existing and existing["id"] != user_id:
+                raise ValueError("Email already registered to another account")
+            updates["email"] = new_email
+
+        updates["updatedAt"] = _now_iso()
+        self._col().document(user_id).update(updates)
+
+    def link_auth_provider(self, user_id: str, **kwargs) -> dict:
+        """Link an additional auth provider to an existing user.
+        Accepts appleUserId, phoneNumber as keyword args."""
+        allowed = {"appleUserId", "googleUserId", "phoneNumber"}
+        updates = {k: v for k, v in kwargs.items() if k in allowed and v}
+        if not updates:
+            return self.get_user_by_id(user_id)
+        updates["updatedAt"] = _now_iso()
+        self._col().document(user_id).update(updates)
+        logger.info(f"Linked auth provider to user {user_id}: {list(updates.keys())}")
+        return self.get_user_by_id(user_id)
 
     # --------------------------------------------------------------------------
     # Game Stats

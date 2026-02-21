@@ -63,6 +63,25 @@ class UserAPIService {
         return try await post(url: APIConfig.authAppleURL, body: body)
     }
 
+    // MARK: - Google Sign-In
+
+    /// Sends the Google ID token to the backend for verification.
+    /// Returns the backend JWT and user profile.
+    func authenticateWithGoogle(
+        idToken: String,
+        googleUserId: String,
+        displayName: String = "",
+        email: String = ""
+    ) async throws -> AuthResponse {
+        let body: [String: Any] = [
+            "idToken": idToken,
+            "googleUserId": googleUserId,
+            "displayName": displayName,
+            "email": email
+        ]
+        return try await post(url: APIConfig.authGoogleURL, body: body)
+    }
+
     // MARK: - Phone Auth
 
     /// Sends the SMS auth token to the backend for verification.
@@ -125,6 +144,45 @@ class UserAPIService {
             return user
         }
         throw UserAPIError.serverError(result.error ?? "Failed to fetch profile")
+    }
+
+    // MARK: - Update Profile
+
+    /// Updates the current user's profile fields (email, username).
+    /// Requires a valid backend JWT.
+    func updateProfile(token: String, email: String? = nil, username: String? = nil) async throws {
+        guard let requestURL = URL(string: APIConfig.meURL) else {
+            throw UserAPIError.invalidResponse
+        }
+
+        var body: [String: Any] = [:]
+        if let email = email { body["email"] = email }
+        if let username = username { body["username"] = username }
+
+        guard !body.isEmpty else { return }
+
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse else {
+            throw UserAPIError.invalidResponse
+        }
+
+        struct UpdateResponse: Codable {
+            let success: Bool
+            let error: String?
+        }
+
+        let result = try JSONDecoder().decode(UpdateResponse.self, from: data)
+        if !result.success {
+            throw UserAPIError.serverError(result.error ?? "Failed to update profile (HTTP \(http.statusCode))")
+        }
     }
 
     // MARK: - Private

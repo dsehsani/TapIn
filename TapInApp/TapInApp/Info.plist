@@ -7,5 +7,16 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.516122189377-he1okrpvp8fq3ki3k12f63losslkot6f</string>
+			</array>
+		</dict>
+	</array>
+	<key>GIDClientID</key>
+	<string>516122189377-he1okrpvp8fq3ki3k12f63losslkot6f.apps.googleusercontent.com</string>
 </dict>
 </plist>

@@ -15,6 +15,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import GoogleSignIn
 
 // MARK: - App State
 /// Centralized state management for app-wide data.
@@ -97,6 +98,7 @@ class AppState: ObservableObject {
         authToken = nil
         smsUserId = nil
         backendToken = nil
+        GIDSignIn.sharedInstance.signOut()
         UserDefaults.standard.removeObject(forKey: "profileImageData")
         UserDefaults.standard.removeObject(forKey: "appleUserId")
         persistState()

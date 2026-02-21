@@ -8,6 +8,7 @@
 import SwiftUI
 import Combine
 import AuthenticationServices
+import GoogleSignIn
 
 enum OnboardingStep: Equatable {
     case welcome
@@ -43,6 +44,10 @@ class OnboardingViewModel: ObservableObject {
     // Store Apple identity token for backend auth after profile setup
     private var appleIdentityToken: String?
     private var appleUserId: String?
+
+    // Store Google identity token for backend auth after profile setup
+    private var googleIdToken: String?
+    private var googleUserId: String?
 
     /// E.164 formatted phone number (e.g. "+14155551234")
     var e164Phone: String {
@@ -83,6 +88,12 @@ class OnboardingViewModel: ObservableObject {
             await registerWithBackend(displayName: name)
         }
 
+        // Push email to backend so it's stored in Firestore for uniqueness checks.
+        // (Phone auth doesn't include the email — it's collected during profile setup.)
+        if let token = AppState.shared.backendToken, !email.isEmpty {
+            try? await UserAPIService.shared.updateProfile(token: token, email: email)
+        }
+
         // Now mark as authenticated (even if backend failed — user can still use app locally)
         AppState.shared.currentUser = User(name: name, email: email, year: year)
         AppState.shared.isAuthenticated = true
@@ -107,6 +118,14 @@ class OnboardingViewModel: ObservableObject {
                 response = try await UserAPIService.shared.authenticateWithApple(
                     identityToken: idToken,
                     appleUserId: appleId,
+                    displayName: displayName,
+                    email: email
+                )
+            } else if let idToken = googleIdToken, let gid = googleUserId {
+                // Google Sign-In flow
+                response = try await UserAPIService.shared.authenticateWithGoogle(
+                    idToken: idToken,
+                    googleUserId: gid,
                     displayName: displayName,
                     email: email
                 )
@@ -284,8 +303,80 @@ class OnboardingViewModel: ObservableObject {
         isLoading = false
     }
 
-    // MARK: - Google Auth (requires SDK setup)
-    func signInWithGoogle() async { /* Google Sign-In — requires GoogleSignIn SPM package */ }
+    // MARK: - Google Sign-In
+
+    func signInWithGoogle() async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            // Get the root view controller for presenting the Google Sign-In sheet
+            guard let windowScene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first,
+                  let rootVC = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
+                errorMessage = "Cannot present Google Sign-In"
+                isLoading = false
+                return
+            }
+
+            // Present Google Sign-In consent screen
+            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootVC)
+            let user = result.user
+
+            guard let idToken = user.idToken?.tokenString else {
+                errorMessage = "Failed to get Google ID token"
+                isLoading = false
+                return
+            }
+
+            let googleId = user.userID ?? ""
+            let fullName = user.profile?.name ?? ""
+            let googleEmail = user.profile?.email ?? ""
+
+            // Store credentials for profile setup flow
+            self.googleIdToken = idToken
+            self.googleUserId = googleId
+            if !fullName.isEmpty { displayName = fullName }
+            if !googleEmail.isEmpty { email = googleEmail }
+
+            // Check backend — does this Google ID already have an account?
+            if let backendResult = try? await UserAPIService.shared.authenticateWithGoogle(
+                idToken: idToken,
+                googleUserId: googleId,
+                displayName: displayName,
+                email: email
+            ), let token = backendResult.token {
+                AppState.shared.backendToken = token
+
+                if backendResult.isNewUser == false, let existingUser = backendResult.user {
+                    // Returning user — skip profile setup, go straight to main app
+                    AppState.shared.currentUser = User(
+                        name: existingUser.username,
+                        email: existingUser.email,
+                        year: nil
+                    )
+                    AppState.shared.isAuthenticated = true
+                    AppState.shared.persistStatePublic()
+                    isLoading = false
+                    return
+                }
+            }
+
+            // New user or backend unavailable — go to profile setup
+            navigateTo(.profileSetup)
+        } catch {
+            let nsError = error as NSError
+            // GIDSignIn cancellation error code
+            if nsError.domain == "com.google.GIDSignIn" && nsError.code == -5 {
+                // User tapped cancel — do nothing
+            } else {
+                errorMessage = error.localizedDescription
+            }
+        }
+
+        isLoading = false
+    }
 }
 
 // MARK: - Apple Sign-In Delegate

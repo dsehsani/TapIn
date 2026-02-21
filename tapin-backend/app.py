@@ -136,6 +136,7 @@ def create_app() -> Flask:
                 "refresh_articles": "POST /api/articles/refresh",
                 "articles_health": "GET /api/articles/health",
                 "auth_apple": "POST /api/users/auth/apple",
+                "auth_google": "POST /api/users/auth/google",
                 "auth_phone": "POST /api/users/auth/phone",
                 "register": "POST /api/users/register",
                 "login": "POST /api/users/login",
