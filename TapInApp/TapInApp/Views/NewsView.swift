@@ -37,58 +37,111 @@ struct NewsView: View {
                     )
                     .padding(.vertical, 12)
 
-                    // AI Daily Briefing
-                    DailyBriefingCard(
-                        briefing: viewModel.dailyBriefing,
-                        isLoading: viewModel.isBriefingLoading,
-                        hasError: viewModel.briefingError
-                    )
-                    .padding(.bottom, 24)
-
-                    // Featured Article
-                    if let featured = viewModel.featuredArticle {
-                        FeaturedArticleCard(
-                            article: featured,
-                            onTap: {
-                                selectedArticle = featured
+                    if viewModel.isSearchActive {
+                        // Search Results
+                        if viewModel.articles.isEmpty {
+                            // Empty state
+                            VStack(spacing: 16) {
+                                Spacer().frame(height: 60)
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.secondary)
+                                Text("No articles found for '\(viewModel.searchText)'")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                                Spacer()
                             }
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 16)
+                        } else {
+                            VStack(spacing: 0) {
+                                // Results header
+                                HStack {
+                                    Text("\(viewModel.articles.count) result\(viewModel.articles.count == 1 ? "" : "s") for '\(viewModel.searchText)'")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 12)
+
+                                // Search result list (all articles, no featured split)
+                                LazyVStack(spacing: 12) {
+                                    ForEach(viewModel.articles) { article in
+                                        ArticleRowCard(
+                                            article: article,
+                                            colorScheme: colorScheme,
+                                            isSaved: savedViewModel.isArticleSaved(article),
+                                            onTap: { selectedArticle = article },
+                                            onSave: { savedViewModel.toggleArticleSaved(article) }
+                                        )
+                                        .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
+                                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 16)
+                                                .stroke(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"), lineWidth: 1)
+                                        )
+                                        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                            }
+                        }
+                    } else {
+                        // Normal view — AI Daily Briefing
+                        DailyBriefingCard(
+                            briefing: viewModel.dailyBriefing,
+                            isLoading: viewModel.isBriefingLoading,
+                            hasError: viewModel.briefingError
                         )
                         .padding(.bottom, 24)
-                    }
 
-                    // Top Stories Section
-                    VStack(spacing: 0) {
-                        // Section Header
-                        HStack {
-                            Text("Top Stories")
-                                .font(.system(size: 22, weight: .bold))
-                                .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
-
-                            Spacer()
+                        // Featured Article
+                        if let featured = viewModel.featuredArticle {
+                            FeaturedArticleCard(
+                                article: featured,
+                                onTap: {
+                                    selectedArticle = featured
+                                }
+                            )
+                            .padding(.bottom, 24)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 12)
 
-                        // Article List
-                        LazyVStack(spacing: 12) {
-                            ForEach(viewModel.latestArticles) { article in
-                                ArticleRowCard(
-                                    article: article,
-                                    colorScheme: colorScheme,
-                                    isSaved: savedViewModel.isArticleSaved(article),
-                                    onTap: { selectedArticle = article },
-                                    onSave: { savedViewModel.toggleArticleSaved(article) }
-                                )
-                                .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .stroke(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"), lineWidth: 1)
-                                )
-                                .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
+                        // Top Stories Section
+                        VStack(spacing: 0) {
+                            // Section Header
+                            HStack {
+                                Text("Top Stories")
+                                    .font(.system(size: 22, weight: .bold))
+                                    .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
+
+                                Spacer()
                             }
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 12)
+
+                            // Article List
+                            LazyVStack(spacing: 12) {
+                                ForEach(viewModel.latestArticles) { article in
+                                    ArticleRowCard(
+                                        article: article,
+                                        colorScheme: colorScheme,
+                                        isSaved: savedViewModel.isArticleSaved(article),
+                                        onTap: { selectedArticle = article },
+                                        onSave: { savedViewModel.toggleArticleSaved(article) }
+                                    )
+                                    .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"), lineWidth: 1)
+                                    )
+                                    .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
+                                }
+                            }
+                            .padding(.horizontal, 16)
                         }
-                        .padding(.horizontal, 16)
                     }
 
                     Spacer(minLength: 0)
@@ -97,6 +150,9 @@ struct NewsView: View {
             }
             .refreshable {
                 await viewModel.refreshArticles()
+            }
+            .onChange(of: viewModel.searchText) { _, newValue in
+                viewModel.searchArticles(newValue)
             }
             .sheet(item: $selectedArticle) { article in
                 ArticleDetailView(article: article, savedViewModel: savedViewModel)

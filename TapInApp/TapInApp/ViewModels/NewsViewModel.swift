@@ -29,6 +29,9 @@ class NewsViewModel: ObservableObject {
     @Published var isBriefingLoading: Bool = false
     @Published var briefingError: Bool = false
 
+    /// True when the user has typed something in the search bar
+    var isSearchActive: Bool { !searchText.isEmpty }
+
     private let newsService = NewsService()
     private let briefingService = DailyBriefingService.shared
     private var allFetchedArticles: [NewsArticle] = []
@@ -81,6 +84,9 @@ class NewsViewModel: ObservableObject {
     }
 
     func selectCategory(_ category: String) {
+        // Exit search mode when switching categories
+        clearSearch()
+
         selectedCategory = category
         categories = categories.map { cat in
             Category(id: cat.id, name: cat.name, icon: cat.icon, isSelected: cat.name == category)
@@ -99,18 +105,37 @@ class NewsViewModel: ObservableObject {
     }
 
     func searchArticles(_ query: String) {
-        searchText = query
         if query.isEmpty {
+            // Restore current category view
             processArticles(allFetchedArticles)
             return
         }
 
-        let filtered = allFetchedArticles.filter {
+        // Gather articles from ALL cached categories
+        var seen = Set<String>()
+        var allArticles: [NewsArticle] = []
+        for (_, cached) in categoryCache {
+            for article in cached {
+                let key = article.articleURL ?? article.title
+                if !seen.contains(key) {
+                    seen.insert(key)
+                    allArticles.append(article)
+                }
+            }
+        }
+
+        let filtered = allArticles.filter {
             $0.title.localizedCaseInsensitiveContains(query) ||
             $0.excerpt.localizedCaseInsensitiveContains(query) ||
-            ($0.author?.localizedCaseInsensitiveContains(query) ?? false)
+            ($0.author?.localizedCaseInsensitiveContains(query) ?? false) ||
+            $0.category.localizedCaseInsensitiveContains(query)
         }
         processArticles(filtered)
+    }
+
+    func clearSearch() {
+        searchText = ""
+        processArticles(allFetchedArticles)
     }
 
     func refreshArticles() async {
