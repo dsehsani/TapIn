@@ -36,6 +36,7 @@ class AppState: ObservableObject {
 
     // MARK: - App Settings
     @Published var notificationsEnabled: Bool = true
+    @Published var darkModeEnabled: Bool = false
 
     // MARK: - Loading States
     @Published var isLoading: Bool = false
@@ -143,6 +144,7 @@ class AppState: ObservableObject {
         // Save authentication state
         UserDefaults.standard.set(isAuthenticated, forKey: "isAuthenticated")
         UserDefaults.standard.set(notificationsEnabled, forKey: "notificationsEnabled")
+        UserDefaults.standard.set(darkModeEnabled, forKey: "darkModeEnabled")
 
         // Save auth token
         if let token = authToken {
@@ -175,6 +177,7 @@ class AppState: ObservableObject {
     private func loadPersistedState() {
         isAuthenticated = UserDefaults.standard.bool(forKey: "isAuthenticated")
         notificationsEnabled = UserDefaults.standard.bool(forKey: "notificationsEnabled")
+        darkModeEnabled = UserDefaults.standard.bool(forKey: "darkModeEnabled")
         authToken = UserDefaults.standard.string(forKey: "authToken")
         smsUserId = UserDefaults.standard.string(forKey: "smsUserId")
         backendToken = UserDefaults.standard.string(forKey: "backendToken")

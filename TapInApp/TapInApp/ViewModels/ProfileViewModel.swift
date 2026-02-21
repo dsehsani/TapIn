@@ -16,7 +16,6 @@ import Combine
 @MainActor
 class ProfileViewModel: ObservableObject {
     // MARK: - Local UI State
-    @Published var darkModeEnabled: Bool = false
     @Published var isLoading: Bool = false
     @Published var error: AppError?
     @Published var showError: Bool = false
@@ -46,11 +45,17 @@ class ProfileViewModel: ObservableObject {
         set { AppState.shared.notificationsEnabled = newValue }
     }
 
+    var darkModeEnabled: Bool {
+        get { AppState.shared.darkModeEnabled }
+        set {
+            AppState.shared.darkModeEnabled = newValue
+            AppState.shared.persistStatePublic()
+        }
+    }
+
     // MARK: - Initialization
 
-    init() {
-        loadSettings()
-    }
+    init() {}
 
     // MARK: - Authentication (delegates to AppState)
 
@@ -144,21 +149,6 @@ class ProfileViewModel: ObservableObject {
 
     func toggleNotifications() {
         AppState.shared.toggleNotifications()
-    }
-
-    func toggleDarkMode() {
-        darkModeEnabled.toggle()
-        saveSettings()
-    }
-
-    // MARK: - Persistence
-
-    private func loadSettings() {
-        darkModeEnabled = UserDefaults.standard.bool(forKey: "darkModeEnabled")
-    }
-
-    private func saveSettings() {
-        UserDefaults.standard.set(darkModeEnabled, forKey: "darkModeEnabled")
     }
 
     // MARK: - Error Handling

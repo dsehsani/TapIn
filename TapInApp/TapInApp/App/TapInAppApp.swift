@@ -40,6 +40,7 @@ struct TapInAppApp: App {
                 await appState.restoreSession()
                 isCheckingSession = false
             }
+            .preferredColorScheme(appState.darkModeEnabled ? .dark : nil)
             .alert(
                 appState.globalError?.title ?? "Error",
                 isPresented: $appState.showErrorAlert,
