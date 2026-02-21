@@ -74,9 +74,7 @@ class LeaderboardService: ObservableObject {
     // MARK: - Initialization
 
     private init() {
-        // Use localhost for development
-        // TODO: Update to App Engine URL when deployed
-        self.baseURL = "http://localhost:8080/api/leaderboard"
+        self.baseURL = APIConfig.baseURL + "api/leaderboard"
 
         // Configure URL session with timeout
         let config = URLSessionConfiguration.default
@@ -110,7 +108,7 @@ class LeaderboardService: ObservableObject {
     ///     print("Failed to submit score: \(error)")
     /// }
     /// ```
-    func submitScore(guesses: Int, timeSeconds: Int, puzzleDate: String) async throws -> ScoreSubmissionResponse {
+    func submitScore(guesses: Int, timeSeconds: Int, puzzleDate: String, username: String? = nil) async throws -> ScoreSubmissionResponse {
         isLoading = true
         lastError = nil
 
@@ -125,7 +123,8 @@ class LeaderboardService: ObservableObject {
         let requestBody = ScoreSubmissionRequest(
             guesses: guesses,
             time_seconds: timeSeconds,
-            puzzle_date: puzzleDate
+            puzzle_date: puzzleDate,
+            username: username
         )
 
         // Configure request
@@ -285,6 +284,7 @@ struct ScoreSubmissionRequest: Codable {
     let guesses: Int
     let time_seconds: Int
     let puzzle_date: String
+    let username: String?
 }
 
 /// Response from submitting a score

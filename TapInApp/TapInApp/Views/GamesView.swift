@@ -32,6 +32,21 @@ struct GamesView: View {
 
                         Spacer()
 
+                        // Leaderboard Button
+                        Button {
+                            viewModel.showingLeaderboard = true
+                        } label: {
+                            Image(systemName: "trophy.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(Color.ucdGold)
+                                .padding(10)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(colorScheme == .dark ? Color(hex: "#1a2033") : .white)
+                                        .shadow(color: .black.opacity(0.05), radius: 4)
+                                )
+                        }
+
                         // Streak Badge
                         VStack(spacing: 2) {
                             Text("\(viewModel.userStats.currentStreak)")
@@ -113,6 +128,10 @@ struct GamesView: View {
                 onDismiss: { viewModel.dismissGame() },
                 onGameComplete: { won in viewModel.updateStats(won: won) }
             )
+        }
+        .sheet(isPresented: $viewModel.showingLeaderboard) {
+            LeaderboardView()
+                .presentationDetents([.large])
         }
     }
 }

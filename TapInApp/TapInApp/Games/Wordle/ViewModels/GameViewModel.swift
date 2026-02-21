@@ -450,7 +450,8 @@ class GameViewModel {
                 let response = try await LeaderboardService.shared.submitScore(
                     guesses: currentRow,
                     timeSeconds: duration,
-                    puzzleDate: puzzleDate
+                    puzzleDate: puzzleDate,
+                    username: AppState.shared.userName
                 )
 
                 // Store the assigned username

@@ -90,6 +90,7 @@ def submit_score():
         guesses = data["guesses"]
         time_seconds = data["time_seconds"]
         puzzle_date = data["puzzle_date"]
+        username = data.get("username")  # Optional: use account name if provided
 
         # Validate guesses is an integer between 1 and 6
         if not isinstance(guesses, int) or not 1 <= guesses <= 6:
@@ -116,7 +117,8 @@ def submit_score():
         score = leaderboard_service.submit_score(
             guesses=guesses,
             time_seconds=time_seconds,
-            puzzle_date=puzzle_date
+            puzzle_date=puzzle_date,
+            username=username
         )
 
         # Return success response with created score
