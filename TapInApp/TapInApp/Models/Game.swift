@@ -148,14 +148,6 @@ extension Game {
             hasLeaderboard: true
         ),
         Game(
-            type: .trivia,
-            name: "Campus Trivia",
-            description: "Test your Davis knowledge with friends",
-            iconName: "questionmark.circle.fill",
-            isMultiplayer: true,
-            hasLeaderboard: true
-        ),
-        Game(
             type: .crossword,
             name: "Aggie Crossword",
             description: "Weekly campus-themed crossword",

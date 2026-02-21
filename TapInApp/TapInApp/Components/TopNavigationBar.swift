@@ -15,25 +15,6 @@ struct TopNavigationBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // App Logo
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(
-                        LinearGradient(
-                            colors: colorScheme == .dark
-                                ? [Color.navyDeep, Color.accentPurple]
-                                : [Color.accentCoral, Color.accentOrange],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 36, height: 36)
-                    .shadow(color: Color.accentCoral.opacity(0.2), radius: 4, x: 0, y: 2)
-
-                Image(systemName: "graduationcap.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(.white)
-            }
-
             // Search Bar
             HStack {
                 Image(systemName: "magnifyingglass")

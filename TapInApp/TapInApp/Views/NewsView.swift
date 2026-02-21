@@ -162,7 +162,7 @@ struct NewsView: View {
             VStack(spacing: 0) {
                 TopNavigationBar(
                     searchText: $viewModel.searchText,
-                    onSettingsTap: {}
+                    onSettingsTap: { selectedTab = .profile }
                 )
 
                 Rectangle()

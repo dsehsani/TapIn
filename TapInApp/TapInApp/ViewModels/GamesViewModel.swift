@@ -49,7 +49,7 @@ class GamesViewModel: ObservableObject {
             showingEcho = true
         case .crossword:
             showingCrossword = true
-        case .trivia:
+        default:
             break
         }
     }
