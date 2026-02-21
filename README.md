@@ -1,69 +1,109 @@
-# TapIn (iOS) — UC Davis News & Games
+# TapIn — Your Campus, One Place
 
-TapIn is a SwiftUI app built with MVVM that brings UC Davis news and campus-centric mini‑games into one experience. It includes a daily “Aggie Wordle” with an archive browser, animated grid and keyboard, and an optional online leaderboard powered by a separate Flask backend (wordle‑leadboard‑server) that you run or deploy independently.
+TapIn is a SwiftUI iOS app built for UC Davis students. It brings campus news, live events, and daily games into a single experience — powered by a Flask backend deployed on Google Cloud Run.
 
-This README documents both the iOS app and the external Flask server API used by the Wordle leaderboard.
+## Features
 
+- **News** — Aggie articles with category filtering and AI-powered daily briefings
+- **Campus Events** — Live feed from Aggie Life with event details and RSVP
+- **Games**
+  - **DailyFive** — Daily 5-letter word puzzle with cloud leaderboard
+  - **Pipes** — Connect colored endpoints and fill every cell
+  - **Echo** — Memory and pattern recognition challenge
+- **Saved** — Bookmark articles and events for later
+- **Profile** — Sign in with Apple, Google, or phone number; dark mode support
 
-## At a glance
-- SwiftUI app with MVVM architecture and a custom tab bar
-- Main sections: News, Campus, Games, Saved, Profile
-- Aggie Wordle
-  - Daily puzzle with deterministic word per date
-  - Archive browser to replay previous days
-  - Animated tile reveals and adaptive keyboard coloring
-  - Local persistence of progress and results
-  - Optional online leaderboard (Flask server)
+## Tech Stack
 
+| Layer | Technology |
+|-------|-----------|
+| iOS App | SwiftUI, MVVM, `@Observable`, async/await |
+| Backend | Flask (Python), Gunicorn, Google Cloud Run |
+| Database | Google Cloud Firestore |
+| Auth | Apple Sign-In, Google Sign-In, Phone (SMS) |
+| Min Target | iOS 17.0 |
 
-## Requirements
-- Xcode 15 or later (Swift Concurrency and the #Preview macro)
-- iOS 17 or later target
-- To use the leaderboard features during development: Python 3.11+ for the Flask server, or a deployed server URL
+## Project Structure
 
+```
+TapIn/
+├── TapInApp/                    # iOS Xcode project
+│   └── TapInApp/
+│       ├── App/                 # Entry point, AppState
+│       ├── Views/               # Main tab views + leaderboard
+│       ├── ViewModels/          # One per view (MVVM)
+│       ├── Models/              # User, Game, NewsArticle, CampusEvent
+│       ├── Services/            # API clients (LeaderboardService, NewsService, etc.)
+│       ├── Components/          # Reusable UI (CustomTabBar, LeaderboardRowView, etc.)
+│       ├── Games/               # DailyFive (Wordle), Echo, Pipes
+│       ├── Onboarding/          # Auth flow (Apple, Google, Phone)
+│       └── Extensions/          # Color & font helpers
+├── tapin-backend/               # Flask backend (Cloud Run)
+│   ├── api/                     # Route blueprints (leaderboard, articles, events, users)
+│   ├── services/                # Business logic + Firestore client
+│   └── app.py                   # Application entry point
+└── wordle-leaderboard-server/   # Local dev server (mirrors tapin-backend leaderboard)
+```
 
-## Getting started (iOS app)
-1. Open the project in Xcode and select a simulator (iOS 17+).
-2. Build and run.
-3. If you want the leaderboard to work in development:
-   - Start the Flask server on port 8080 (see “Flask Leaderboard Server” below).
-   - Or change the app’s base URL to your deployed server (HTTPS recommended).
+## Getting Started
 
-On-device testing tip: If you run the server on your Mac and test on a physical iPhone, replace `localhost` with your Mac’s LAN IP (e.g., `http://192.168.1.10:8080`) in the app configuration.
+### iOS App
+1. Open `TapInApp/TapInApp.xcodeproj` in Xcode
+2. Select an iOS 17+ simulator or device
+3. Build and run
 
+### Backend (for local development)
+```bash
+cd tapin-backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python app.py                    # Runs on http://localhost:8080
+```
 
-## Configuration: Leaderboard base URL
-The Wordle leaderboard is optional and controlled by `LeaderboardService`.
+The production backend is deployed at Google Cloud Run. The iOS app points to the Cloud Run URL by default via `APIConfig.swift`.
 
-## Setting up the Flask Leaderboard Server
+## API Endpoints
 
-To set up the Flask leaderboard server, follow these steps:
+### Leaderboard
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/leaderboard/score` | Submit a DailyFive score (guesses, time, username) |
+| GET | `/api/leaderboard/<date>` | Get leaderboard for a puzzle date |
 
-1. Navigate to the `wordle-leaderboard-server` directory:
-   ```bash
-   cd wordle-leaderboard-server
-   ```
+### Articles & Events
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/articles?category=all` | Fetch news articles |
+| GET | `/api/articles/daily-briefing` | AI-generated daily news summary |
+| GET | `/api/events` | Campus events from Aggie Life |
 
-2. Create a virtual environment:
-   ```bash
-   python3 -m venv venv
-   ```
+### Auth
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/users/auth/apple` | Apple Sign-In |
+| POST | `/api/users/auth/google` | Google Sign-In |
+| POST | `/api/users/auth/phone` | Phone/SMS auth |
+| GET | `/api/users/me` | Current user profile |
 
-3. Activate the virtual environment:
-   ```bash
-   source venv/bin/activate
-   ```
+## Deployment
 
-4. Install the required Python packages listed in `requirements.txt`:
-   ```bash
-   pip install -r requirements.txt
-   ```
+### Backend → Cloud Run
+```bash
+cd tapin-backend
+gcloud run deploy --source .
+```
 
-5. Run the Flask server:
-   ```bash
-   python app.py
-   ```
+Required environment variables in Cloud Run:
+- `SECRET_KEY` — JWT signing key
+- `GCP_PROJECT` — Firestore project ID
+- `CLAUDE_API_KEY` — For AI summaries (via Secret Manager)
 
-6. Ensure the server is running on port 8080. You can access the leaderboard API at `http://localhost:8080/api/leaderboard`.
+### iOS → App Store
+1. Register App ID in Apple Developer portal
+2. Update bundle identifier in Xcode Signing & Capabilities
+3. Archive and upload via Xcode → Product → Archive
 
-Make sure to update the `LeaderboardService` base URL in your iOS app configuration to point to your deployed server if applicable.
+## Team
+
+Built by UC Davis students — ECS 191, Winter 2026.
