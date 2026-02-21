@@ -31,3 +31,12 @@ feedparser>=6.0.0
 
 # HTML parsing for article body extraction (server-side)
 beautifulsoup4>=4.12.0
+
+# JWT token creation and verification (user auth)
+PyJWT[crypto]>=2.8.0
+
+# Password hashing (email/password auth)
+bcrypt>=4.1.0
+
+# HTTP requests (Apple JWKS fetch, SMS service verification)
+requests>=2.31.0

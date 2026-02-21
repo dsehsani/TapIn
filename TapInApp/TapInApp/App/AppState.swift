@@ -29,6 +29,9 @@ class AppState: ObservableObject {
     @Published var currentUser: User?
     @Published var isAuthenticated: Bool = false
     @Published var authError: AppError?
+    @Published var authToken: String?      // SMS auth service token
+    @Published var smsUserId: String?
+    @Published var backendToken: String?   // TapIn backend JWT
 
     // MARK: - App Settings
     @Published var notificationsEnabled: Bool = true
@@ -91,6 +94,11 @@ class AppState: ObservableObject {
         currentUser = nil
         isAuthenticated = false
         authError = nil
+        authToken = nil
+        smsUserId = nil
+        backendToken = nil
+        UserDefaults.standard.removeObject(forKey: "profileImageData")
+        UserDefaults.standard.removeObject(forKey: "appleUserId")
         persistState()
     }
 
@@ -134,21 +142,68 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(isAuthenticated, forKey: "isAuthenticated")
         UserDefaults.standard.set(notificationsEnabled, forKey: "notificationsEnabled")
 
+        // Save auth token
+        if let token = authToken {
+            UserDefaults.standard.set(token, forKey: "authToken")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "authToken")
+        }
+        if let uid = smsUserId {
+            UserDefaults.standard.set(uid, forKey: "smsUserId")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "smsUserId")
+        }
+        if let bToken = backendToken {
+            UserDefaults.standard.set(bToken, forKey: "backendToken")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "backendToken")
+        }
+
         // Save user data if authenticated
         if let user = currentUser, let encoded = try? JSONEncoder().encode(user) {
             UserDefaults.standard.set(encoded, forKey: "currentUser")
         } else {
             UserDefaults.standard.removeObject(forKey: "currentUser")
         }
+
+        // Force immediate write to disk (prevents data loss on force-quit)
+        UserDefaults.standard.synchronize()
     }
 
     private func loadPersistedState() {
         isAuthenticated = UserDefaults.standard.bool(forKey: "isAuthenticated")
         notificationsEnabled = UserDefaults.standard.bool(forKey: "notificationsEnabled")
+        authToken = UserDefaults.standard.string(forKey: "authToken")
+        smsUserId = UserDefaults.standard.string(forKey: "smsUserId")
+        backendToken = UserDefaults.standard.string(forKey: "backendToken")
 
         if let userData = UserDefaults.standard.data(forKey: "currentUser"),
            let user = try? JSONDecoder().decode(User.self, from: userData) {
             currentUser = user
+        }
+    }
+
+    // MARK: - Public Persistence (called from onboarding)
+    func persistStatePublic() {
+        persistState()
+    }
+
+    // MARK: - Session Restoration
+
+    /// Validates the saved backend token on app launch and restores the session.
+    /// Called from TapInAppApp on startup — if UserDefaults was wiped (e.g. Xcode
+    /// rebuild) but the backend still has the account, this restores access.
+    func restoreSession() async {
+        // Already authenticated from UserDefaults — nothing to do
+        if isAuthenticated && currentUser != nil { return }
+
+        // Have a backend token but lost isAuthenticated — validate and restore
+        if let token = backendToken {
+            if let user = try? await UserAPIService.shared.fetchProfile(token: token) {
+                currentUser = User(name: user.username, email: user.email, year: nil)
+                isAuthenticated = true
+                persistState()
+            }
         }
     }
 

@@ -44,12 +44,12 @@ struct FeaturedArticleCard: View {
                         Text("FEATURED")
                             .font(.system(size: 10, weight: .black))
                             .tracking(1.5)
-                            .foregroundColor(Color.ucdBlue)
+                            .foregroundColor(.white)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 4)
-                            .background(Color.ucdGold)
+                            .background(Color.accentCoral)
                             .clipShape(Capsule())
-                            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+                            .shadow(color: Color.accentCoral.opacity(0.3), radius: 4, x: 0, y: 2)
                             .padding(16)
                     }
                 }
@@ -75,7 +75,7 @@ struct FeaturedArticleCard: View {
                     // Title
                     Text(article.title)
                         .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(colorScheme == .dark ? .white : Color.ucdBlue)
+                        .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
                         .lineLimit(3)
                         .multilineTextAlignment(.leading)
 
@@ -135,7 +135,9 @@ struct FeaturedArticleCard: View {
         Rectangle()
             .fill(
                 LinearGradient(
-                    colors: [Color.ucdBlue.opacity(0.3), Color.ucdBlue.opacity(0.1)],
+                    colors: colorScheme == .dark
+                        ? [Color.navyDeep.opacity(0.6), Color.accentPurple.opacity(0.3)]
+                        : [Color.accentOrange.opacity(0.3), Color.accentCoral.opacity(0.15)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )

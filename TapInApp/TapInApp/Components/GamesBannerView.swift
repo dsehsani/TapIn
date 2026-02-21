@@ -9,16 +9,15 @@ import SwiftUI
 
 struct GamesBannerView: View {
     var onPlayTap: () -> Void
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         ZStack {
-            // Gradient Background
+            // Gradient Background — matches onboarding palette
             LinearGradient(
-                colors: [
-                    Color.ucdBlue,
-                    Color(hex: "#1e3a5f"),
-                    Color.ucdBlue
-                ],
+                colors: colorScheme == .dark
+                    ? [Color.navyDeep, Color(hex: "#1a1060"), Color.accentPurple]
+                    : [Color.ucdGold, Color.accentOrange, Color.accentCoral],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -38,13 +37,13 @@ struct GamesBannerView: View {
                     // Puzzle Icon
                     ZStack {
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.ucdGold)
+                            .fill(.white.opacity(0.25))
                             .frame(width: 56, height: 56)
-                            .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
 
                         Image(systemName: "puzzlepiece.extension.fill")
                             .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(Color.ucdBlue)
+                            .foregroundColor(.white)
                     }
 
                     // Text Content
@@ -55,7 +54,7 @@ struct GamesBannerView: View {
 
                         Text("Test your campus knowledge")
                             .font(.system(size: 12))
-                            .foregroundColor(Color(hex: "#93c5fd"))
+                            .foregroundColor(.white.opacity(0.7))
                     }
                 }
 
@@ -65,7 +64,7 @@ struct GamesBannerView: View {
                 Button(action: onPlayTap) {
                     Text("PLAY NOW")
                         .font(.system(size: 12, weight: .black))
-                        .foregroundColor(Color.ucdBlue)
+                        .foregroundColor(colorScheme == .dark ? Color.navyDeep : Color.accentCoral)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 10)
                         .background(Color.white)
@@ -78,7 +77,7 @@ struct GamesBannerView: View {
         }
         .frame(height: 96)
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: Color.ucdBlue.opacity(0.3), radius: 12, x: 0, y: 6)
+        .shadow(color: (colorScheme == .dark ? Color.accentPurple : Color.accentCoral).opacity(0.3), radius: 12, x: 0, y: 6)
         .padding(.horizontal, 16)
     }
 }

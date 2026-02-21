@@ -10,24 +10,41 @@ import SwiftUI
 
 @main
 struct TapInAppApp: App {
-    // MARK: - App State (Environment Object)
-    @StateObject private var appState = AppState()
+    // Use AppState.shared so the onboarding ViewModel and the
+    // app gate both observe the exact same instance.
+    @StateObject private var appState = AppState.shared
+    @State private var isCheckingSession = true
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(appState)
-                .alert(
-                    appState.globalError?.title ?? "Error",
-                    isPresented: $appState.showErrorAlert,
-                    presenting: appState.globalError
-                ) { _ in
-                    Button("OK") {
-                        appState.clearError()
+            Group {
+                if isCheckingSession {
+                    // Brief splash while validating session
+                    ZStack {
+                        Color(.systemBackground).ignoresSafeArea()
+                        ProgressView()
                     }
-                } message: { error in
-                    Text(error.errorDescription ?? "An unknown error occurred.")
+                } else if appState.isAuthenticated {
+                    ContentView()
+                        .environmentObject(appState)
+                } else {
+                    OnboardingView()
+                        .environmentObject(appState)
                 }
+            }
+            .task {
+                await appState.restoreSession()
+                isCheckingSession = false
+            }
+            .alert(
+                appState.globalError?.title ?? "Error",
+                isPresented: $appState.showErrorAlert,
+                presenting: appState.globalError
+            ) { _ in
+                Button("OK") { appState.clearError() }
+            } message: { error in
+                Text(error.errorDescription ?? "An unknown error occurred.")
+            }
         }
     }
 }

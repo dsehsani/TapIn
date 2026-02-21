@@ -43,13 +43,13 @@ struct CampusView: View {
                                     .padding(.vertical, 8)
                                     .background(
                                         viewModel.filterType == filter
-                                            ? Color.ucdBlue
-                                            : (colorScheme == .dark ? Color(hex: "#1e293b") : .white)
+                                            ? (colorScheme == .dark ? Color(hex: "#1a1060") : Color.accentCoral)
+                                            : (colorScheme == .dark ? Color(hex: "#1a2033") : .white)
                                     )
                                     .foregroundColor(
                                         viewModel.filterType == filter
                                             ? .white
-                                            : (colorScheme == .dark ? .white : Color(hex: "#334155"))
+                                            : (colorScheme == .dark ? Color(hex: "#cbd5e1") : Color(hex: "#334155"))
                                     )
                                     .clipShape(Capsule())
                                     .overlay(
@@ -57,10 +57,11 @@ struct CampusView: View {
                                             .stroke(
                                                 viewModel.filterType == filter
                                                     ? Color.clear
-                                                    : Color(hex: "#e2e8f0"),
+                                                    : (colorScheme == .dark ? Color(hex: "#334155") : Color(hex: "#e2e8f0")),
                                                 lineWidth: 1
                                             )
                                     )
+                                    .shadow(color: viewModel.filterType == filter ? (colorScheme == .dark ? Color(hex: "#1a1060").opacity(0.4) : Color.accentCoral.opacity(0.25)) : .clear, radius: 4, x: 0, y: 2)
                             }
                         }
                     }

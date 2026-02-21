@@ -29,6 +29,7 @@ from api.leaderboard import leaderboard_bp
 from api.claude import claude_bp
 from api.events import events_bp
 from api.articles import articles_bp
+from api.users import users_bp
 
 # Load environment variables from .env file (for local development)
 load_dotenv()
@@ -67,8 +68,8 @@ def create_app() -> Flask:
     CORS(app, resources={
         r"/api/*": {
             "origins": "*",  # Allow all origins for development
-            "methods": ["GET", "POST", "OPTIONS"],
-            "allow_headers": ["Content-Type"]
+            "methods": ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"]
         }
     })
 
@@ -91,6 +92,10 @@ def create_app() -> Flask:
     # Register the Articles blueprint
     # All article endpoints will be prefixed with /api/articles
     app.register_blueprint(articles_bp)
+
+    # Register the Users blueprint
+    # All user endpoints will be prefixed with /api/users
+    app.register_blueprint(users_bp)
 
     # --------------------------------------------------------------------------
     # MARK: - Root Endpoint
@@ -126,8 +131,15 @@ def create_app() -> Flask:
                 "refresh_events": "POST /api/events/refresh",
                 "events_health": "GET /api/events/health",
                 "get_articles": "GET /api/articles?category=all",
+                "get_article_content": "GET /api/articles/content?url=<encoded_url>",
                 "refresh_articles": "POST /api/articles/refresh",
                 "articles_health": "GET /api/articles/health",
+                "auth_apple": "POST /api/users/auth/apple",
+                "auth_phone": "POST /api/users/auth/phone",
+                "register": "POST /api/users/register",
+                "login": "POST /api/users/login",
+                "user_profile": "GET /api/users/me",
+                "users_health": "GET /api/users/health",
             }
         })
 
@@ -187,6 +199,13 @@ if __name__ == "__main__":
     print("  POST /api/claude/summarize      - Summarize event")
     print("  POST /api/claude/chat           - Claude chat")
     print("  GET  /api/claude/health         - Claude health check")
+    print("")
+    print("  POST /api/users/auth/apple      - Apple Sign-In")
+    print("  POST /api/users/auth/phone      - Phone auth")
+    print("  POST /api/users/register        - Email registration")
+    print("  POST /api/users/login           - Email login")
+    print("  GET  /api/users/me              - User profile")
+    print("  GET  /api/users/health          - Users health check")
     print("")
     print("Press Ctrl+C to stop the server")
     print("=" * 60)

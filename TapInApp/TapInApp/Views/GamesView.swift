@@ -44,7 +44,7 @@ struct GamesView: View {
                         .padding(12)
                         .background(
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(colorScheme == .dark ? Color(hex: "#1e293b") : .white)
+                                .fill(colorScheme == .dark ? Color(hex: "#1a2033") : .white)
                                 .shadow(color: .black.opacity(0.05), radius: 4)
                         )
                     }
@@ -135,7 +135,7 @@ struct StatCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
-        .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
+        .background(colorScheme == .dark ? Color(hex: "#1a2033") : .white)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
@@ -152,7 +152,9 @@ struct FeaturedGameCard: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color.ucdBlue, Color(hex: "#1e3a5f")],
+                colors: colorScheme == .dark
+                    ? [Color.navyDeep, Color(hex: "#1a1060"), Color.accentPurple]
+                    : [Color.ucdGold, Color.accentOrange, Color.accentCoral],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -169,11 +171,12 @@ struct FeaturedGameCard: View {
                     Button(action: onPlay) {
                         Text("Play Now")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(Color.ucdBlue)
+                            .foregroundColor(colorScheme == .dark ? Color.navyDeep : Color.accentCoral)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 10)
-                            .background(Color.ucdGold)
+                            .background(Color.white)
                             .clipShape(Capsule())
+                            .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
                     }
                     .padding(.top, 8)
                 }
@@ -182,13 +185,13 @@ struct FeaturedGameCard: View {
 
                 Image(systemName: game.iconName)
                     .font(.system(size: 60))
-                    .foregroundColor(.white.opacity(0.2))
+                    .foregroundColor(.white.opacity(0.15))
             }
             .padding(20)
         }
         .frame(height: 160)
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: Color.ucdBlue.opacity(0.3), radius: 8, x: 0, y: 4)
+        .shadow(color: (colorScheme == .dark ? Color.accentPurple : Color.accentCoral).opacity(0.3), radius: 8, x: 0, y: 4)
     }
 }
 
@@ -236,7 +239,7 @@ struct GameRowCard: View {
                     .foregroundColor(.textSecondary)
             }
             .padding(16)
-            .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
+            .background(colorScheme == .dark ? Color(hex: "#1a2033") : .white)
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .overlay(
                 RoundedRectangle(cornerRadius: 16)

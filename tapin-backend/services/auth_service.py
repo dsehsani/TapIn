@@ -1,0 +1,181 @@
+#
+#  auth_service.py
+#  TapIn Backend
+#
+#  Handles JWT tokens, password hashing, and social auth token verification.
+#
+#  Supported auth providers:
+#    - Apple Sign-In (verifies identity token via Apple JWKS)
+#    - Phone (verifies via external SMS auth service)
+#    - Email/Password (bcrypt hashing)
+#
+
+import os
+import logging
+import requests as http_requests
+from datetime import datetime, timezone, timedelta
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+_TOKEN_EXPIRY_DAYS = 30
+_JWT_ALGORITHM = "HS256"
+
+# External SMS auth service (same one iOS uses)
+_SMS_AUTH_BASE = "https://ecs191-sms-authentication.uc.r.appspot.com"
+
+
+def _secret_key() -> str:
+    key = os.environ.get("SECRET_KEY", "dev-secret-change-in-production")
+    if key == "dev-secret-change-in-production":
+        logger.warning("SECRET_KEY not set — using insecure default (dev only)")
+    return key
+
+
+# --------------------------------------------------------------------------
+# Password Hashing
+# --------------------------------------------------------------------------
+
+def hash_password(plain: str) -> str:
+    import bcrypt
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    import bcrypt
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception as e:
+        logger.error(f"Password verification error: {e}")
+        return False
+
+
+# --------------------------------------------------------------------------
+# JWT Tokens
+# --------------------------------------------------------------------------
+
+def create_token(user_id: str) -> str:
+    import jwt
+    now = datetime.now(tz=timezone.utc)
+    payload = {
+        "sub": user_id,
+        "iat": now,
+        "exp": now + timedelta(days=_TOKEN_EXPIRY_DAYS),
+    }
+    return jwt.encode(payload, _secret_key(), algorithm=_JWT_ALGORITHM)
+
+
+def decode_token(token: str) -> str:
+    import jwt
+    try:
+        payload = jwt.decode(token, _secret_key(), algorithms=[_JWT_ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise ValueError("Token missing subject claim")
+        return user_id
+    except jwt.ExpiredSignatureError:
+        raise ValueError("Token has expired")
+    except jwt.InvalidTokenError as e:
+        raise ValueError(f"Invalid token: {e}")
+
+
+# --------------------------------------------------------------------------
+# Apple Sign-In Verification
+# --------------------------------------------------------------------------
+
+_apple_keys_cache = None
+_apple_keys_fetched_at = None
+
+
+def _get_apple_public_keys():
+    """Fetch Apple's JWKS public keys (cached for 24h)."""
+    global _apple_keys_cache, _apple_keys_fetched_at
+    import jwt
+
+    now = datetime.now(tz=timezone.utc)
+    if _apple_keys_cache and _apple_keys_fetched_at:
+        age = (now - _apple_keys_fetched_at).total_seconds()
+        if age < 86400:  # 24 hours
+            return _apple_keys_cache
+
+    try:
+        resp = http_requests.get("https://appleid.apple.com/auth/keys", timeout=10)
+        resp.raise_for_status()
+        jwks = resp.json()
+        _apple_keys_cache = {
+            k["kid"]: jwt.algorithms.RSAAlgorithm.from_jwk(k)
+            for k in jwks.get("keys", [])
+        }
+        _apple_keys_fetched_at = now
+        return _apple_keys_cache
+    except Exception as e:
+        logger.error(f"Failed to fetch Apple JWKS: {e}")
+        return _apple_keys_cache or {}
+
+
+def verify_apple_token(identity_token: str) -> dict:
+    """
+    Verifies an Apple identity token and returns decoded claims.
+    Returns dict with 'sub' (Apple user ID), 'email', etc.
+    Raises ValueError on invalid token.
+    """
+    import jwt
+
+    try:
+        # Decode header to get kid
+        header = jwt.get_unverified_header(identity_token)
+        kid = header.get("kid")
+
+        keys = _get_apple_public_keys()
+        if not keys:
+            raise ValueError("Could not fetch Apple public keys")
+
+        public_key = keys.get(kid)
+        if not public_key:
+            raise ValueError(f"Apple key with kid '{kid}' not found")
+
+        claims = jwt.decode(
+            identity_token,
+            public_key,
+            algorithms=["RS256"],
+            audience=os.environ.get("APPLE_BUNDLE_ID", "com.dariusehsani.TapInApp"),
+            issuer="https://appleid.apple.com",
+        )
+        return claims
+
+    except jwt.ExpiredSignatureError:
+        raise ValueError("Apple identity token has expired")
+    except jwt.InvalidTokenError as e:
+        raise ValueError(f"Invalid Apple identity token: {e}")
+    except Exception as e:
+        raise ValueError(f"Apple token verification failed: {e}")
+
+
+# --------------------------------------------------------------------------
+# Phone Auth Verification
+# --------------------------------------------------------------------------
+
+def verify_phone_token(sms_token: str) -> dict:
+    """
+    Verifies an SMS auth token by calling the external SMS service.
+    Returns dict with 'phone_number' and 'user_id' from the SMS service.
+    Raises ValueError if the token is invalid.
+    """
+    try:
+        resp = http_requests.get(
+            f"{_SMS_AUTH_BASE}/v1/user",
+            headers={"Authorization": f"Bearer {sms_token}"},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            raise ValueError("Invalid or expired SMS token")
+
+        data = resp.json()
+        return {
+            "phone_number": data.get("phone_number", ""),
+            "user_id": data.get("user_id", ""),
+        }
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError(f"Phone token verification failed: {e}")

@@ -110,7 +110,9 @@ class NewsService {
         }
 
         // Layer 2 — backend
-        if let backendArticles = await fetchFromBackend(category: slug) {
+        if var backendArticles = await fetchFromBackend(category: slug) {
+            // Backend articles don't include images — scrape them client-side
+            backendArticles = await fetchArticleImages(for: backendArticles)
             diskCache.saveArticleList(backendArticles, category: slug)
             return backendArticles
         }
@@ -173,12 +175,13 @@ class NewsService {
         return try await fetchArticles(category: .all)
     }
 
-    // MARK: - Article Content Fetching (in-memory → disk → scrape)
+    // MARK: - Article Content Fetching (in-memory → disk → backend → scrape)
 
     /// Fetches the full article body for in-app reading.
     /// Layer 1: In-memory cache (session)
     /// Layer 2: FileManager disk cache (permanent, per device)
-    /// Layer 3: Live HTML scrape via AggieArticleParser
+    /// Layer 3: Backend API (Firestore-cached, shared across users)
+    /// Layer 4: Live HTML scrape via AggieArticleParser (fallback)
     func fetchArticleContent(for article: NewsArticle) async throws -> ArticleContent {
         let cacheKey = article.articleURL ?? article.id.uuidString
 
@@ -193,7 +196,15 @@ class NewsService {
             return cached
         }
 
-        // Layer 3 — live scrape
+        // Layer 3 — backend API
+        if let urlString = article.articleURL,
+           let backendContent = await fetchContentFromBackend(articleURL: urlString, fallback: article) {
+            contentCache[cacheKey] = backendContent
+            diskCache.saveArticleContent(backendContent, articleURL: cacheKey)
+            return backendContent
+        }
+
+        // Layer 4 — live scrape (fallback)
         guard let urlString = article.articleURL, let url = URL(string: urlString) else {
             throw AggieParserError.invalidURL
         }
@@ -201,6 +212,42 @@ class NewsService {
         contentCache[cacheKey] = content
         diskCache.saveArticleContent(content, articleURL: cacheKey)
         return content
+    }
+
+    // MARK: - Backend Content Fetch
+
+    /// Hits GET /api/articles/content?url=... and converts the response to ArticleContent.
+    private func fetchContentFromBackend(articleURL: String, fallback: NewsArticle) async -> ArticleContent? {
+        guard let url = URL(string: APIConfig.articleContentURL(articleURL: articleURL)) else { return nil }
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else { return nil }
+
+            let decoded = try JSONDecoder().decode(BackendArticleContentResponse.self, from: data)
+            guard decoded.success, let content = decoded.content else { return nil }
+            return content.toArticleContent(fallbackDate: fallback.timestamp)
+        } catch {
+            print("NewsService: backend content fetch failed — \(error)")
+            return nil
+        }
+    }
+
+    // MARK: - Background Prefetch
+
+    /// Silently pre-fetches article content for all articles in the background.
+    /// Populates both in-memory and disk caches so tapping an article is instant.
+    func prefetchContent(for articles: [NewsArticle]) {
+        for article in articles {
+            let cacheKey = article.articleURL ?? article.id.uuidString
+            // Skip if already cached in memory
+            if contentCache[cacheKey] != nil { continue }
+            // Skip if already cached on disk
+            if diskCache.loadArticleContent(articleURL: cacheKey) != nil { continue }
+
+            Task {
+                _ = try? await fetchArticleContent(for: article)
+            }
+        }
     }
 
     // MARK: - Image Scraping
@@ -268,9 +315,43 @@ class NewsService {
     }
 }
 
-// MARK: - Backend Response Model
+// MARK: - Backend Response Models
 
 private struct BackendArticlesResponse: Decodable {
     let success: Bool
     let articles: [NewsArticle]
+}
+
+private struct BackendArticleContentResponse: Decodable {
+    let success: Bool
+    let content: BackendArticleContent?
+    let cached: Bool?
+}
+
+private struct BackendArticleContent: Decodable {
+    let title: String?
+    let author: String?
+    let authorEmail: String?
+    let publishDate: String?
+    let category: String?
+    let thumbnailURL: String?
+    let bodyParagraphs: [String]?
+    let articleURL: String?
+
+    func toArticleContent(fallbackDate: Date) -> ArticleContent? {
+        guard let paragraphs = bodyParagraphs, !paragraphs.isEmpty,
+              let urlString = articleURL, let url = URL(string: urlString) else {
+            return nil
+        }
+        return ArticleContent(
+            title: title ?? "",
+            author: author ?? "The Aggie",
+            authorEmail: authorEmail,
+            publishDate: fallbackDate,
+            category: category ?? "",
+            thumbnailURL: thumbnailURL.flatMap { URL(string: $0) },
+            bodyParagraphs: paragraphs,
+            articleURL: url
+        )
+    }
 }

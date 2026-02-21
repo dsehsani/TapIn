@@ -47,7 +47,7 @@ struct ContentView: View {
                 SavedView(viewModel: savedViewModel)
 
             case .profile:
-                ProfileView(viewModel: profileViewModel)
+                ProfileView(viewModel: profileViewModel, savedViewModel: savedViewModel, gamesViewModel: gamesViewModel)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

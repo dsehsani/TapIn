@@ -12,17 +12,20 @@ struct User: Identifiable, Codable {
     var name: String
     var email: String
     var profileImageURL: String?
+    var year: String?
 
     init(
         id: UUID = UUID(),
         name: String,
         email: String,
-        profileImageURL: String? = nil
+        profileImageURL: String? = nil,
+        year: String? = nil
     ) {
         self.id = id
         self.name = name
         self.email = email
         self.profileImageURL = profileImageURL
+        self.year = year
     }
 }
 

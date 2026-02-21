@@ -32,6 +32,14 @@ enum APIConfig {
         "\(baseURL)api/articles?category=\(category)"
     }
 
+    // MARK: - Article Content Endpoint
+
+    /// GET /api/articles/content?url=<encoded_url> — Scraped article body (Firestore-cached)
+    static func articleContentURL(articleURL: String) -> String {
+        let encoded = articleURL.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? articleURL
+        return "\(baseURL)api/articles/content?url=\(encoded)"
+    }
+
     // MARK: - Claude Endpoints
 
     /// POST - Summarize an event description
@@ -42,6 +50,44 @@ enum APIConfig {
 
     /// GET - Claude proxy health check
     static var claudeHealthURL: String { "\(baseURL)/api/claude/health" }
+
+    // MARK: - User Auth Endpoints
+
+    /// POST - Apple Sign-In (sends identityToken + appleUserId)
+    static var authAppleURL: String { "\(baseURL)api/users/auth/apple" }
+
+    /// POST - Phone auth (sends phoneNumber + smsToken)
+    static var authPhoneURL: String { "\(baseURL)api/users/auth/phone" }
+
+    /// POST - Email/password registration
+    static var registerURL: String { "\(baseURL)api/users/register" }
+
+    /// POST - Email/password login
+    static var loginURL: String { "\(baseURL)api/users/login" }
+
+    /// GET - Current user profile (requires Bearer token)
+    static var meURL: String { "\(baseURL)api/users/me" }
+
+    /// GET/POST - Saved articles
+    static var savedArticlesURL: String { "\(baseURL)api/users/me/articles/saved" }
+
+    /// DELETE - Unsave article
+    static func unsaveArticleURL(articleId: String) -> String {
+        let encoded = articleId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? articleId
+        return "\(baseURL)api/users/me/articles/saved/\(encoded)"
+    }
+
+    /// GET/POST - Event RSVPs
+    static var eventRSVPsURL: String { "\(baseURL)api/users/me/events" }
+
+    /// DELETE - Cancel RSVP
+    static func cancelRSVPURL(eventId: String) -> String {
+        let encoded = eventId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? eventId
+        return "\(baseURL)api/users/me/events/\(encoded)"
+    }
+
+    /// GET - User health check
+    static var usersHealthURL: String { "\(baseURL)api/users/health" }
 
     // MARK: - Mock Mode
 

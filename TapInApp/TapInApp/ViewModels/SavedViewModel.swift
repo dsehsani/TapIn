@@ -5,13 +5,16 @@
 //  Created by Darius Ehsani on 1/29/26.
 //
 //  MARK: - Saved Articles ViewModel
-//  Manages bookmarked/saved content with UserDefaults persistence
+//  Manages bookmarked/saved content with local + backend sync.
+//  Local UserDefaults is the primary store; backend Firestore syncs
+//  so saved data persists across devices.
 //
 
 import Foundation
 import SwiftUI
 import Combine
 
+@MainActor
 class SavedViewModel: ObservableObject {
     @Published var savedArticles: [NewsArticle] = []
     @Published var savedEvents: [CampusEvent] = []
@@ -37,24 +40,28 @@ class SavedViewModel: ObservableObject {
 
     init() {
         loadSavedContent()
+        // Fetch from backend and merge (non-blocking)
+        Task { await fetchFromBackend() }
     }
 
-    // MARK: - Articles
+    // MARK: - Articles (match by articleURL since UUIDs regenerate)
 
     func saveArticle(_ article: NewsArticle) {
-        if !savedArticles.contains(where: { $0.id == article.id }) {
+        if !isArticleSaved(article) {
             savedArticles.append(article)
             persistContent()
+            Task { await syncSaveArticle(article) }
         }
     }
 
     func removeArticle(_ article: NewsArticle) {
-        savedArticles.removeAll { $0.id == article.id }
+        savedArticles.removeAll { matchesArticle($0, article) }
         persistContent()
+        Task { await syncRemoveArticle(article) }
     }
 
     func isArticleSaved(_ article: NewsArticle) -> Bool {
-        return savedArticles.contains(where: { $0.id == article.id })
+        return savedArticles.contains(where: { matchesArticle($0, article) })
     }
 
     func toggleArticleSaved(_ article: NewsArticle) {
@@ -65,18 +72,28 @@ class SavedViewModel: ObservableObject {
         }
     }
 
+    /// Match by articleURL (stable across RSS refreshes) or fall back to id
+    private func matchesArticle(_ a: NewsArticle, _ b: NewsArticle) -> Bool {
+        if let urlA = a.articleURL, let urlB = b.articleURL, !urlA.isEmpty, !urlB.isEmpty {
+            return urlA == urlB
+        }
+        return a.id == b.id
+    }
+
     // MARK: - Events (match by title + date since UUIDs regenerate)
 
     func saveEvent(_ event: CampusEvent) {
         if !isEventSaved(event) {
             savedEvents.append(event)
             persistContent()
+            Task { await syncSaveEvent(event) }
         }
     }
 
     func removeEvent(_ event: CampusEvent) {
         savedEvents.removeAll { matchesEvent($0, event) }
         persistContent()
+        Task { await syncRemoveEvent(event) }
     }
 
     func isEventSaved(_ event: CampusEvent) -> Bool {
@@ -95,7 +112,13 @@ class SavedViewModel: ObservableObject {
         return a.title == b.title && a.date == b.date
     }
 
-    // MARK: - Persistence
+    /// Stable identifier for an event (title-based, since iCal UUIDs regenerate)
+    private func eventStableId(_ event: CampusEvent) -> String {
+        let formatter = ISO8601DateFormatter()
+        return "\(event.title)_\(formatter.string(from: event.date))"
+    }
+
+    // MARK: - Local Persistence
 
     private func loadSavedContent() {
         if let data = UserDefaults.standard.data(forKey: savedEventsKey),
@@ -115,5 +138,173 @@ class SavedViewModel: ObservableObject {
         if let data = try? JSONEncoder().encode(savedArticles) {
             UserDefaults.standard.set(data, forKey: savedArticlesKey)
         }
+    }
+
+    // MARK: - Backend Sync
+
+    /// Fetches saved articles and events from the backend and merges with local data.
+    /// Called on init — merges so no local data is lost.
+    func fetchFromBackend() async {
+        guard let token = AppState.shared.backendToken else { return }
+
+        // Fetch saved articles
+        if let remoteArticles = await fetchSavedArticles(token: token) {
+            mergeArticles(remoteArticles)
+        }
+
+        // Fetch saved events
+        if let remoteEvents = await fetchSavedEvents(token: token) {
+            mergeEvents(remoteEvents)
+        }
+
+        persistContent()
+    }
+
+    private func mergeArticles(_ remote: [NewsArticle]) {
+        for article in remote {
+            if !savedArticles.contains(where: { matchesArticle($0, article) }) {
+                savedArticles.append(article)
+            }
+        }
+    }
+
+    private func mergeEvents(_ remote: [CampusEvent]) {
+        for event in remote {
+            if !savedEvents.contains(where: { matchesEvent($0, event) }) {
+                savedEvents.append(event)
+            }
+        }
+    }
+
+    // MARK: - Backend API Calls
+
+    private func authRequest(url: String, method: String, body: [String: Any]? = nil) async -> (Data, Int)? {
+        guard let token = AppState.shared.backendToken,
+              let requestURL = URL(string: url) else { return nil }
+
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = method
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 15
+
+        if let body = body {
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        }
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse else { return nil }
+        return (data, http.statusCode)
+    }
+
+    // -- Articles --
+
+    private func fetchSavedArticles(token: String) async -> [NewsArticle]? {
+        guard let (data, status) = await authRequest(url: APIConfig.savedArticlesURL, method: "GET"),
+              (200...299).contains(status) else { return nil }
+
+        struct Response: Decodable {
+            let success: Bool
+            let savedArticles: [SavedArticleEntry]
+        }
+        struct SavedArticleEntry: Decodable {
+            let articleId: String?
+            let title: String?
+            let excerpt: String?
+            let imageURL: String?
+            let category: String?
+            let author: String?
+            let articleURL: String?
+            let publishDate: String?
+        }
+
+        guard let result = try? JSONDecoder().decode(Response.self, from: data),
+              result.success else { return nil }
+
+        let formatter = ISO8601DateFormatter()
+        return result.savedArticles.compactMap { entry in
+            guard let title = entry.title, !title.isEmpty else { return nil }
+            return NewsArticle(
+                title: title,
+                excerpt: entry.excerpt ?? "",
+                imageURL: entry.imageURL ?? "",
+                category: entry.category ?? "",
+                timestamp: entry.publishDate.flatMap { formatter.date(from: $0) } ?? Date(),
+                author: entry.author,
+                articleURL: entry.articleURL
+            )
+        }
+    }
+
+    private func syncSaveArticle(_ article: NewsArticle) async {
+        let formatter = ISO8601DateFormatter()
+        let body: [String: Any] = [
+            "articleId": article.articleURL ?? article.id.uuidString,
+            "title": article.title,
+            "excerpt": article.excerpt,
+            "imageURL": article.imageURL,
+            "category": article.category,
+            "author": article.author ?? "",
+            "articleURL": article.articleURL ?? "",
+            "publishDate": formatter.string(from: article.timestamp)
+        ]
+        _ = await authRequest(url: APIConfig.savedArticlesURL, method: "POST", body: body)
+    }
+
+    private func syncRemoveArticle(_ article: NewsArticle) async {
+        let articleId = article.articleURL ?? article.id.uuidString
+        _ = await authRequest(url: APIConfig.unsaveArticleURL(articleId: articleId), method: "DELETE")
+    }
+
+    // -- Events --
+
+    private func fetchSavedEvents(token: String) async -> [CampusEvent]? {
+        guard let (data, status) = await authRequest(url: APIConfig.eventRSVPsURL, method: "GET"),
+              (200...299).contains(status) else { return nil }
+
+        struct Response: Decodable {
+            let success: Bool
+            let eventRSVPs: [EventRSVPEntry]
+        }
+        struct EventRSVPEntry: Decodable {
+            let eventId: String?
+            let eventTitle: String?
+            let eventDate: String?
+            let eventLocation: String?
+            let eventDescription: String?
+        }
+
+        guard let result = try? JSONDecoder().decode(Response.self, from: data),
+              result.success else { return nil }
+
+        let formatter = ISO8601DateFormatter()
+        return result.eventRSVPs.compactMap { entry in
+            guard let title = entry.eventTitle, !title.isEmpty,
+                  let dateStr = entry.eventDate,
+                  let date = formatter.date(from: dateStr) else { return nil }
+            return CampusEvent(
+                title: title,
+                description: entry.eventDescription ?? "",
+                date: date,
+                location: entry.eventLocation ?? "TBD"
+            )
+        }
+    }
+
+    private func syncSaveEvent(_ event: CampusEvent) async {
+        let formatter = ISO8601DateFormatter()
+        let body: [String: Any] = [
+            "eventId": eventStableId(event),
+            "eventTitle": event.title,
+            "eventDate": formatter.string(from: event.date),
+            "eventLocation": event.location,
+            "eventDescription": event.description
+        ]
+        _ = await authRequest(url: APIConfig.eventRSVPsURL, method: "POST", body: body)
+    }
+
+    private func syncRemoveEvent(_ event: CampusEvent) async {
+        let eventId = eventStableId(event)
+        _ = await authRequest(url: APIConfig.cancelRSVPURL(eventId: eventId), method: "DELETE")
     }
 }

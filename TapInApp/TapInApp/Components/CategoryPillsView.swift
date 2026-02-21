@@ -54,8 +54,8 @@ struct CategoryPill: View {
             .frame(height: 36)
             .background(
                 isSelected
-                    ? Color.ucdBlue
-                    : (colorScheme == .dark ? Color(hex: "#1e293b") : Color.white)
+                    ? (colorScheme == .dark ? Color(hex: "#1a1060") : Color.accentCoral)
+                    : (colorScheme == .dark ? Color(hex: "#1a2033") : Color.white)
             )
             .foregroundColor(
                 isSelected
@@ -72,7 +72,7 @@ struct CategoryPill: View {
                         lineWidth: 1
                     )
             )
-            .shadow(color: isSelected ? Color.ucdBlue.opacity(0.3) : .clear, radius: 4, x: 0, y: 2)
+            .shadow(color: isSelected ? (colorScheme == .dark ? Color(hex: "#1a1060").opacity(0.4) : Color.accentCoral.opacity(0.25)) : .clear, radius: 4, x: 0, y: 2)
         }
         .buttonStyle(PlainButtonStyle())
     }

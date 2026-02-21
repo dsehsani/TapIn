@@ -16,7 +16,7 @@ struct CustomTabBar: View {
         VStack(spacing: 0) {
             // Divider
             Rectangle()
-                .fill(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#e2e8f0"))
+                .fill(colorScheme == .dark ? Color(hex: "#1a1060").opacity(0.4) : Color.accentOrange.opacity(0.15))
                 .frame(height: 1)
 
             // Tab Items
@@ -27,9 +27,7 @@ struct CustomTabBar: View {
                         isSelected: selectedTab == tab,
                         colorScheme: colorScheme
                     ) {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            selectedTab = tab
-                        }
+                        selectedTab = tab
                     }
                 }
             }
@@ -38,7 +36,7 @@ struct CustomTabBar: View {
             .padding(.bottom, 8)
         }
         .background(
-            (colorScheme == .dark ? Color.backgroundDark : Color.white)
+            (colorScheme == .dark ? Color.navyDeep : Color.white)
                 .opacity(0.95)
         )
     }
@@ -63,7 +61,7 @@ struct TabBarItem: View {
 
                         Image(systemName: tab.iconFilled)
                             .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(Color.ucdBlue)
+                            .foregroundColor(.white)
                     }
                     .offset(y: -4)
                 } else {
@@ -89,6 +87,7 @@ struct TabBarItem: View {
                     )
             }
             .frame(maxWidth: .infinity)
+            .animation(.easeInOut(duration: 0.15), value: isSelected)
         }
         .buttonStyle(PlainButtonStyle())
     }

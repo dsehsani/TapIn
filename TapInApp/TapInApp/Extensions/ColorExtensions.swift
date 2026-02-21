@@ -31,17 +31,23 @@ extension Color {
         )
     }
 
-    // MARK: - Primary UC Davis Colors
-    static let ucdBlue = Color(hex: "#022851")
-    static let ucdGold = Color(hex: "#FFBF00")
+    // MARK: - Primary Brand Colors (warm palette matching onboarding)
+    static let ucdBlue = Color(hex: "#E8485A")    // warm coral (light mode accent)
+    static let ucdGold = Color(hex: "#F5A623")    // warm gold (dark mode accent)
+
+    // MARK: - Onboarding Gradient Accents
+    static let accentCoral = Color(hex: "#E8485A")
+    static let accentOrange = Color(hex: "#F06B3F")
+    static let accentPurple = Color(hex: "#2d0e52")
+    static let navyDeep = Color(hex: "#131a2a")
 
     // MARK: - Background Colors
-    static let backgroundLight = Color(hex: "#f5f7f8")
-    static let backgroundDark = Color(hex: "#0f1923")
+    static let backgroundLight = Color(hex: "#faf5f2")  // warm cream
+    static let backgroundDark = Color(hex: "#131a2a")   // neutral slate-navy
 
     // MARK: - UI Colors
     static let cardBackground = Color.white
-    static let cardBackgroundDark = Color(hex: "#1C1C1E")
+    static let cardBackgroundDark = Color(hex: "#1a2033") // neutral dark surface
     static let textPrimary = Color(hex: "#0f172a")
     static let textSecondary = Color(hex: "#94a3b8")
     static let textMuted = Color(hex: "#64748b")
@@ -113,7 +119,7 @@ extension Color {
     }
 
     static func adaptiveAccent(_ colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? ucdGold : ucdBlue
+        colorScheme == .dark ? ucdGold : accentCoral
     }
 
     // MARK: - Crossword Game Colors

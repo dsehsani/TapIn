@@ -48,6 +48,9 @@ class NewsViewModel: ObservableObject {
             allFetchedArticles = fetched
             processArticles(fetched)
             isLoading = false
+
+            // Pre-fetch article content in the background so tapping is instant
+            newsService.prefetchContent(for: fetched)
         } catch {
             // Fallback to sample data on error
             errorMessage = error.localizedDescription
