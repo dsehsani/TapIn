@@ -97,19 +97,22 @@ struct GamesView: View {
             }
         }
         .fullScreenCover(isPresented: $viewModel.showingWordle) {
-            WordleGameView(onDismiss: {
-                viewModel.dismissGame()
-            })
+            WordleGameView(
+                onDismiss: { viewModel.dismissGame() },
+                onGameComplete: { won in viewModel.updateStats(won: won) }
+            )
         }
         .fullScreenCover(isPresented: $viewModel.showingEcho) {
-            EchoGameView(onDismiss: {
-                viewModel.dismissGame()
-            })
+            EchoGameView(
+                onDismiss: { viewModel.dismissGame() },
+                onGameComplete: { won in viewModel.updateStats(won: won) }
+            )
         }
         .fullScreenCover(isPresented: $viewModel.showingCrossword) {
-            MiniCrosswordGameView(onDismiss: {
-                viewModel.dismissGame()
-            })
+            MiniCrosswordGameView(
+                onDismiss: { viewModel.dismissGame() },
+                onGameComplete: { won in viewModel.updateStats(won: won) }
+            )
         }
     }
 }

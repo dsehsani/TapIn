@@ -76,6 +76,11 @@ enum APIConfig {
     /// GET - Current user profile (requires Bearer token)
     static var meURL: String { "\(baseURL)api/users/me" }
 
+    /// PATCH - Update game stats
+    static func gameStatsURL(gameType: String) -> String {
+        "\(baseURL)api/users/me/games/\(gameType)"
+    }
+
     /// GET/POST - Saved articles
     static var savedArticlesURL: String { "\(baseURL)api/users/me/articles/saved" }
 

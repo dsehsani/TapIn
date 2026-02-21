@@ -146,6 +146,48 @@ class UserAPIService {
         throw UserAPIError.serverError(result.error ?? "Failed to fetch profile")
     }
 
+    // MARK: - Game Stats
+
+    /// Syncs aggregate game stats to the backend.
+    func updateGameStats(token: String, stats: [String: Any]) async throws {
+        guard let requestURL = URL(string: APIConfig.gameStatsURL(gameType: "overall")) else {
+            throw UserAPIError.invalidResponse
+        }
+
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+        request.httpBody = try JSONSerialization.data(withJSONObject: stats)
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw UserAPIError.invalidResponse
+        }
+    }
+
+    /// Fetches game stats from the backend user profile.
+    func fetchGameStats(token: String) async throws -> [String: Any]? {
+        var request = URLRequest(url: URL(string: APIConfig.meURL)!)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw UserAPIError.invalidResponse
+        }
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let user = json["user"] as? [String: Any],
+              let gameStats = user["gameStats"] as? [String: Any],
+              let overall = gameStats["overall"] as? [String: Any] else {
+            return nil
+        }
+        return overall
+    }
+
     // MARK: - Update Profile
 
     /// Updates the current user's profile fields (email, username).

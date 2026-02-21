@@ -19,6 +19,9 @@ struct WordleGameView: View {
     /// Closure to dismiss this view and return to games list
     var onDismiss: () -> Void
 
+    /// Called when the game ends with a result (true = won, false = lost)
+    var onGameComplete: ((Bool) -> Void)? = nil
+
     // MARK: - Environment
     @Environment(\.colorScheme) var colorScheme
 
@@ -129,6 +132,9 @@ struct WordleGameView: View {
         .onChange(of: viewModel.gameState) { oldState, newState in
             if newState == .won && !viewModel.isArchiveMode {
                 fetchLeaderboard()
+                onGameComplete?(true)
+            } else if newState == .lost && !viewModel.isArchiveMode {
+                onGameComplete?(false)
             }
         }
     }

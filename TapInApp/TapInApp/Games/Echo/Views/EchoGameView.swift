@@ -13,6 +13,7 @@ import SwiftUI
 // MARK: - Echo Game View
 struct EchoGameView: View {
     var onDismiss: () -> Void
+    var onGameComplete: ((Bool) -> Void)? = nil
 
     @Environment(\.colorScheme) var colorScheme
     @State private var viewModel = EchoGameViewModel()
@@ -57,6 +58,11 @@ struct EchoGameView: View {
                 case .gameOver:
                     gameOverPhase
                 }
+            }
+        }
+        .onChange(of: viewModel.gameState) { oldState, newState in
+            if newState == .gameOver {
+                onGameComplete?(viewModel.roundsSolved == viewModel.totalRounds)
             }
         }
     }

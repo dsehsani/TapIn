@@ -11,6 +11,7 @@ import SwiftUI
 /// Main entry view for the MiniCrossword game
 struct MiniCrosswordGameView: View {
     var onDismiss: () -> Void
+    var onGameComplete: ((Bool) -> Void)? = nil
 
     @Environment(\.colorScheme) var colorScheme
     @State private var viewModel = CrosswordViewModel()
@@ -98,6 +99,11 @@ struct MiniCrosswordGameView: View {
                     onBack: onDismiss,
                     colorScheme: colorScheme
                 )
+            }
+        }
+        .onChange(of: viewModel.gameState) { oldState, newState in
+            if newState == .completed {
+                onGameComplete?(true)
             }
         }
     }

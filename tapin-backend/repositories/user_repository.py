@@ -22,7 +22,7 @@ from services.firestore_client import get_firestore_client
 logger = logging.getLogger(__name__)
 
 _COLLECTION = "users"
-VALID_GAME_TYPES = {"wordle", "echo", "trivia", "crossword"}
+VALID_GAME_TYPES = {"wordle", "echo", "trivia", "crossword", "overall"}
 
 
 def _default_game_stats() -> dict:
@@ -31,6 +31,7 @@ def _default_game_stats() -> dict:
         "echo": {"solveCount": 0, "bestScore": None, "totalScore": 0},
         "trivia": {"solveCount": 0, "bestScore": None},
         "crossword": {"solveCount": 0, "bestTimeSeconds": None},
+        "overall": {"gamesPlayed": 0, "wins": 0, "currentStreak": 0, "maxStreak": 0, "lastPlayedDate": None},
     }
 
 
