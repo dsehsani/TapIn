@@ -1,30 +1,35 @@
 //
-//  ProfileSetupView.swift
+//  EditProfileView.swift
 //  TapInApp
 //
-//  Screen 5 — Profile photo, name, email, year picker.
-//  "Let's Go" and "Skip for now" both call completeOnboarding().
+//  Edit profile sheet — photo, name, email, year picker.
+//  Reuses the visual style from ProfileSetupView (onboarding).
 //
 
 import SwiftUI
 import PhotosUI
 
-struct ProfileSetupView: View {
-    @ObservedObject var viewModel: OnboardingViewModel
+struct EditProfileView: View {
+    @ObservedObject var viewModel: ProfileViewModel
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
 
+    @State private var name: String = ""
+    @State private var email: String = ""
+    @State private var year: String = ""
     @State private var photoPickerItem: PhotosPickerItem?
     @State private var profileImage: Image?
+    @State private var profileImageData: Data?
+    @State private var isSaving: Bool = false
     @State private var showPhotoOptions: Bool = false
     @State private var showCamera: Bool = false
     @State private var showPhotoPicker: Bool = false
-    @FocusState private var focusedField: ProfileField?
+    @FocusState private var focusedField: Field?
 
-    private enum ProfileField { case name, email }
+    private enum Field { case name, email }
 
     private let years = ["Freshman", "Sophomore", "Junior", "Senior", "Grad"]
 
-    // Same gradients as WelcomeView / SignInOptionsView / PhoneEntry / OTP
     private let darkGradient = LinearGradient(
         colors: [Color(hex: "#0d1b4b"), Color(hex: "#1a1060"), Color(hex: "#2d0e52")],
         startPoint: .top, endPoint: .bottom
@@ -33,10 +38,6 @@ struct ProfileSetupView: View {
         colors: [Color(hex: "#F5A623"), Color(hex: "#F06B3F"), Color(hex: "#E8485A")],
         startPoint: .topLeading, endPoint: .bottomTrailing
     )
-
-    private var isEmailValid: Bool {
-        viewModel.email.isEmpty || viewModel.email.lowercased().hasSuffix("@ucdavis.edu")
-    }
 
     var body: some View {
         ZStack {
@@ -62,17 +63,18 @@ struct ProfileSetupView: View {
                     yearSection
                         .padding(.horizontal, 24)
                         .padding(.top, 24)
-                    ctaSection
+                    saveButton
                         .padding(.horizontal, 24)
                         .padding(.top, 36)
                         .padding(.bottom, 52)
                 }
             }
         }
+        .onAppear { loadCurrentValues() }
         .onChange(of: photoPickerItem) { _, item in
             Task {
                 if let data = try? await item?.loadTransferable(type: Data.self) {
-                    viewModel.profileImageData = data
+                    profileImageData = data
                     if let uiImage = UIImage(data: data) {
                         profileImage = Image(uiImage: uiImage)
                     }
@@ -89,7 +91,7 @@ struct ProfileSetupView: View {
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker { uiImage in
                 if let data = uiImage.jpegData(compressionQuality: 0.85) {
-                    viewModel.profileImageData = data
+                    profileImageData = data
                     profileImage = Image(uiImage: uiImage)
                 }
             }
@@ -97,12 +99,26 @@ struct ProfileSetupView: View {
         }
     }
 
+    // MARK: - Load Current Values
+
+    private func loadCurrentValues() {
+        name = viewModel.userName
+        email = viewModel.userEmail
+        year = viewModel.user?.year ?? ""
+
+        if let data = UserDefaults.standard.data(forKey: "profileImageData"),
+           let uiImage = UIImage(data: data) {
+            profileImageData = data
+            profileImage = Image(uiImage: uiImage)
+        }
+    }
+
     // MARK: - Header Bar
 
     private var headerBar: some View {
         HStack {
-            Button(action: { viewModel.goBack() }) {
-                Image(systemName: "arrow.left")
+            Button(action: { dismiss() }) {
+                Image(systemName: "xmark")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(width: 42, height: 42)
@@ -122,7 +138,6 @@ struct ProfileSetupView: View {
         VStack(spacing: 20) {
             Button(action: { showPhotoOptions = true }) {
                 ZStack(alignment: .bottomTrailing) {
-                    // Avatar circle
                     ZStack {
                         Circle()
                             .fill(.white.opacity(0.12))
@@ -136,13 +151,12 @@ struct ProfileSetupView: View {
                                 .frame(width: 120, height: 120)
                                 .clipShape(Circle())
                         } else {
-                            Image(systemName: "person.fill")
-                                .font(.system(size: 46))
+                            Text(String(name.prefix(1)).uppercased())
+                                .font(.system(size: 46, weight: .bold))
                                 .foregroundColor(.white.opacity(0.4))
                         }
                     }
 
-                    // Camera badge
                     Circle()
                         .fill(.white)
                         .frame(width: 34, height: 34)
@@ -158,11 +172,11 @@ struct ProfileSetupView: View {
             .buttonStyle(.plain)
 
             VStack(spacing: 6) {
-                Text("Set up your profile")
+                Text("Edit Profile")
                     .font(.system(size: 28, weight: .bold))
                     .foregroundColor(.white)
 
-                Text("Tell us a bit about yourself")
+                Text("Update your information")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.white.opacity(0.65))
             }
@@ -180,7 +194,7 @@ struct ProfileSetupView: View {
                     .foregroundColor(.white.opacity(0.7))
                     .padding(.leading, 4)
 
-                TextField("Enter your name", text: $viewModel.displayName)
+                TextField("Enter your name", text: $name)
                     .focused($focusedField, equals: .name)
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.white)
@@ -205,7 +219,7 @@ struct ProfileSetupView: View {
                     .foregroundColor(.white.opacity(0.7))
                     .padding(.leading, 4)
 
-                TextField("email@ucdavis.edu", text: $viewModel.email)
+                TextField("email@ucdavis.edu", text: $email)
                     .focused($focusedField, equals: .email)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
@@ -219,20 +233,11 @@ struct ProfileSetupView: View {
                     .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .stroke(
-                                !isEmailValid ? Color(hex: "#FF6B6B").opacity(0.8) :
-                                    focusedField == .email ? .white.opacity(0.6) : .white.opacity(0.2),
-                                lineWidth: (!isEmailValid || focusedField == .email) ? 2 : 1.5
+                                focusedField == .email ? .white.opacity(0.6) : .white.opacity(0.2),
+                                lineWidth: focusedField == .email ? 2 : 1.5
                             )
                     )
                     .animation(.easeInOut(duration: 0.2), value: focusedField == .email)
-
-                if !isEmailValid {
-                    Text("Must be a @ucdavis.edu address")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Color(hex: "#FF6B6B"))
-                        .padding(.leading, 4)
-                        .transition(.opacity.animation(.easeInOut))
-                }
             }
         }
     }
@@ -246,59 +251,72 @@ struct ProfileSetupView: View {
                 .foregroundColor(.white.opacity(0.7))
                 .padding(.leading, 4)
 
-            ProfileFlowLayout(spacing: 8) {
+            EditProfileFlowLayout(spacing: 8) {
                 ForEach(years, id: \.self) { yr in
-                    Button(action: { viewModel.year = yr }) {
+                    Button(action: {
+                        year = (year == yr) ? "" : yr
+                    }) {
                         Text(yr)
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white.opacity(viewModel.year == yr ? 1 : 0.6))
+                            .foregroundColor(.white.opacity(year == yr ? 1 : 0.6))
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)
                             .background(
-                                .white.opacity(viewModel.year == yr ? 0.25 : 0.10),
+                                .white.opacity(year == yr ? 0.25 : 0.10),
                                 in: Capsule()
                             )
                             .overlay(
                                 Capsule().stroke(
-                                    .white.opacity(viewModel.year == yr ? 0.6 : 0.2),
-                                    lineWidth: viewModel.year == yr ? 1.5 : 1
+                                    .white.opacity(year == yr ? 0.6 : 0.2),
+                                    lineWidth: year == yr ? 1.5 : 1
                                 )
                             )
                     }
                     .buttonStyle(.plain)
-                    .animation(.easeInOut(duration: 0.15), value: viewModel.year == yr)
+                    .animation(.easeInOut(duration: 0.15), value: year == yr)
                 }
             }
         }
     }
 
-    // MARK: - CTA Section
+    // MARK: - Save Button
 
-    private var ctaSection: some View {
-        VStack(spacing: 16) {
-            Button(action: { Task { await viewModel.completeOnboarding() } }) {
-                Text("Let's Go")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(colorScheme == .dark ? Color(hex: "#0d1b4b") : Color(hex: "#E8485A"))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 60)
-                    .background(.white, in: Capsule())
-                    .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
+    private var saveButton: some View {
+        Button(action: {
+            Task {
+                isSaving = true
+                await viewModel.updateProfile(
+                    name: name,
+                    email: email,
+                    year: year,
+                    imageData: profileImageData
+                )
+                isSaving = false
+                dismiss()
             }
-
-            Button(action: { Task { await viewModel.completeOnboarding() } }) {
-                Text("Skip for now")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white.opacity(0.55))
-                    .padding(.vertical, 8)
+        }) {
+            Group {
+                if isSaving {
+                    ProgressView()
+                        .tint(colorScheme == .dark ? Color(hex: "#0d1b4b") : Color(hex: "#E8485A"))
+                } else {
+                    Text("Save Changes")
+                        .font(.system(size: 18, weight: .bold))
+                }
             }
+            .foregroundColor(colorScheme == .dark ? Color(hex: "#0d1b4b") : Color(hex: "#E8485A"))
+            .frame(maxWidth: .infinity)
+            .frame(height: 60)
+            .background(.white, in: Capsule())
+            .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
         }
+        .disabled(isSaving)
     }
 }
 
 // MARK: - Flow Layout (wrapping HStack)
 
-private struct ProfileFlowLayout: Layout {
+private struct EditProfileFlowLayout: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
@@ -339,14 +357,38 @@ private struct ProfileFlowLayout: Layout {
     }
 }
 
-// MARK: - Previews
+// MARK: - Camera Picker (UIImagePickerController wrapper)
 
-#Preview("Dark") {
-    ProfileSetupView(viewModel: OnboardingViewModel())
-        .preferredColorScheme(.dark)
-}
+struct CameraPicker: UIViewControllerRepresentable {
+    var onImagePicked: (UIImage) -> Void
+    @Environment(\.dismiss) private var dismiss
 
-#Preview("Light") {
-    ProfileSetupView(viewModel: OnboardingViewModel())
-        .preferredColorScheme(.light)
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.allowsEditing = true
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: CameraPicker
+
+        init(_ parent: CameraPicker) { self.parent = parent }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            if let image = info[.editedImage] as? UIImage ?? info[.originalImage] as? UIImage {
+                parent.onImagePicked(image)
+            }
+            parent.dismiss()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
+        }
+    }
 }

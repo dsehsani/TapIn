@@ -191,6 +191,7 @@ struct EventCard: View {
                         .scaleEffect(savedViewModel.isEventSaved(event) ? 1.1 : 1.0)
                 }
                 .buttonStyle(.plain)
+                .sensoryFeedback(.impact(weight: .medium), trigger: savedViewModel.isEventSaved(event))
             }
         }
         .padding(16)

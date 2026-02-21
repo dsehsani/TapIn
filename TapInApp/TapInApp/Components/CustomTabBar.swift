@@ -57,12 +57,13 @@ struct TabBarItem: View {
                         RoundedRectangle(cornerRadius: 12)
                             .fill(Color.ucdGold)
                             .frame(width: 44, height: 44)
-                            .shadow(color: Color.ucdGold.opacity(0.3), radius: 4, x: 0, y: 2)
+                            .shadow(color: Color.ucdGold.opacity(isSelected ? 0.5 : 0.3), radius: isSelected ? 6 : 4, x: 0, y: 2)
 
                         Image(systemName: tab.iconFilled)
                             .font(.system(size: 24, weight: .bold))
                             .foregroundColor(.white)
                     }
+                    .opacity(isSelected ? 1.0 : 0.6)
                     .offset(y: -4)
                 } else {
                     // Regular Tab Icon

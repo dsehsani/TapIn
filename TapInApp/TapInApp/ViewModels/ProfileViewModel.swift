@@ -94,11 +94,50 @@ class ProfileViewModel: ObservableObject {
 
     // MARK: - Profile Updates
 
-    func updateProfile(name: String, email: String) {
+    func updateProfile(name: String, email: String, year: String, imageData: Data?) async {
         guard var currentUser = AppState.shared.currentUser else { return }
+
         currentUser.name = name
         currentUser.email = email
+        currentUser.year = year.isEmpty ? nil : year
         AppState.shared.currentUser = currentUser
+
+        // Persist profile image
+        if let imageData {
+            UserDefaults.standard.set(imageData, forKey: "profileImageData")
+        }
+
+        // Update local profile cache (survives sign-out)
+        updateLocalProfileCache(name: name, email: email, year: year)
+
+        // Persist AppState to UserDefaults
+        AppState.shared.persistStatePublic()
+
+        // Sync name/email to backend (best-effort)
+        if let token = AppState.shared.backendToken {
+            try? await UserAPIService.shared.updateProfile(
+                token: token,
+                email: email.isEmpty ? nil : email,
+                username: name.isEmpty ? nil : name
+            )
+        }
+    }
+
+    /// Updates the localProfiles cache so edits survive sign-out/re-sign-in.
+    private func updateLocalProfileCache(name: String, email: String, year: String) {
+        let providerKey = UserDefaults.standard.string(forKey: "appleUserId")
+            ?? AppState.shared.smsUserId
+            ?? ""
+        guard !providerKey.isEmpty else { return }
+
+        var profiles = UserDefaults.standard.dictionary(forKey: "localProfiles") as? [String: [String: String]] ?? [:]
+        profiles[providerKey] = [
+            "name": name,
+            "email": email,
+            "year": year,
+            "providerKey": providerKey
+        ]
+        UserDefaults.standard.set(profiles, forKey: "localProfiles")
     }
 
     // MARK: - Settings

@@ -103,8 +103,43 @@ class OnboardingViewModel: ObservableObject {
             UserDefaults.standard.set(imageData, forKey: "profileImageData")
         }
 
+        // Save a local profile record keyed by provider ID so we can recognize
+        // returning users even if the backend is unreachable after sign-out.
+        saveLocalProfile(name: name, email: email, year: year)
+
         AppState.shared.persistStatePublic()
         isLoading = false
+    }
+
+    // MARK: - Local Profile Cache (survives sign-out)
+
+    /// Saves the user's profile locally so we can restore it on re-sign-in
+    /// without depending on the backend.
+    private func saveLocalProfile(name: String, email: String, year: String) {
+        let providerKey = appleUserId ?? googleUserId ?? AppState.shared.smsUserId ?? ""
+        guard !providerKey.isEmpty else { return }
+
+        let profile: [String: String] = [
+            "name": name,
+            "email": email,
+            "year": year,
+            "providerKey": providerKey
+        ]
+        // Store under a key that won't be cleared on sign-out
+        var profiles = UserDefaults.standard.dictionary(forKey: "localProfiles") as? [String: [String: String]] ?? [:]
+        profiles[providerKey] = profile
+        UserDefaults.standard.set(profiles, forKey: "localProfiles")
+    }
+
+    /// Looks up a previously-completed profile by provider user ID.
+    private func loadLocalProfile(providerKey: String) -> (name: String, email: String, year: String)? {
+        guard let profiles = UserDefaults.standard.dictionary(forKey: "localProfiles") as? [String: [String: String]],
+              let profile = profiles[providerKey] else { return nil }
+        return (
+            name: profile["name"] ?? "Aggie Student",
+            email: profile["email"] ?? "",
+            year: profile["year"] ?? ""
+        )
     }
 
     /// Sends auth credentials to the backend to get a backend JWT.
@@ -197,31 +232,56 @@ class OnboardingViewModel: ObservableObject {
             }
 
             // Check backend — does this Apple ID already have an account?
-            if let idToken = tokenString,
-               let backendResult = try? await UserAPIService.shared.authenticateWithApple(
-                   identityToken: idToken,
-                   appleUserId: credential.user,
-                   displayName: displayName,
-                   email: email
-               ), let token = backendResult.token {
-                AppState.shared.backendToken = token
-
-                if backendResult.isNewUser == false, let user = backendResult.user {
-                    // Returning user — skip profile setup, go straight to main app
-                    AppState.shared.currentUser = User(
-                        name: user.username,
-                        email: user.email,
-                        year: nil
+            if let idToken = tokenString {
+                do {
+                    let backendResult = try await UserAPIService.shared.authenticateWithApple(
+                        identityToken: idToken,
+                        appleUserId: credential.user,
+                        displayName: displayName,
+                        email: email
                     )
-                    AppState.shared.isAuthenticated = true
-                    AppState.shared.persistStatePublic()
-                    appleSignInDelegate = nil
-                    isLoading = false
-                    return
+                    if let token = backendResult.token {
+                        AppState.shared.backendToken = token
+                    }
+
+                    if backendResult.isNewUser == false, let user = backendResult.user {
+                        // Returning user found in backend
+                        print("[Apple Auth] Returning user found in backend")
+                        AppState.shared.currentUser = User(
+                            name: user.username,
+                            email: user.email,
+                            year: nil
+                        )
+                        AppState.shared.isAuthenticated = true
+                        AppState.shared.persistStatePublic()
+                        appleSignInDelegate = nil
+                        isLoading = false
+                        return
+                    }
+
+                    print("[Apple Auth] Backend says new user (isNewUser=\(String(describing: backendResult.isNewUser)))")
+                } catch {
+                    print("[Apple Auth] Backend error: \(error.localizedDescription)")
                 }
             }
 
-            // New user or backend unavailable — go to profile setup
+            // Backend didn't recognize user or was unreachable —
+            // check if we have a local profile from a previous session
+            if let localProfile = loadLocalProfile(providerKey: credential.user) {
+                print("[Apple Auth] Restoring from local profile cache")
+                AppState.shared.currentUser = User(
+                    name: localProfile.name,
+                    email: localProfile.email,
+                    year: localProfile.year
+                )
+                AppState.shared.isAuthenticated = true
+                AppState.shared.persistStatePublic()
+                appleSignInDelegate = nil
+                isLoading = false
+                return
+            }
+
+            // Truly new user — go to profile setup
             navigateTo(.profileSetup)
         } catch {
             let nsError = error as NSError
@@ -341,16 +401,20 @@ class OnboardingViewModel: ObservableObject {
             if !googleEmail.isEmpty { email = googleEmail }
 
             // Check backend — does this Google ID already have an account?
-            if let backendResult = try? await UserAPIService.shared.authenticateWithGoogle(
-                idToken: idToken,
-                googleUserId: googleId,
-                displayName: displayName,
-                email: email
-            ), let token = backendResult.token {
-                AppState.shared.backendToken = token
+            do {
+                let backendResult = try await UserAPIService.shared.authenticateWithGoogle(
+                    idToken: idToken,
+                    googleUserId: googleId,
+                    displayName: displayName,
+                    email: email
+                )
+                if let token = backendResult.token {
+                    AppState.shared.backendToken = token
+                }
 
                 if backendResult.isNewUser == false, let existingUser = backendResult.user {
-                    // Returning user — skip profile setup, go straight to main app
+                    // Returning user found in backend
+                    print("[Google Auth] Returning user found in backend")
                     AppState.shared.currentUser = User(
                         name: existingUser.username,
                         email: existingUser.email,
@@ -361,9 +425,28 @@ class OnboardingViewModel: ObservableObject {
                     isLoading = false
                     return
                 }
+
+                print("[Google Auth] Backend says new user (isNewUser=\(String(describing: backendResult.isNewUser)))")
+            } catch {
+                print("[Google Auth] Backend error: \(error.localizedDescription)")
             }
 
-            // New user or backend unavailable — go to profile setup
+            // Backend didn't recognize user or was unreachable —
+            // check if we have a local profile from a previous session
+            if let localProfile = loadLocalProfile(providerKey: googleId) {
+                print("[Google Auth] Restoring from local profile cache")
+                AppState.shared.currentUser = User(
+                    name: localProfile.name,
+                    email: localProfile.email,
+                    year: localProfile.year
+                )
+                AppState.shared.isAuthenticated = true
+                AppState.shared.persistStatePublic()
+                isLoading = false
+                return
+            }
+
+            // Truly new user — go to profile setup
             navigateTo(.profileSetup)
         } catch {
             let nsError = error as NSError
@@ -403,12 +486,12 @@ private class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate, 
     }
 
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        guard let window = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .flatMap({ $0.windows })
-            .first(where: { $0.isKeyWindow }) else {
-            return UIWindow()
+        let scene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first
+        if let window = scene?.windows.first(where: { $0.isKeyWindow }) {
+            return window
         }
-        return window
+        return UIWindow(windowScene: scene!)
     }
 }

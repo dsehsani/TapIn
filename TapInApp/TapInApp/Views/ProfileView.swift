@@ -13,6 +13,7 @@ struct ProfileView: View {
     @ObservedObject var gamesViewModel: GamesViewModel
 
     @Environment(\.colorScheme) var colorScheme
+    @State private var showEditProfile = false
 
     // Load persisted profile image
     private var profileImage: UIImage? {
@@ -87,6 +88,9 @@ struct ProfileView: View {
                 }
             }
             .ignoresSafeArea(edges: .top)
+            .sheet(isPresented: $showEditProfile) {
+                EditProfileView(viewModel: viewModel)
+            }
         }
     }
 
@@ -146,7 +150,7 @@ struct ProfileView: View {
 
             // Edit Profile / Sign In
             if viewModel.isLoggedIn {
-                Button(action: {}) {
+                Button(action: { showEditProfile = true }) {
                     Text("Edit Profile")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.white)

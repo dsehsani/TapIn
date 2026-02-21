@@ -114,8 +114,8 @@ struct NewsView: View {
                     .frame(height: 1)
             }
 
-            // Loading Overlay
-            if viewModel.isLoading {
+            // Loading Overlay — only shown on first load when there are no articles
+            if viewModel.isLoading && viewModel.articles.isEmpty {
                 VStack {
                     Spacer()
                     ProgressView("Loading articles...")
@@ -162,9 +162,10 @@ struct ArticleRowCard: View {
                 // Content row — title left, thumbnail right
                 HStack(alignment: .top, spacing: 12) {
                     Text(article.title)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 19, weight: .bold))
                         .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
                         .multilineTextAlignment(.leading)
+                        .lineLimit(4)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Spacer(minLength: 0)

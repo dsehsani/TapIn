@@ -167,6 +167,7 @@ struct EventDetailView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .sensoryFeedback(.impact(weight: .medium), trigger: savedViewModel.isEventSaved(event))
                     .padding(.top, 8)
 
                     // MARK: - RSVP Button

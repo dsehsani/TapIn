@@ -114,6 +114,12 @@ def _get_apple_public_keys():
         return _apple_keys_cache or {}
 
 
+def _invalidate_apple_keys_cache():
+    global _apple_keys_cache, _apple_keys_fetched_at
+    _apple_keys_cache = None
+    _apple_keys_fetched_at = None
+
+
 def verify_apple_token(identity_token: str) -> dict:
     """
     Verifies an Apple identity token and returns decoded claims.
@@ -133,13 +139,18 @@ def verify_apple_token(identity_token: str) -> dict:
 
         public_key = keys.get(kid)
         if not public_key:
-            raise ValueError(f"Apple key with kid '{kid}' not found")
+            # Key not in cache — Apple may have rotated keys; force refresh
+            _invalidate_apple_keys_cache()
+            keys = _get_apple_public_keys()
+            public_key = keys.get(kid)
+            if not public_key:
+                raise ValueError(f"Apple key with kid '{kid}' not found")
 
         claims = jwt.decode(
             identity_token,
             public_key,
             algorithms=["RS256"],
-            audience=os.environ.get("APPLE_BUNDLE_ID", "com.dariusehsani.TapInApp"),
+            audience=os.environ.get("APPLE_BUNDLE_ID", "DariusEhsani.TapInApp"),
             issuer="https://appleid.apple.com",
         )
         return claims
@@ -186,6 +197,12 @@ def _get_google_public_keys():
         return _google_keys_cache or {}
 
 
+def _invalidate_google_keys_cache():
+    global _google_keys_cache, _google_keys_fetched_at
+    _google_keys_cache = None
+    _google_keys_fetched_at = None
+
+
 def verify_google_token(id_token: str) -> dict:
     """
     Verifies a Google ID token and returns decoded claims.
@@ -204,7 +221,12 @@ def verify_google_token(id_token: str) -> dict:
 
         public_key = keys.get(kid)
         if not public_key:
-            raise ValueError(f"Google key with kid '{kid}' not found")
+            # Key not in cache — Google may have rotated keys; force refresh
+            _invalidate_google_keys_cache()
+            keys = _get_google_public_keys()
+            public_key = keys.get(kid)
+            if not public_key:
+                raise ValueError(f"Google key with kid '{kid}' not found")
 
         # Accept both iOS client ID and web client ID as valid audiences
         google_client_id = os.environ.get("GOOGLE_CLIENT_ID", "")

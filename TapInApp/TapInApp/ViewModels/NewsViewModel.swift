@@ -33,35 +33,49 @@ class NewsViewModel: ObservableObject {
     private let briefingService = DailyBriefingService.shared
     private var allFetchedArticles: [NewsArticle] = []
 
+    /// In-memory cache of articles per category for instant tab switching
+    private var categoryCache: [String: [NewsArticle]] = [:]
+
     init() {
         Task {
             await fetchArticles()
             await fetchDailyBriefing()
+            // Prefetch all other categories in the background so filter switches are instant
+            await prefetchAllCategories()
         }
     }
 
     // MARK: - Fetch Articles from RSS
 
     func fetchArticles() async {
-        isLoading = true
         errorMessage = nil
 
         // Find the selected category
         let selectedCat = categories.first { $0.name == selectedCategory } ?? categories[0]
         let newsCategory = selectedCat.newsCategory
+        let cacheKey = selectedCat.name
+
+        // Only show full loading spinner when we have nothing to display
+        let hasCachedData = categoryCache[cacheKey] != nil
+        if !hasCachedData {
+            isLoading = true
+        }
 
         do {
             let fetched = try await newsService.fetchArticles(category: newsCategory)
             allFetchedArticles = fetched
+            categoryCache[cacheKey] = fetched
             processArticles(fetched)
             isLoading = false
 
             // Pre-fetch article content in the background so tapping is instant
             newsService.prefetchContent(for: fetched)
         } catch {
-            // Fallback to sample data on error
-            errorMessage = error.localizedDescription
-            loadSampleData()
+            // Only fall back to sample data if we have nothing cached
+            if !hasCachedData {
+                errorMessage = error.localizedDescription
+                loadSampleData()
+            }
             isLoading = false
         }
     }
@@ -72,7 +86,13 @@ class NewsViewModel: ObservableObject {
             Category(id: cat.id, name: cat.name, icon: cat.icon, isSelected: cat.name == category)
         }
 
-        // Fetch articles for the new category
+        // Show cached articles instantly if available
+        if let cached = categoryCache[category] {
+            allFetchedArticles = cached
+            processArticles(cached)
+        }
+
+        // Refresh in the background (won't show loading spinner if cache hit)
         Task {
             await fetchArticles()
         }
@@ -108,6 +128,32 @@ class NewsViewModel: ObservableObject {
         dailyBriefing = result
         briefingError = (result == nil)
         isBriefingLoading = false
+    }
+
+    // MARK: - Background Prefetch
+
+    /// Fetches all categories concurrently in the background so that
+    /// tapping any filter for the first time shows articles instantly.
+    private func prefetchAllCategories() async {
+        await withTaskGroup(of: (String, [NewsArticle]?).self) { group in
+            for cat in categories where cat.name != selectedCategory {
+                let newsCategory = cat.newsCategory
+                let name = cat.name
+                // Skip categories we already have cached
+                if categoryCache[name] != nil { continue }
+
+                group.addTask { [newsService] in
+                    let articles = try? await newsService.fetchArticles(category: newsCategory)
+                    return (name, articles)
+                }
+            }
+
+            for await (name, articles) in group {
+                if let articles = articles {
+                    categoryCache[name] = articles
+                }
+            }
+        }
     }
 
     // MARK: - Private Helpers
