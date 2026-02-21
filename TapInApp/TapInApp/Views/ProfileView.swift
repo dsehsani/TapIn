@@ -162,21 +162,6 @@ struct ProfileView: View {
                         )
                 }
                 .padding(.top, 4)
-            } else {
-                Button(action: {
-                    Task {
-                        await viewModel.login(email: "demo@ucdavis.edu", password: "demo")
-                    }
-                }) {
-                    Text("Sign In")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(colorScheme == .dark ? Color(hex: "#1e2545") : Color.accentCoral)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 10)
-                        .background(.white)
-                        .clipShape(Capsule())
-                }
-                .padding(.top, 4)
             }
         }
         .padding(.top, 70)

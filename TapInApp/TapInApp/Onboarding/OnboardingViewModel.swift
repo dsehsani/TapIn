@@ -181,7 +181,9 @@ class OnboardingViewModel: ObservableObject {
             }
         } catch {
             // Backend registration is best-effort — don't block the user
+            #if DEBUG
             print("Backend auth (non-blocking): \(error.localizedDescription)")
+            #endif
         }
     }
 
@@ -246,7 +248,9 @@ class OnboardingViewModel: ObservableObject {
 
                     if backendResult.isNewUser == false, let user = backendResult.user {
                         // Returning user found in backend
+                        #if DEBUG
                         print("[Apple Auth] Returning user found in backend")
+                        #endif
                         AppState.shared.currentUser = User(
                             name: user.username,
                             email: user.email,
@@ -259,16 +263,22 @@ class OnboardingViewModel: ObservableObject {
                         return
                     }
 
+                    #if DEBUG
                     print("[Apple Auth] Backend says new user (isNewUser=\(String(describing: backendResult.isNewUser)))")
+                    #endif
                 } catch {
+                    #if DEBUG
                     print("[Apple Auth] Backend error: \(error.localizedDescription)")
+                    #endif
                 }
             }
 
             // Backend didn't recognize user or was unreachable —
             // check if we have a local profile from a previous session
             if let localProfile = loadLocalProfile(providerKey: credential.user) {
+                #if DEBUG
                 print("[Apple Auth] Restoring from local profile cache")
+                #endif
                 AppState.shared.currentUser = User(
                     name: localProfile.name,
                     email: localProfile.email,
@@ -350,7 +360,9 @@ class OnboardingViewModel: ObservableObject {
                     return
                 }
             } catch {
+                #if DEBUG
                 print("OnboardingVM: backend phone auth check failed — \(error.localizedDescription)")
+                #endif
             }
 
             // New user or backend unavailable — go to profile setup
@@ -414,7 +426,9 @@ class OnboardingViewModel: ObservableObject {
 
                 if backendResult.isNewUser == false, let existingUser = backendResult.user {
                     // Returning user found in backend
+                    #if DEBUG
                     print("[Google Auth] Returning user found in backend")
+                    #endif
                     AppState.shared.currentUser = User(
                         name: existingUser.username,
                         email: existingUser.email,
@@ -426,15 +440,21 @@ class OnboardingViewModel: ObservableObject {
                     return
                 }
 
+                #if DEBUG
                 print("[Google Auth] Backend says new user (isNewUser=\(String(describing: backendResult.isNewUser)))")
+                #endif
             } catch {
+                #if DEBUG
                 print("[Google Auth] Backend error: \(error.localizedDescription)")
+                #endif
             }
 
             // Backend didn't recognize user or was unreachable —
             // check if we have a local profile from a previous session
             if let localProfile = loadLocalProfile(providerKey: googleId) {
+                #if DEBUG
                 print("[Google Auth] Restoring from local profile cache")
+                #endif
                 AppState.shared.currentUser = User(
                     name: localProfile.name,
                     email: localProfile.email,

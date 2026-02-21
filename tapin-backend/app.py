@@ -67,7 +67,7 @@ def create_app() -> Flask:
     # This allows the iOS app to make requests to the server
     CORS(app, resources={
         r"/api/*": {
-            "origins": "*",  # Allow all origins for development
+            "origins": "*",  # iOS apps don't send Origin headers; this is safe for mobile-only APIs
             "methods": ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"]
         }
@@ -212,4 +212,4 @@ if __name__ == "__main__":
     print("Press Ctrl+C to stop the server")
     print("=" * 60)
 
-    app.run(host="0.0.0.0", port=8080, debug=True)
+    app.run(host="0.0.0.0", port=8080, debug=False)

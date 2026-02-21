@@ -86,7 +86,7 @@ struct HeaderView: View {
                 Spacer()
 
                 // App title (center)
-                Text("WordleType")
+                Text("DailyFive")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundColor(accentColor)
 

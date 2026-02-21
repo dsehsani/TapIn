@@ -68,7 +68,7 @@ struct WelcomeView: View {
 
                 // --- Hero Text ---
                 VStack(spacing: 14) {
-                    Text("Your campus,\nall in one place")
+                    Text("Your Campus\nOne Place")
                         .font(.system(size: 36, weight: .heavy))
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
@@ -76,7 +76,7 @@ struct WelcomeView: View {
                         .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
                         .padding(.horizontal, 28)
 
-                    Text("News, events, and games — built for UC Davis")
+                    Text("Built for UC Davis")
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.white.opacity(0.75))
                         .multilineTextAlignment(.center)

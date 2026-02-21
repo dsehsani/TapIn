@@ -460,10 +460,14 @@ class GameViewModel {
                     self.scoreSubmitted = true
                 }
 
+                #if DEBUG
                 print("Score submitted! Username: \(response.score.username)")
+                #endif
             } catch {
                 // Log error but don't disrupt user experience
+                #if DEBUG
                 print("Failed to submit score: \(error)")
+                #endif
             }
         }
     }

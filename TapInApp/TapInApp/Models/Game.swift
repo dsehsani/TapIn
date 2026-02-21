@@ -10,6 +10,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 // MARK: - Game Type
 /// Identifies each game type for leaderboards and analytics.
@@ -19,13 +20,25 @@ enum GameType: String, Codable, CaseIterable {
     case trivia = "trivia"
     case crossword = "crossword"
     case echo = "echo"
+    case pipes = "pipes"
 
     var displayName: String {
         switch self {
-        case .wordle: return "Aggie Wordle"
+        case .wordle: return "DailyFive"
         case .trivia: return "Campus Trivia"
         case .crossword: return "Aggie Crossword"
         case .echo: return "Echo"
+        case .pipes: return "Pipes"
+        }
+    }
+
+    var accentColor: Color {
+        switch self {
+        case .wordle: return Color(red: 0.42, green: 0.67, blue: 0.46) // green
+        case .echo: return Color(red: 0.55, green: 0.36, blue: 0.96)   // purple
+        case .pipes: return Color(red: 0.23, green: 0.51, blue: 0.96)  // blue
+        case .trivia: return Color(red: 0.96, green: 0.65, blue: 0.14) // gold
+        case .crossword: return Color(red: 0.96, green: 0.65, blue: 0.14)
         }
     }
 }
@@ -141,24 +154,24 @@ extension Game {
     static let sampleData: [Game] = [
         Game(
             type: .wordle,
-            name: "Aggie Wordle",
-            description: "UC Davis themed daily word puzzle",
+            name: "DailyFive",
+            description: "Guess the 5-letter word",
             iconName: "puzzlepiece.extension.fill",
             isMultiplayer: false,
             hasLeaderboard: true
         ),
         Game(
-            type: .crossword,
-            name: "Aggie Crossword",
-            description: "Weekly campus-themed crossword",
-            iconName: "square.grid.3x3.fill",
+            type: .pipes,
+            name: "Pipes",
+            description: "Connect and fill the grid",
+            iconName: "point.topleft.down.to.point.bottomright.curvepath.fill",
             isMultiplayer: false,
-            hasLeaderboard: true
+            hasLeaderboard: false
         ),
         Game(
             type: .echo,
             name: "Echo",
-            description: "Memory meets logic — transform the sequence",
+            description: "Repeat the pattern",
             iconName: "waveform.path",
             isMultiplayer: false,
             hasLeaderboard: true

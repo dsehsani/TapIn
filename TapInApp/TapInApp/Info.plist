@@ -2,11 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -20,5 +15,7 @@
 	<string>516122189377-he1okrpvp8fq3ki3k12f63losslkot6f.apps.googleusercontent.com</string>
 	<key>NSCameraUsageDescription</key>
 	<string>TapIn uses your camera to take a profile photo.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>TapIn uses your photo library to select a profile photo.</string>
 </dict>
 </plist>

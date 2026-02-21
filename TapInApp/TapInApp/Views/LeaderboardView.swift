@@ -43,7 +43,7 @@ struct LeaderboardView: View {
                     }
                 }
             }
-            .navigationTitle("Wordle Leaderboard")
+            .navigationTitle("DailyFive Leaderboard")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

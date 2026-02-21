@@ -44,7 +44,9 @@ class DailyBriefingService {
             saveBriefing(briefing, date: today)
             return briefing
         } catch {
+            #if DEBUG
             print("DailyBriefingService: fetch failed — \(error)")
+            #endif
             return nil
         }
     }

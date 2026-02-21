@@ -132,7 +132,9 @@ class NewsService {
             let decoded = try JSONDecoder().decode(BackendArticlesResponse.self, from: data)
             return decoded.success ? decoded.articles : nil
         } catch {
+            #if DEBUG
             print("NewsService: backend fetch failed, falling back to RSS — \(error)")
+            #endif
             return nil
         }
     }
@@ -227,7 +229,9 @@ class NewsService {
             guard decoded.success, let content = decoded.content else { return nil }
             return content.toArticleContent(fallbackDate: fallback.timestamp)
         } catch {
+            #if DEBUG
             print("NewsService: backend content fetch failed — \(error)")
+            #endif
             return nil
         }
     }

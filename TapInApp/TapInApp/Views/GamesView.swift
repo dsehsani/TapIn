@@ -123,10 +123,9 @@ struct GamesView: View {
                 onGameComplete: { won in viewModel.updateStats(won: won) }
             )
         }
-        .fullScreenCover(isPresented: $viewModel.showingCrossword) {
-            MiniCrosswordGameView(
-                onDismiss: { viewModel.dismissGame() },
-                onGameComplete: { won in viewModel.updateStats(won: won) }
+        .fullScreenCover(isPresented: $viewModel.showingPipes) {
+            PipesGameView(
+                onDismiss: { viewModel.dismissGame() }
             )
         }
         .sheet(isPresented: $viewModel.showingLeaderboard) {
@@ -227,11 +226,11 @@ struct GameRowCard: View {
             HStack(spacing: 16) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.ucdGold.opacity(0.2))
+                        .fill(game.type.accentColor.opacity(0.2))
                         .frame(width: 56, height: 56)
                     Image(systemName: game.iconName)
                         .font(.system(size: 24))
-                        .foregroundColor(Color.ucdGold)
+                        .foregroundColor(game.type.accentColor)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {

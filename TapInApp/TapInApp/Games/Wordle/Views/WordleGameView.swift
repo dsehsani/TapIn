@@ -158,7 +158,9 @@ struct WordleGameView: View {
                     isLoadingLeaderboard = false
                 }
             } catch {
+                #if DEBUG
                 print("Failed to fetch leaderboard: \(error)")
+                #endif
                 await MainActor.run {
                     isLoadingLeaderboard = false
                 }

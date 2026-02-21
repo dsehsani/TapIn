@@ -21,7 +21,7 @@ class GamesViewModel: ObservableObject {
     @Published var userStats: GameStats = GameStats()
     @Published var showingWordle: Bool = false
     @Published var showingEcho: Bool = false
-    @Published var showingCrossword: Bool = false
+    @Published var showingPipes: Bool = false
     @Published var showingLeaderboard: Bool = false
 
     private let statsKey = "aggregateGameStats"
@@ -48,8 +48,8 @@ class GamesViewModel: ObservableObject {
             showingWordle = true
         case .echo:
             showingEcho = true
-        case .crossword:
-            showingCrossword = true
+        case .pipes:
+            showingPipes = true
         default:
             break
         }
@@ -58,7 +58,7 @@ class GamesViewModel: ObservableObject {
     func dismissGame() {
         showingWordle = false
         showingEcho = false
-        showingCrossword = false
+        showingPipes = false
         showingLeaderboard = false
         currentGame = nil
     }
@@ -169,7 +169,9 @@ class GamesViewModel: ObservableObject {
                 }
             }
         } catch {
+            #if DEBUG
             print("GamesVM: Failed to fetch stats from backend — \(error.localizedDescription)")
+            #endif
         }
     }
 
@@ -187,7 +189,9 @@ class GamesViewModel: ObservableObject {
         do {
             try await UserAPIService.shared.updateGameStats(token: token, stats: stats)
         } catch {
+            #if DEBUG
             print("GamesVM: Failed to sync stats to backend — \(error.localizedDescription)")
+            #endif
         }
     }
 }
