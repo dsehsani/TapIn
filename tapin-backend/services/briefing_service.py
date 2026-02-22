@@ -15,6 +15,7 @@
 
 import logging
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from repositories.briefing_repository import briefing_repository
 from repositories.article_repository import article_repository
@@ -22,6 +23,8 @@ from services.aggie_rss_service import fetch_articles
 from services.claude_service import claude_service
 
 logger = logging.getLogger(__name__)
+
+PACIFIC = ZoneInfo("America/Los_Angeles")
 
 BRIEFING_SYSTEM_PROMPT = (
     "You are a friendly campus news briefer for TapIn, a UC Davis student app. "
@@ -47,7 +50,7 @@ def get_daily_briefing() -> dict:
     Returns today's briefing, generating it if not cached.
     Returns: { summary, bullet_points, article_count, generated_at, cached }
     """
-    today = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(tz=PACIFIC).strftime("%Y-%m-%d")
 
     # Check Firestore cache
     cached = briefing_repository.get_briefing(today)
@@ -69,8 +72,17 @@ def get_daily_briefing() -> dict:
 def _generate_briefing(date_str: str) -> dict:
     """Fetches articles, calls Claude, caches and returns the briefing."""
 
-    # Step 1: Get articles (Firestore cache → fresh RSS fallback)
-    articles = article_repository.get_articles("all")
+    # Step 1: Get articles (stale-check → fresh RSS → stale cache fallback)
+    if article_repository.is_stale("all"):
+        articles = fetch_articles("all")
+        if articles:
+            article_repository.save_articles("all", articles)
+        else:
+            # RSS failed — fall back to stale cache rather than nothing
+            articles = article_repository.get_articles("all")
+    else:
+        articles = article_repository.get_articles("all")
+
     if not articles:
         articles = fetch_articles("all")
 

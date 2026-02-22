@@ -5,11 +5,12 @@
 #  MARK: - Articles API Blueprint
 #
 #  Endpoints:
-#  GET  /api/articles?category=all         - Returns cached article list (refreshes if stale)
-#  GET  /api/articles/content?url=<url>    - Returns scraped article content (Firestore-cached)
-#  GET  /api/articles/daily-briefing       - Today's AI-generated news briefing
-#  POST /api/articles/refresh              - Forces re-fetch from The Aggie RSS
-#  GET  /api/articles/health               - Health check + cache stats
+#  GET  /api/articles?category=all              - Returns cached article list (refreshes if stale)
+#  GET  /api/articles/content?url=<url>         - Returns scraped article content (Firestore-cached)
+#  GET  /api/articles/daily-briefing            - Today's AI-generated news briefing
+#  POST /api/articles/daily-briefing/generate   - Cron: force-generate today's briefing
+#  POST /api/articles/refresh                   - Forces re-fetch from The Aggie RSS
+#  GET  /api/articles/health                    - Health check + cache stats
 #
 #  Cache flow:
 #    1. Check Firestore for cached articles (TTL: 30 min)
@@ -193,11 +194,14 @@ def refresh_articles():
         { "category": "campus" }   ← refresh only this category
         {}                         ← refresh all categories
     """
-    secret = os.environ.get("REFRESH_SECRET", "")
-    if secret:
-        provided = request.headers.get("X-Refresh-Secret", "")
-        if provided != secret:
-            return jsonify({"success": False, "error": "Unauthorized"}), 401
+    # Allow App Engine cron requests (GAE strips this header from external requests)
+    is_cron = request.headers.get("X-Appengine-Cron") == "true"
+    if not is_cron:
+        secret = os.environ.get("REFRESH_SECRET", "")
+        if secret:
+            provided = request.headers.get("X-Refresh-Secret", "")
+            if provided != secret:
+                return jsonify({"success": False, "error": "Unauthorized"}), 401
 
     body = request.get_json(silent=True) or {}
     target = body.get("category", "").lower().strip()
@@ -215,6 +219,42 @@ def refresh_articles():
             results[cat] = f"error: {e}"
 
     return jsonify({"success": True, "refreshed": results}), 200
+
+
+# ------------------------------------------------------------------------------
+# MARK: - POST /api/articles/daily-briefing/generate (cron)
+# ------------------------------------------------------------------------------
+
+@articles_bp.route("/daily-briefing/generate", methods=["POST"])
+def generate_daily_briefing():
+    """
+    Forces generation of today's daily briefing.
+    Intended to be called by App Engine cron. Protected by X-Appengine-Cron header.
+    """
+    is_cron = request.headers.get("X-Appengine-Cron") == "true"
+    if not is_cron:
+        secret = os.environ.get("REFRESH_SECRET", "")
+        if secret:
+            provided = request.headers.get("X-Refresh-Secret", "")
+            if provided != secret:
+                return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    try:
+        from services.briefing_service import get_daily_briefing as generate
+        result = generate()
+        return jsonify({
+            "success": True,
+            "briefing": {
+                "summary": result["summary"],
+                "bulletPoints": result["bullet_points"],
+                "articleCount": result["article_count"],
+                "generatedAt": result["generated_at"],
+                "cached": result.get("cached", False),
+            }
+        }), 200
+    except Exception as e:
+        logger.error(f"POST /api/articles/daily-briefing/generate failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ------------------------------------------------------------------------------

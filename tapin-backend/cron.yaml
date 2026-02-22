@@ -1,0 +1,19 @@
+# cron.yaml — App Engine cron schedule for TapIn backend
+#
+# 1. Refresh article cache at 6:45 AM Pacific (before briefing generation)
+# 2. Generate daily briefing at 7:00 AM Pacific
+#
+# Deploy with: gcloud app deploy cron.yaml
+
+cron:
+  - description: "Refresh article cache from RSS"
+    url: /api/articles/refresh
+    http_method: POST
+    schedule: every day 06:45
+    timezone: America/Los_Angeles
+
+  - description: "Generate daily AI news briefing"
+    url: /api/articles/daily-briefing/generate
+    http_method: POST
+    schedule: every day 07:00
+    timezone: America/Los_Angeles
