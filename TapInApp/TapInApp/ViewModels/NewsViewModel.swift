@@ -41,8 +41,10 @@ class NewsViewModel: ObservableObject {
 
     init() {
         Task {
-            await fetchArticles()
-            await fetchDailyBriefing()
+            // Fetch articles and briefing in parallel for faster load
+            async let articlesTask: () = fetchArticles()
+            async let briefingTask: () = fetchDailyBriefing()
+            _ = await (articlesTask, briefingTask)
             // Prefetch all other categories in the background so filter switches are instant
             await prefetchAllCategories()
         }
@@ -139,8 +141,9 @@ class NewsViewModel: ObservableObject {
     }
 
     func refreshArticles() async {
-        await fetchArticles()
-        await fetchDailyBriefing()
+        async let articlesTask: () = fetchArticles()
+        async let briefingTask: () = fetchDailyBriefing()
+        _ = await (articlesTask, briefingTask)
     }
 
     // MARK: - Daily Briefing

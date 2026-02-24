@@ -227,6 +227,36 @@ class UserAPIService {
         }
     }
 
+    // MARK: - Delete Account
+
+    /// Permanently deletes the current user's account from the backend.
+    func deleteAccount(token: String) async throws {
+        guard let requestURL = URL(string: APIConfig.meURL) else {
+            throw UserAPIError.invalidResponse
+        }
+
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse else {
+            throw UserAPIError.invalidResponse
+        }
+
+        struct DeleteResponse: Codable {
+            let success: Bool
+            let error: String?
+        }
+
+        let result = try JSONDecoder().decode(DeleteResponse.self, from: data)
+        if !result.success || http.statusCode != 200 {
+            throw UserAPIError.serverError(result.error ?? "Failed to delete account (HTTP \(http.statusCode))")
+        }
+    }
+
     // MARK: - Private
 
     private func post(url: String, body: [String: Any]) async throws -> AuthResponse {

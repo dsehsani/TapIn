@@ -13,9 +13,5 @@
 	</array>
 	<key>GIDClientID</key>
 	<string>516122189377-he1okrpvp8fq3ki3k12f63losslkot6f.apps.googleusercontent.com</string>
-	<key>NSCameraUsageDescription</key>
-	<string>TapIn uses your camera to take a profile photo.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>TapIn uses your photo library to select a profile photo.</string>
 </dict>
 </plist>

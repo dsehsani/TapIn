@@ -91,6 +91,42 @@ class AppState: ObservableObject {
         persistState()
     }
 
+    /// Permanently deletes the current user's account from the backend, then clears local state.
+    /// Always clears local state even if the backend call fails.
+    func deleteAccount() async {
+        isLoading = true
+        loadingMessage = "Deleting account..."
+
+        // Attempt backend deletion (best-effort)
+        if let token = backendToken {
+            try? await UserAPIService.shared.deleteAccount(token: token)
+        }
+
+        // Always clear all local state
+        currentUser = nil
+        isAuthenticated = false
+        authError = nil
+        authToken = nil
+        smsUserId = nil
+        backendToken = nil
+        GIDSignIn.sharedInstance.signOut()
+
+        // Remove all user-related persisted data
+        let keysToRemove = [
+            "profileImageData", "appleUserId", "localProfiles",
+            "currentUser", "isAuthenticated", "authToken",
+            "smsUserId", "backendToken",
+            "savedArticles", "savedEvents"
+        ]
+        for key in keysToRemove {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+        UserDefaults.standard.synchronize()
+
+        isLoading = false
+        loadingMessage = nil
+    }
+
     /// Signs out the current user
     func signOut() {
         currentUser = nil
@@ -102,6 +138,8 @@ class AppState: ObservableObject {
         GIDSignIn.sharedInstance.signOut()
         UserDefaults.standard.removeObject(forKey: "profileImageData")
         UserDefaults.standard.removeObject(forKey: "appleUserId")
+        UserDefaults.standard.removeObject(forKey: "savedArticles")
+        UserDefaults.standard.removeObject(forKey: "savedEvents")
         persistState()
     }
 

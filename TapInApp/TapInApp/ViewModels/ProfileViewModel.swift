@@ -145,6 +145,12 @@ class ProfileViewModel: ObservableObject {
         UserDefaults.standard.set(profiles, forKey: "localProfiles")
     }
 
+    // MARK: - Account Deletion
+
+    func deleteAccount() async {
+        await AppState.shared.deleteAccount()
+    }
+
     // MARK: - Settings
 
     func toggleNotifications() {

@@ -14,6 +14,7 @@ struct ProfileView: View {
 
     @Environment(\.colorScheme) var colorScheme
     @State private var showEditProfile = false
+    @State private var showDeleteConfirmation = false
 
     // Load persisted profile image
     private var profileImage: UIImage? {
@@ -64,7 +65,7 @@ struct ProfileView: View {
                         .padding(.top, 24)
                         .padding(.horizontal, 16)
 
-                    // MARK: - Sign Out
+                    // MARK: - Sign Out & Delete Account
                     if viewModel.isLoggedIn {
                         Button(action: { viewModel.logout() }) {
                             Text("Sign Out")
@@ -78,6 +79,19 @@ struct ProfileView: View {
                         }
                         .padding(.top, 16)
                         .padding(.horizontal, 16)
+
+                        Button(action: { showDeleteConfirmation = true }) {
+                            Text("Delete Account")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.red.opacity(0.8))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(colorScheme == .dark ? Color(hex: "#1a2033") : .white)
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .shadow(color: .black.opacity(0.04), radius: 8)
+                        }
+                        .padding(.top, 8)
+                        .padding(.horizontal, 16)
                     }
 
                     Text("TapIn v1.0.4")
@@ -90,6 +104,16 @@ struct ProfileView: View {
             .ignoresSafeArea(edges: .top)
             .sheet(isPresented: $showEditProfile) {
                 EditProfileView(viewModel: viewModel)
+            }
+            .alert("Delete Account", isPresented: $showDeleteConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await viewModel.deleteAccount()
+                    }
+                }
+            } message: {
+                Text("Are you sure you want to permanently delete your account? All your data will be removed and this action cannot be undone.")
             }
         }
     }

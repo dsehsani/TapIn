@@ -54,6 +54,16 @@ class OnboardingViewModel: ObservableObject {
         "+1" + phoneNumber.filter(\.isNumber)
     }
 
+    // MARK: - Demo Account (App Store Review)
+    /// Demo phone number and OTP code for Apple review team.
+    /// Phone: +1 (555) 555-0100  |  Code: 000000
+    private static let demoPhone = "5555550100"
+    private static let demoOTP = "000000"
+
+    private var isDemoAccount: Bool {
+        phoneNumber.filter(\.isNumber) == Self.demoPhone
+    }
+
     // MARK: - Navigation
 
     func navigateTo(_ step: OnboardingStep) {
@@ -314,6 +324,13 @@ class OnboardingViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Demo account bypass — skip real SMS for App Store review
+        if isDemoAccount {
+            navigateTo(.otpVerification)
+            isLoading = false
+            return
+        }
+
         do {
             try await SMSAuthService.shared.sendCode(phoneNumber: e164Phone)
             navigateTo(.otpVerification)
@@ -327,6 +344,26 @@ class OnboardingViewModel: ObservableObject {
     func verifyOTP() async {
         isLoading = true
         errorMessage = nil
+
+        // Demo account bypass — accept fixed code for App Store review
+        if isDemoAccount {
+            if otpCode == Self.demoOTP {
+                AppState.shared.currentUser = User(
+                    name: "App Reviewer",
+                    email: "reviewer@apple.com",
+                    year: "Senior"
+                )
+                AppState.shared.isAuthenticated = true
+                AppState.shared.persistStatePublic()
+                isLoading = false
+                return
+            } else {
+                errorMessage = "Invalid code. Please try again."
+                otpCode = ""
+                isLoading = false
+                return
+            }
+        }
 
         do {
             let response = try await SMSAuthService.shared.verifyCode(
