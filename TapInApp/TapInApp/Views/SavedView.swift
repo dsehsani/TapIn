@@ -282,7 +282,7 @@ struct SavedEventRow: View {
                         .foregroundColor(Color.ucdGold)
                         .lineLimit(1)
                 } else {
-                    Text(event.isOfficial ? "OFFICIAL" : "STUDENT EVENT")
+                    Text(event.isOfficial ? "OFFICIAL" : "CLUB EVENT")
                         .font(.system(size: 10, weight: .bold))
                         .tracking(1)
                         .foregroundColor(event.isOfficial ? Color.ucdBlue : Color.ucdGold)

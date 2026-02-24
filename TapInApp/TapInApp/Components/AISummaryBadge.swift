@@ -86,6 +86,7 @@ struct AISummaryBadge: View {
 // A compact glowing pill used as a label next to section headers.
 
 struct AIBadgePill: View {
+    var isActive: Bool = true
     @Environment(\.colorScheme) var colorScheme
 
     @State private var rotation: Double = 0
@@ -103,21 +104,31 @@ struct AIBadgePill: View {
         Text("✦ AI")
             .font(.system(size: 10, weight: .bold, design: .rounded))
             .tracking(0.5)
-            .foregroundColor(colorScheme == .dark ? .white.opacity(0.9) : Color(hex: "#6d28d9"))
+            .foregroundColor(
+                isActive
+                    ? (colorScheme == .dark ? .white.opacity(0.9) : Color(hex: "#6d28d9"))
+                    : .textSecondary
+            )
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(
                 Capsule()
-                    .fill(colorScheme == .dark ? Color(hex: "#1a1a2e").opacity(0.8) : Color(hex: "#faf5ff").opacity(0.9))
+                    .fill(
+                        isActive
+                            ? (colorScheme == .dark ? Color(hex: "#1a1a2e").opacity(0.8) : Color(hex: "#faf5ff").opacity(0.9))
+                            : (colorScheme == .dark ? Color(hex: "#1e293b").opacity(0.8) : Color(hex: "#f1f5f9").opacity(0.9))
+                    )
             )
             .overlay(
                 Capsule()
                     .stroke(
-                        AngularGradient(
-                            colors: gradientColors,
-                            center: .center,
-                            angle: .degrees(rotation)
-                        ),
+                        isActive
+                            ? AnyShapeStyle(AngularGradient(
+                                colors: gradientColors,
+                                center: .center,
+                                angle: .degrees(rotation)
+                              ))
+                            : AnyShapeStyle(Color.textSecondary.opacity(0.3)),
                         lineWidth: 1.2
                     )
             )
@@ -131,7 +142,7 @@ struct AIBadgePill: View {
                         )
                     )
                     .blur(radius: 6)
-                    .opacity(glowOpacity)
+                    .opacity(isActive ? glowOpacity : 0)
                     .scaleEffect(1.1)
             )
             .onAppear {

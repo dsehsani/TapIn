@@ -127,7 +127,7 @@ struct CampusEvent: Identifiable, Equatable, Codable {
 enum EventFilterType: String, CaseIterable {
     case all = "All Events"
     case official = "Official"
-    case studentPosted = "Student Events"
+    case studentPosted = "Club Events"
     case today = "Today"
 }
 
