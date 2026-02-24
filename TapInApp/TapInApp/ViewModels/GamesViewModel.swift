@@ -34,9 +34,9 @@ class GamesViewModel: ObservableObject {
     func loadAvailableGames() {
         isLoading = true
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.availableGames = Game.sampleData
-            self.isLoading = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.availableGames = Game.sampleData
+            self?.isLoading = false
         }
     }
 

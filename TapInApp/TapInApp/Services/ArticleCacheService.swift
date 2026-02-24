@@ -48,6 +48,14 @@ final class ArticleCacheService {
         return try? JSONDecoder().decode(CachedArticleList.self, from: data).articles
     }
 
+    /// Loads cached article list ignoring TTL. Returns whatever is on disk, even if stale.
+    /// Used for instant display on launch before a network refresh completes.
+    func loadArticleListIgnoringTTL(category: String) -> [NewsArticle]? {
+        let url = listCacheURL(category: category)
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(CachedArticleList.self, from: data).articles
+    }
+
     /// Saves article list for a category to disk.
     func saveArticleList(_ articles: [NewsArticle], category: String) {
         guard let data = try? JSONEncoder().encode(CachedArticleList(articles: articles)) else { return }

@@ -102,6 +102,14 @@ enum APIConfig {
     /// GET - User health check
     static var usersHealthURL: String { "\(baseURL)api/users/health" }
 
+    // MARK: - Legal Pages
+
+    /// Privacy Policy web page
+    static var privacyURL: URL { URL(string: "\(baseURL)privacy")! }
+
+    /// Terms of Service web page
+    static var termsURL: URL { URL(string: "\(baseURL)terms")! }
+
     // MARK: - Mock Mode
 
     /// Set to true to use fake summaries without needing the backend/API key.

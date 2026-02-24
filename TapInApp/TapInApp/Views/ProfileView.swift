@@ -234,6 +234,26 @@ struct ProfileView: View {
 
             Divider().padding(.leading, 56)
 
+            Link(destination: APIConfig.privacyURL) {
+                SettingsRow(icon: "hand.raised.fill", title: "Privacy Policy", colorScheme: colorScheme) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14))
+                        .foregroundColor(.textSecondary)
+                }
+            }
+
+            Divider().padding(.leading, 56)
+
+            Link(destination: APIConfig.termsURL) {
+                SettingsRow(icon: "doc.text.fill", title: "Terms of Service", colorScheme: colorScheme) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14))
+                        .foregroundColor(.textSecondary)
+                }
+            }
+
+            Divider().padding(.leading, 56)
+
             SettingsRow(icon: "info.circle.fill", title: "About TapIn", colorScheme: colorScheme) {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 14))

@@ -116,9 +116,9 @@ class EchoGameViewModel {
 
     private func beginSequenceDisplay() {
         // Show shapes with staggered animation
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
             withAnimation(.easeOut(duration: 0.3)) {
-                self.sequenceVisible = true
+                self?.sequenceVisible = true
             }
         }
 
@@ -129,8 +129,8 @@ class EchoGameViewModel {
 
         // After display duration, transition to rule reveal
         let totalDisplayTime = sequenceDisplayDuration + 0.5
-        DispatchQueue.main.asyncAfter(deadline: .now() + totalDisplayTime) {
-            self.onSequenceDisplayComplete()
+        DispatchQueue.main.asyncAfter(deadline: .now() + totalDisplayTime) { [weak self] in
+            self?.onSequenceDisplayComplete()
         }
     }
 
@@ -139,9 +139,9 @@ class EchoGameViewModel {
             sequenceVisible = false
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            self.gameState = .revealingRules
-            self.beginRuleReveal()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            self?.gameState = .revealingRules
+            self?.beginRuleReveal()
         }
     }
 
@@ -162,14 +162,14 @@ class EchoGameViewModel {
 
             // Schedule next rule or transition to input
             if revealedRuleCount < round.rules.count {
-                DispatchQueue.main.asyncAfter(deadline: .now() + ruleRevealInterval) {
-                    self.revealNextRule()
+                DispatchQueue.main.asyncAfter(deadline: .now() + ruleRevealInterval) { [weak self] in
+                    self?.revealNextRule()
                 }
             } else {
                 // All rules revealed, wait then transition to input
-                DispatchQueue.main.asyncAfter(deadline: .now() + ruleRevealInterval) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + ruleRevealInterval) { [weak self] in
                     withAnimation(.easeInOut(duration: 0.3)) {
-                        self.gameState = .playerInput
+                        self?.gameState = .playerInput
                     }
                 }
             }
@@ -229,9 +229,9 @@ class EchoGameViewModel {
             attemptsUsedPerRound.append(maxAttempts - attemptsRemaining)
 
             // Auto-transition to round complete after feedback
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
                 withAnimation(.easeInOut(duration: 0.3)) {
-                    self.gameState = .roundComplete
+                    self?.gameState = .roundComplete
                 }
             }
         } else {

@@ -40,13 +40,26 @@ class NewsViewModel: ObservableObject {
     private var categoryCache: [String: [NewsArticle]] = [:]
 
     init() {
+        // Instantly show cached articles (even if stale) so the user never sees a loading spinner
+        loadCachedArticlesImmediately()
+
         Task {
-            // Fetch articles and briefing in parallel for faster load
+            // Fetch fresh articles and briefing in parallel
             async let articlesTask: () = fetchArticles()
             async let briefingTask: () = fetchDailyBriefing()
             _ = await (articlesTask, briefingTask)
             // Prefetch all other categories in the background so filter switches are instant
             await prefetchAllCategories()
+        }
+    }
+
+    /// Loads stale disk cache instantly (no network) so the UI has content on first frame.
+    private func loadCachedArticlesImmediately() {
+        let diskCache = ArticleCacheService.shared
+        if let cached = diskCache.loadArticleListIgnoringTTL(category: "all"), !cached.isEmpty {
+            allFetchedArticles = cached
+            categoryCache["All News"] = cached
+            processArticles(cached)
         }
     }
 

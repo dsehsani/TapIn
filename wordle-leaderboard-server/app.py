@@ -22,7 +22,8 @@
 #  - Deploy to Google App Engine: gcloud app deploy
 #
 
-from flask import Flask, jsonify
+import os
+from flask import Flask, jsonify, send_file
 from flask_cors import CORS
 from api.leaderboard import leaderboard_bp
 from api.claude import claude_bp
@@ -107,9 +108,27 @@ def create_app() -> Flask:
                 "leaderboard_health": "GET /api/leaderboard/health",
                 "summarize_event": "POST /api/claude/summarize",
                 "claude_chat": "POST /api/claude/chat",
-                "claude_health": "GET /api/claude/health"
+                "claude_health": "GET /api/claude/health",
+                "privacy_policy": "GET /privacy",
+                "terms_of_service": "GET /terms"
             }
         })
+
+    # --------------------------------------------------------------------------
+    # MARK: - Legal Pages
+    # --------------------------------------------------------------------------
+
+    @app.route("/privacy")
+    def privacy_policy():
+        """Serve the Privacy Policy HTML page."""
+        docs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs")
+        return send_file(os.path.join(docs_dir, "privacy_policy.html"))
+
+    @app.route("/terms")
+    def terms_of_service():
+        """Serve the Terms of Service HTML page."""
+        docs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs")
+        return send_file(os.path.join(docs_dir, "terms_of_service.html"))
 
     # --------------------------------------------------------------------------
     # MARK: - Error Handlers
@@ -167,6 +186,9 @@ if __name__ == "__main__":
     print("  POST /api/claude/summarize      - Summarize event")
     print("  POST /api/claude/chat           - Claude chat")
     print("  GET  /api/claude/health         - Claude health")
+    print("")
+    print("  GET  /privacy                   - Privacy Policy")
+    print("  GET  /terms                     - Terms of Service")
     print("")
     print("Press Ctrl+C to stop the server")
     print("=" * 60)

@@ -10,11 +10,21 @@
 
 import Foundation
 
+/// NSCache requires reference-type values; this wraps the value-type ArticleContent.
+final class ArticleContentWrapper {
+    let content: ArticleContent
+    init(_ content: ArticleContent) { self.content = content }
+}
+
 class NewsService {
 
     // MARK: - Caches
     private let parser = AggieArticleParser()
-    private var contentCache: [String: ArticleContent] = [:]   // In-memory (session)
+    private let contentCache: NSCache<NSString, ArticleContentWrapper> = {
+        let cache = NSCache<NSString, ArticleContentWrapper>()
+        cache.countLimit = 50  // Auto-evicts under memory pressure
+        return cache
+    }()
     private let diskCache = ArticleCacheService.shared         // FileManager (persistent)
 
     // MARK: - Feed URLs
@@ -188,20 +198,20 @@ class NewsService {
         let cacheKey = article.articleURL ?? article.id.uuidString
 
         // Layer 1 — in-memory
-        if let cached = contentCache[cacheKey] {
+        if let cached = contentCache.object(forKey: cacheKey as NSString)?.content {
             return cached
         }
 
         // Layer 2 — disk
         if let cached = diskCache.loadArticleContent(articleURL: cacheKey) {
-            contentCache[cacheKey] = cached
+            contentCache.setObject(ArticleContentWrapper(cached), forKey: cacheKey as NSString)
             return cached
         }
 
         // Layer 3 — backend API
         if let urlString = article.articleURL,
            let backendContent = await fetchContentFromBackend(articleURL: urlString, fallback: article) {
-            contentCache[cacheKey] = backendContent
+            contentCache.setObject(ArticleContentWrapper(backendContent), forKey: cacheKey as NSString)
             diskCache.saveArticleContent(backendContent, articleURL: cacheKey)
             return backendContent
         }
@@ -211,7 +221,7 @@ class NewsService {
             throw AggieParserError.invalidURL
         }
         let content = try await parser.fetchAndParse(articleURL: url, fallback: article)
-        contentCache[cacheKey] = content
+        contentCache.setObject(ArticleContentWrapper(content), forKey: cacheKey as NSString)
         diskCache.saveArticleContent(content, articleURL: cacheKey)
         return content
     }
@@ -244,7 +254,7 @@ class NewsService {
         for article in articles {
             let cacheKey = article.articleURL ?? article.id.uuidString
             // Skip if already cached in memory
-            if contentCache[cacheKey] != nil { continue }
+            if contentCache.object(forKey: cacheKey as NSString) != nil { continue }
             // Skip if already cached on disk
             if diskCache.loadArticleContent(articleURL: cacheKey) != nil { continue }
 
