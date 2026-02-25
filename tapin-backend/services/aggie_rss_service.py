@@ -28,9 +28,9 @@ CATEGORY_FEEDS = {
     "city":          f"{BASE_URL}/category/city/feed/",
     "opinion":       f"{BASE_URL}/category/opinion/feed/",
     "features":      f"{BASE_URL}/category/features/feed/",
-    "arts-culture":  f"{BASE_URL}/category/arts-culture/feed/",
+    "arts":          f"{BASE_URL}/category/arts/feed/",
     "sports":        f"{BASE_URL}/category/sports/feed/",
-    "science-tech":  f"{BASE_URL}/category/science-technology/feed/",
+    "sciencetech":   f"{BASE_URL}/category/sciencetech/feed/",
     "editorial":     f"{BASE_URL}/category/editorial/feed/",
     "column":        f"{BASE_URL}/category/column/feed/",
 }
@@ -41,11 +41,19 @@ CATEGORY_DISPLAY = {
     "city":         "City",
     "opinion":      "Opinion",
     "features":     "Features",
-    "arts-culture": "Arts & Culture",
+    "arts":         "Arts & Culture",
     "sports":       "Sports",
-    "science-tech": "Science & Tech",
+    "sciencetech":  "Science & Tech",
     "editorial":    "Editorial",
     "column":       "Column",
+}
+
+# Maps RSS tag names that differ from our display names
+TAG_NORMALIZE = {
+    "Science & Technology": "Science & Tech",
+    "City News":            "City",
+    "Breaking":             "Campus",
+    "Breaking News":        "Campus",
 }
 
 WORDS_PER_MINUTE = 200
@@ -101,9 +109,10 @@ def _parse_entry(entry, default_category: str) -> dict | None:
         or "The Aggie"
     )
 
-    # Category
+    # Category — use first RSS tag, normalized to match iOS display names
     tags = getattr(entry, "tags", [])
-    category = tags[0].term if tags else default_category
+    raw_category = tags[0].term if tags else default_category
+    category = TAG_NORMALIZE.get(raw_category, raw_category)
 
     # Publish date → ISO 8601 string
     publish_date = _parse_date(entry)

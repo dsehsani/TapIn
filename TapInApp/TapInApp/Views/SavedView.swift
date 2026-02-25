@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SavedView: View {
     @ObservedObject var viewModel: SavedViewModel
+    @Binding var selectedTab: TabItem
 
     @State private var selectedSegment = 0
     @State private var selectedEventSegment = 0
@@ -103,10 +104,12 @@ struct SavedView: View {
     private var articlesContent: some View {
         Group {
             if viewModel.savedArticles.isEmpty {
-                EmptyStateView(
+                ActionableEmptyStateView(
                     icon: "bookmark",
-                    title: "No saved articles",
-                    message: "Articles you bookmark will appear here"
+                    title: "Your bookmarks is looking dry.",
+                    message: "Go find some headlines.",
+                    buttonTitle: "Explore News",
+                    action: { selectedTab = .news }
                 )
             } else {
                 List {
@@ -145,9 +148,21 @@ struct SavedView: View {
             .padding(.bottom, 8)
 
             if selectedEventSegment == 0 {
-                eventsList(events: viewModel.upcomingEvents, emptyIcon: "calendar.badge.clock", emptyTitle: "No upcoming events", emptyMessage: "Events you mark as attending will appear here")
+                eventsList(
+                    events: viewModel.upcomingEvents,
+                    emptyIcon: "calendar.badge.clock",
+                    emptyTitle: "No plans this weekend?",
+                    emptyMessage: "Let's fix that.",
+                    actionTitle: "Find Events",
+                    action: { selectedTab = .campus }
+                )
             } else {
-                eventsList(events: viewModel.attendedEvents, emptyIcon: "clock.arrow.circlepath", emptyTitle: "No attended events", emptyMessage: "Past events you attended will appear here automatically")
+                eventsList(
+                    events: viewModel.attendedEvents,
+                    emptyIcon: "clock.arrow.circlepath",
+                    emptyTitle: "No attended events",
+                    emptyMessage: "Past events you attended will appear here automatically"
+                )
             }
         }
     }
@@ -167,10 +182,14 @@ struct SavedView: View {
         .buttonStyle(.plain)
     }
 
-    private func eventsList(events: [CampusEvent], emptyIcon: String, emptyTitle: String, emptyMessage: String) -> some View {
+    private func eventsList(events: [CampusEvent], emptyIcon: String, emptyTitle: String, emptyMessage: String, actionTitle: String? = nil, action: (() -> Void)? = nil) -> some View {
         Group {
             if events.isEmpty {
-                EmptyStateView(icon: emptyIcon, title: emptyTitle, message: emptyMessage)
+                if let actionTitle = actionTitle, let action = action {
+                    ActionableEmptyStateView(icon: emptyIcon, title: emptyTitle, message: emptyMessage, buttonTitle: actionTitle, action: action)
+                } else {
+                    EmptyStateView(icon: emptyIcon, title: emptyTitle, message: emptyMessage)
+                }
             } else {
                 List {
                     ForEach(events) { event in
@@ -384,6 +403,50 @@ struct EmptyStateView: View {
     }
 }
 
+// MARK: - Actionable Empty State
+
+struct ActionableEmptyStateView: View {
+    let icon: String
+    let title: String
+    let message: String
+    let buttonTitle: String
+    let action: () -> Void
+
+    @Environment(\.colorScheme) var colorScheme
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: icon)
+                .font(.system(size: 56))
+                .foregroundColor(.textSecondary)
+            Text(title)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.textSecondary)
+            Text(message)
+                .font(.system(size: 14))
+                .foregroundColor(.textMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+
+            Button(action: action) {
+                Text(buttonTitle)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 28)
+                    .padding(.vertical, 12)
+                    .background(
+                        Capsule()
+                            .fill(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+                    )
+            }
+            .padding(.top, 4)
+
+            Spacer()
+        }
+    }
+}
+
 #Preview {
-    SavedView(viewModel: SavedViewModel())
+    SavedView(viewModel: SavedViewModel(), selectedTab: .constant(.saved))
 }

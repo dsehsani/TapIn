@@ -39,9 +39,9 @@ class NewsService {
         case city = "city"
         case opinion = "opinion"
         case features = "features"
-        case artsCulture = "arts-culture"
+        case artsCulture = "arts"
         case sports = "sports"
-        case scienceTech = "science-technology"
+        case scienceTech = "sciencetech"
         case editorial = "editorial"
         case column = "column"
 

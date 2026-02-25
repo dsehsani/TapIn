@@ -40,6 +40,12 @@ struct TopNavigationBar: View {
                     : Color(hex: "#fff5f0")
             )
             .clipShape(Capsule())
+            .pulsingHotspot(
+                tip: .searchBar,
+                message: "Find any story — search by topic or keyword.",
+                arrowEdge: .top,
+                cornerRadius: 100
+            )
 
             // Settings Button
             Button(action: onSettingsTap) {

@@ -11,6 +11,7 @@ struct ProfileView: View {
     @ObservedObject var viewModel: ProfileViewModel
     @ObservedObject var savedViewModel: SavedViewModel
     @ObservedObject var gamesViewModel: GamesViewModel
+    @Binding var selectedTab: TabItem
 
     @Environment(\.colorScheme) var colorScheme
     @State private var showEditProfile = false
@@ -185,6 +186,12 @@ struct ProfileView: View {
                                 .stroke(.white, lineWidth: 2)
                         )
                 }
+                .pulsingHotspot(
+                    tip: .editProfile,
+                    message: "Don't be a stranger. Set your year & major.",
+                    arrowEdge: .bottom,
+                    condition: viewModel.user?.year == nil || (viewModel.user?.year ?? "").isEmpty
+                )
                 .padding(.top, 4)
             }
         }
@@ -328,6 +335,7 @@ struct SettingsRow<Accessory: View>: View {
     ProfileView(
         viewModel: ProfileViewModel(),
         savedViewModel: SavedViewModel(),
-        gamesViewModel: GamesViewModel()
+        gamesViewModel: GamesViewModel(),
+        selectedTab: .constant(.profile)
     )
 }

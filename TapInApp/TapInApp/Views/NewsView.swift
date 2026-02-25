@@ -35,6 +35,12 @@ struct NewsView: View {
                             viewModel.selectCategory(category)
                         }
                     )
+                    .pulsingHotspot(
+                        tip: .categoryPills,
+                        message: "Filter stories by what matters to you.",
+                        arrowEdge: .top,
+                        cornerRadius: 20
+                    )
                     .padding(.vertical, 12)
 
                     if viewModel.isSearchActive {
@@ -94,6 +100,12 @@ struct NewsView: View {
                             briefing: viewModel.dailyBriefing,
                             isLoading: viewModel.isBriefingLoading,
                             hasError: viewModel.briefingError
+                        )
+                        .pulsingHotspot(
+                            tip: .dailyBriefing,
+                            message: "Get the tea \u{2615}\u{FE0F} Your daily AI breakdown of campus news.",
+                            arrowEdge: .top,
+                            highlightStyle: .none
                         )
                         .padding(.bottom, 24)
 

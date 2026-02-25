@@ -9,6 +9,7 @@ import SwiftUI
 
 struct GamesView: View {
     @ObservedObject var viewModel: GamesViewModel
+    @Binding var selectedTab: TabItem
 
     @Environment(\.colorScheme) var colorScheme
 
@@ -21,14 +22,9 @@ struct GamesView: View {
                 VStack(spacing: 24) {
                     // Header
                     HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Aggie Games")
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundColor(colorScheme == .dark ? .white : Color.ucdBlue)
-                            Text("Test your UC Davis knowledge")
-                                .font(.system(size: 14))
-                                .foregroundColor(.textSecondary)
-                        }
+                        Text("Aggie Games")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundColor(colorScheme == .dark ? .white : Color.ucdBlue)
 
                         Spacer()
 
@@ -46,6 +42,12 @@ struct GamesView: View {
                                         .shadow(color: .black.opacity(0.05), radius: 4)
                                 )
                         }
+                        .pulsingHotspot(
+                            tip: .leaderboard,
+                            message: "See how you stack up against other Aggies.",
+                            arrowEdge: .top,
+                            cornerRadius: 10
+                        )
 
                         // Streak Badge
                         VStack(spacing: 2) {
@@ -85,6 +87,11 @@ struct GamesView: View {
                             FeaturedGameCard(game: featuredGame, colorScheme: colorScheme) {
                                 viewModel.startGame(featuredGame)
                             }
+                            .pulsingHotspot(
+                                tip: .featuredGame,
+                                message: "Brain awake yet? \u{1F9E0} Keep your streak alive.",
+                                arrowEdge: .top
+                            )
                             .padding(.horizontal, 16)
                         }
                     }
@@ -272,6 +279,6 @@ struct GameRowCard: View {
 }
 
 #Preview {
-    GamesView(viewModel: GamesViewModel())
+    GamesView(viewModel: GamesViewModel(), selectedTab: .constant(.games))
 }
 

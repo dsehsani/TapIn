@@ -109,7 +109,8 @@ private class RSSXMLParser: NSObject, XMLParserDelegate {
             let link = currentLink.trimmingCharacters(in: .whitespacesAndNewlines)
             let description = cleanHTML(currentDescription.trimmingCharacters(in: .whitespacesAndNewlines))
             let author = currentAuthor.trimmingCharacters(in: .whitespacesAndNewlines)
-            let category = currentCategories.first ?? defaultCategory
+            let rawCategory = currentCategories.first ?? defaultCategory
+            let category = Self.normalizeCategory(rawCategory)
             let pubDate = parseDate(currentPubDate.trimmingCharacters(in: .whitespacesAndNewlines))
 
             // Extract image URL from content if available
@@ -139,6 +140,16 @@ private class RSSXMLParser: NSObject, XMLParserDelegate {
     }
 
     // MARK: - Helpers
+
+    /// Normalizes RSS tag names to match iOS display names.
+    private static func normalizeCategory(_ raw: String) -> String {
+        switch raw {
+        case "Science & Technology": return "Science & Tech"
+        case "City News":            return "City"
+        case "Breaking", "Breaking News": return "Campus"
+        default: return raw
+        }
+    }
 
     /// Parses RFC 822 date format used in RSS feeds
     private func parseDate(_ dateString: String) -> Date {

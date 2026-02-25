@@ -52,6 +52,7 @@
 				Prompts/LEADERBOARD.md,
 				Prompts/PhoneOnboardingPrompt.md,
 				Prompts/TextRenderingPrompt.md,
+				Prompts/TutorialPrompt.md,
 				ViewModels/README.md,
 				Views/README.md,
 			);
