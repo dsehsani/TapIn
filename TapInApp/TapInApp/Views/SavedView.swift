@@ -35,14 +35,23 @@ struct SavedView: View {
                     .padding(.horizontal, 20)
 
                     // Segmented control
-                    HStack(spacing: 0) {
-                        segmentButton(title: "Saved Articles", index: 0)
-                        segmentButton(title: "Saved Events", index: 1)
+                    if #available(iOS 26, *) {
+                        Picker("", selection: $selectedSegment) {
+                            Text("Saved Articles").tag(0)
+                            Text("Saved Events").tag(1)
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal, 20)
+                    } else {
+                        HStack(spacing: 0) {
+                            segmentButton(title: "Saved Articles", index: 0)
+                            segmentButton(title: "Saved Events", index: 1)
+                        }
+                        .padding(3)
+                        .background(.black.opacity(0.2))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .padding(.horizontal, 20)
                     }
-                    .padding(3)
-                    .background(.black.opacity(0.2))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .padding(.horizontal, 20)
                 }
                 .padding(.top, 60)
                 .padding(.bottom, 20)
@@ -136,16 +145,27 @@ struct SavedView: View {
     private var eventsContent: some View {
         VStack(spacing: 0) {
             // Sub-tabs: Attending / Attended
-            HStack(spacing: 0) {
-                eventSubTab(title: "Attending", index: 0)
-                eventSubTab(title: "Attended", index: 1)
+            if #available(iOS 26, *) {
+                Picker("", selection: $selectedEventSegment) {
+                    Text("Attending").tag(0)
+                    Text("Attended").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
+            } else {
+                HStack(spacing: 0) {
+                    eventSubTab(title: "Attending", index: 0)
+                    eventSubTab(title: "Attended", index: 1)
+                }
+                .padding(3)
+                .background(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"))
+                .clipShape(Capsule())
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
             }
-            .padding(3)
-            .background(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"))
-            .clipShape(Capsule())
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 8)
 
             if selectedEventSegment == 0 {
                 eventsList(

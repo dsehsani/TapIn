@@ -297,7 +297,7 @@ struct EventDetailView: View {
             let search = MKLocalSearch(request: request)
             let response = try await search.start()
             if let mapItem = response.mapItems.first {
-                let coordinate = mapItem.location.coordinate
+                let coordinate = mapItem.placemark.coordinate
                 withAnimation(.easeIn(duration: 0.3)) {
                     locationCoordinate = coordinate
                 }
