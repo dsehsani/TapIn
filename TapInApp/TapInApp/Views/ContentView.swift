@@ -28,6 +28,51 @@ struct ContentView: View {
     // MARK: - Body
     var body: some View {
         Group {
+            if #available(iOS 26, *) {
+                ios26TabView
+            } else {
+                legacyTabView
+            }
+        }
+        .ignoresSafeArea(.keyboard)
+    }
+
+    // MARK: - iOS 26+ Native TabView (Liquid Glass)
+
+    @available(iOS 26, *)
+    private var ios26TabView: some View {
+        TabView(selection: $selectedTab) {
+            Tab("News", systemImage: "newspaper.fill", value: .news) {
+                NewsView(
+                    viewModel: newsViewModel,
+                    savedViewModel: savedViewModel,
+                    selectedTab: $selectedTab
+                )
+            }
+
+            Tab("Campus", systemImage: "building.2.fill", value: .campus) {
+                CampusView(viewModel: campusViewModel, savedViewModel: savedViewModel)
+            }
+
+            Tab("Games", systemImage: "puzzlepiece.extension.fill", value: .games) {
+                GamesView(viewModel: gamesViewModel, selectedTab: $selectedTab)
+            }
+
+            Tab("Saved", systemImage: "bookmark.fill", value: .saved) {
+                SavedView(viewModel: savedViewModel, selectedTab: $selectedTab)
+            }
+
+            Tab("Profile", systemImage: "person.circle.fill", value: .profile) {
+                ProfileView(viewModel: profileViewModel, savedViewModel: savedViewModel, gamesViewModel: gamesViewModel, selectedTab: $selectedTab)
+            }
+        }
+        .tint(colorScheme == .dark ? Color.accentOrange : Color.accentCoral)
+    }
+
+    // MARK: - Legacy Tab View (iOS 17–25)
+
+    private var legacyTabView: some View {
+        Group {
             switch selectedTab {
             case .news:
                 NewsView(
@@ -93,7 +138,6 @@ struct ContentView: View {
                 .allowsHitTesting(false)
             }
         }
-        .ignoresSafeArea(.keyboard)
     }
 }
 

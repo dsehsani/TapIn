@@ -18,6 +18,48 @@ struct SavedView: View {
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
+        Group {
+            if #available(iOS 26, *) {
+                ios26Body
+            } else {
+                legacyBody
+            }
+        }
+        .sheet(item: $selectedEvent) { event in
+            EventDetailView(event: event, savedViewModel: viewModel)
+        }
+        .sheet(item: $selectedArticle) { article in
+            ArticleDetailView(article: article, savedViewModel: viewModel)
+        }
+    }
+
+    // MARK: - iOS 26+ Liquid Glass Navigation
+
+    @available(iOS 26, *)
+    private var ios26Body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Picker("", selection: $selectedSegment) {
+                    Text("Articles").tag(0)
+                    Text("Events").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+
+                if selectedSegment == 0 {
+                    articlesContent
+                } else {
+                    eventsContent
+                }
+            }
+            .navigationTitle("Saved")
+        }
+    }
+
+    // MARK: - Legacy Body (iOS 17–25)
+
+    private var legacyBody: some View {
         ZStack {
             Color.adaptiveBackground(colorScheme)
                 .ignoresSafeArea()
@@ -25,7 +67,6 @@ struct SavedView: View {
             VStack(spacing: 0) {
                 // MARK: - Gradient Header
                 VStack(spacing: 16) {
-                    // Title row
                     HStack {
                         Text("Saved")
                             .font(.system(size: 28, weight: .bold))
@@ -34,24 +75,14 @@ struct SavedView: View {
                     }
                     .padding(.horizontal, 20)
 
-                    // Segmented control
-                    if #available(iOS 26, *) {
-                        Picker("", selection: $selectedSegment) {
-                            Text("Saved Articles").tag(0)
-                            Text("Saved Events").tag(1)
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal, 20)
-                    } else {
-                        HStack(spacing: 0) {
-                            segmentButton(title: "Saved Articles", index: 0)
-                            segmentButton(title: "Saved Events", index: 1)
-                        }
-                        .padding(3)
-                        .background(.black.opacity(0.2))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .padding(.horizontal, 20)
+                    HStack(spacing: 0) {
+                        segmentButton(title: "Saved Articles", index: 0)
+                        segmentButton(title: "Saved Events", index: 1)
                     }
+                    .padding(3)
+                    .background(.black.opacity(0.2))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .padding(.horizontal, 20)
                 }
                 .padding(.top, 60)
                 .padding(.bottom, 20)
@@ -74,7 +105,6 @@ struct SavedView: View {
                     )
                 )
 
-                // MARK: - Content
                 if selectedSegment == 0 {
                     articlesContent
                 } else {
@@ -83,12 +113,6 @@ struct SavedView: View {
             }
         }
         .ignoresSafeArea(edges: .top)
-        .sheet(item: $selectedEvent) { event in
-            EventDetailView(event: event, savedViewModel: viewModel)
-        }
-        .sheet(item: $selectedArticle) { article in
-            ArticleDetailView(article: article, savedViewModel: viewModel)
-        }
     }
 
     // MARK: - Segment Button
