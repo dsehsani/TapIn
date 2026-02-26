@@ -84,16 +84,16 @@ class UserAPIService {
 
     // MARK: - Phone Auth
 
-    /// Sends the SMS auth token to the backend for verification.
+    /// Sends the Firebase ID token to the backend for verification.
     /// Returns the backend JWT and user profile.
     func authenticateWithPhone(
         phoneNumber: String,
-        smsToken: String,
+        firebaseIdToken: String,
         displayName: String = ""
     ) async throws -> AuthResponse {
         let body: [String: Any] = [
             "phoneNumber": phoneNumber,
-            "smsToken": smsToken,
+            "firebaseIdToken": firebaseIdToken,
             "displayName": displayName
         ]
         return try await post(url: APIConfig.authPhoneURL, body: body)

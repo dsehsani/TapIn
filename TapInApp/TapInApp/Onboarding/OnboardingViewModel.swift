@@ -174,11 +174,11 @@ class OnboardingViewModel: ObservableObject {
                     displayName: displayName,
                     email: email
                 )
-            } else if let smsToken = AppState.shared.authToken {
-                // Phone auth flow — use SMS auth token
+            } else if let firebaseToken = AppState.shared.authToken {
+                // Phone auth flow — use Firebase ID token
                 response = try await UserAPIService.shared.authenticateWithPhone(
                     phoneNumber: e164Phone,
-                    smsToken: smsToken,
+                    firebaseIdToken: firebaseToken,
                     displayName: displayName
                 )
             } else {
@@ -370,7 +370,7 @@ class OnboardingViewModel: ObservableObject {
                 phoneNumber: e164Phone,
                 code: otpCode
             )
-            // Store SMS auth token
+            // Store Firebase ID token (replaces old SMS service token)
             AppState.shared.authToken = response.token
             AppState.shared.smsUserId = response.userId
 
@@ -378,7 +378,7 @@ class OnboardingViewModel: ObservableObject {
             do {
                 let backendResult = try await UserAPIService.shared.authenticateWithPhone(
                     phoneNumber: e164Phone,
-                    smsToken: response.token
+                    firebaseIdToken: response.token
                 )
                 if let token = backendResult.token {
                     AppState.shared.backendToken = token

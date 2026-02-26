@@ -351,9 +351,18 @@ struct SavedEventRow: View {
                         .foregroundColor(event.isOfficial ? Color.ucdBlue : Color.ucdGold)
                 }
                 Spacer()
-                Text(event.date, style: .date)
-                    .font(.system(size: 12))
-                    .foregroundColor(.textSecondary)
+                if event.dateUrgency != .later {
+                    Text(event.friendlyDateLabel)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(event.dateUrgency.badgeColor, in: Capsule())
+                } else {
+                    Text(event.friendlyDateLabel)
+                        .font(.system(size: 12))
+                        .foregroundColor(.textSecondary)
+                }
             }
 
             // Title

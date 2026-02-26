@@ -213,12 +213,12 @@ def auth_google():
 @users_bp.route("/auth/phone", methods=["POST"])
 def auth_phone():
     """
-    Authenticate via Phone (SMS OTP).
+    Authenticate via Phone (Firebase Phone Auth).
 
     Request JSON: {
-        "phoneNumber": str,      — E.164 format (e.g. "+14155551234")
-        "smsToken": str,         — token from SMS verification service
-        "displayName": str       — (optional) user's name
+        "phoneNumber": str,          — E.164 format (e.g. "+14155551234")
+        "firebaseIdToken": str,      — Firebase ID token from Phone Auth
+        "displayName": str           — (optional) user's name
     }
     Response: { "success": true, "token": str, "user": {...}, "isNewUser": bool }
     """
@@ -227,18 +227,18 @@ def auth_phone():
         return jsonify({"success": False, "error": "Request body must be JSON"}), 400
 
     phone_number = data.get("phoneNumber", "").strip()
-    sms_token = data.get("smsToken", "").strip()
+    firebase_id_token = data.get("firebaseIdToken", "").strip()
 
-    if not phone_number or not sms_token:
-        return jsonify({"success": False, "error": "phoneNumber and smsToken are required"}), 400
+    if not phone_number or not firebase_id_token:
+        return jsonify({"success": False, "error": "phoneNumber and firebaseIdToken are required"}), 400
 
     try:
-        # Verify the SMS token with the external auth service
-        sms_info = auth_service.verify_phone_token(sms_token)
+        # Verify the Firebase ID token
+        firebase_info = auth_service.verify_phone_token(firebase_id_token)
 
-        # Ensure the phone number matches (only if the SMS service returned one)
-        sms_phone = sms_info.get("phone_number", "")
-        if sms_phone and sms_phone != phone_number:
+        # Ensure the phone number from Firebase matches what the client sent
+        firebase_phone = firebase_info.get("phone_number", "")
+        if firebase_phone and firebase_phone != phone_number:
             return jsonify({"success": False, "error": "Phone number mismatch"}), 401
 
         # Check if user already exists

@@ -2,110 +2,88 @@
 //  SMSAuthService.swift
 //  TapInApp
 //
-//  Handles SMS authentication via the ECS191 SMS auth API.
-//  Endpoints: send_sms_code, verify_code, user (token validation).
+//  Handles SMS authentication via Firebase Phone Auth.
+//  Uses PhoneAuthProvider for OTP send and Firebase Auth for sign-in.
 //
 
 import Foundation
+import FirebaseAuth
 
 struct SMSAuthService {
     static let shared = SMSAuthService()
 
-    private static let baseURL = "https://ecs191-sms-authentication.uc.r.appspot.com"
-    private static let appID = "tapin_ios_app"
-
-    // Ephemeral session on Simulator to avoid HTTP/3 (QUIC) issues with App Engine
-    private static let urlSession: URLSession = {
-        #if targetEnvironment(simulator)
-        let config = URLSessionConfiguration.ephemeral
-        config.httpMaximumConnectionsPerHost = 1
-        return URLSession(configuration: config)
-        #else
-        return URLSession.shared
-        #endif
-    }()
+    // Stores the verification ID returned by Firebase after sending the OTP.
+    // Needed to create the credential when the user enters the code.
+    private static var storedVerificationID: String?
 
     // MARK: - Send SMS Code
 
     func sendCode(phoneNumber: String) async throws {
-        let url = URL(string: "\(Self.baseURL)/v1/send_sms_code")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body: [String: String] = [
-            "phone_number": phoneNumber,
-            "app_id": Self.appID
-        ]
-        request.httpBody = try JSONEncoder().encode(body)
-
-        let (data, response) = try await Self.urlSession.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw SMSAuthError.networkError
-        }
-
-        if http.statusCode != 200 {
-            if let err = try? JSONDecoder().decode(SMSErrorResponse.self, from: data) {
-                throw SMSAuthError.serverError(err.error)
-            }
-            throw SMSAuthError.serverError("Failed to send code (\(http.statusCode))")
+        do {
+            let verificationID = try await PhoneAuthProvider.provider().verifyPhoneNumber(
+                phoneNumber,
+                uiDelegate: nil
+            )
+            Self.storedVerificationID = verificationID
+        } catch {
+            throw SMSAuthError.serverError(error.localizedDescription)
         }
     }
 
-    // MARK: - Verify Code
+    // MARK: - Verify Code & Sign In
 
+    /// Verifies the OTP code, signs in with Firebase, and returns the Firebase ID token.
     func verifyCode(phoneNumber: String, code: String) async throws -> SMSVerifyResponse {
-        let url = URL(string: "\(Self.baseURL)/v1/verify_code")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body: [String: String] = [
-            "phone_number": phoneNumber,
-            "app_id": Self.appID,
-            "code": code
-        ]
-        request.httpBody = try JSONEncoder().encode(body)
-
-        let (data, response) = try await Self.urlSession.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw SMSAuthError.networkError
+        guard let verificationID = Self.storedVerificationID else {
+            throw SMSAuthError.serverError("No verification ID found. Please request a new code.")
         }
 
-        if http.statusCode == 401 {
-            if let err = try? JSONDecoder().decode(SMSErrorResponse.self, from: data) {
-                throw SMSAuthError.invalidCode(err.error)
+        let credential = PhoneAuthProvider.provider().credential(
+            withVerificationID: verificationID,
+            verificationCode: code
+        )
+
+        do {
+            let authResult = try await Auth.auth().signIn(with: credential)
+            let user = authResult.user
+
+            // Get the Firebase ID token to send to our backend
+            let idToken = try await user.getIDToken()
+
+            return SMSVerifyResponse(
+                success: true,
+                token: idToken,
+                userId: user.uid
+            )
+        } catch let error as NSError {
+            // Firebase Auth error codes for invalid verification code
+            if error.code == AuthErrorCode.invalidVerificationCode.rawValue {
+                throw SMSAuthError.invalidCode("Invalid code. Please try again.")
             }
-            throw SMSAuthError.invalidCode("Invalid or expired code")
-        }
-
-        if http.statusCode != 200 {
-            if let err = try? JSONDecoder().decode(SMSErrorResponse.self, from: data) {
-                throw SMSAuthError.serverError(err.error)
+            if error.code == AuthErrorCode.sessionExpired.rawValue {
+                throw SMSAuthError.invalidCode("Code expired. Please request a new one.")
             }
-            throw SMSAuthError.serverError("Verification failed (\(http.statusCode))")
+            throw SMSAuthError.serverError(error.localizedDescription)
         }
-
-        return try JSONDecoder().decode(SMSVerifyResponse.self, from: data)
     }
 
-    // MARK: - Validate Token
+    // MARK: - Validate Token (refreshes Firebase ID token)
 
     func validateToken(_ token: String) async throws -> SMSUserResponse {
-        let url = URL(string: "\(Self.baseURL)/v1/user")!
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await Self.urlSession.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw SMSAuthError.networkError
-        }
-
-        if http.statusCode != 200 {
+        guard let user = Auth.auth().currentUser else {
             throw SMSAuthError.invalidToken
         }
 
-        return try JSONDecoder().decode(SMSUserResponse.self, from: data)
+        do {
+            // Force-refresh the ID token to ensure it's still valid
+            let freshToken = try await user.getIDToken(forcingRefresh: true)
+            return SMSUserResponse(
+                userId: user.uid,
+                token: freshToken
+            )
+        } catch {
+            throw SMSAuthError.invalidToken
+        }
     }
 }
 
@@ -113,27 +91,13 @@ struct SMSAuthService {
 
 struct SMSVerifyResponse: Decodable {
     let success: Bool
-    let token: String
-    let userId: String
-
-    enum CodingKeys: String, CodingKey {
-        case success, token
-        case userId = "user_id"
-    }
+    let token: String      // Firebase ID token
+    let userId: String     // Firebase UID
 }
 
 struct SMSUserResponse: Decodable {
     let userId: String
-    let createdAt: String
-
-    enum CodingKeys: String, CodingKey {
-        case userId = "user_id"
-        case createdAt = "created_at"
-    }
-}
-
-private struct SMSErrorResponse: Decodable {
-    let error: String
+    let token: String      // Refreshed Firebase ID token
 }
 
 // MARK: - Errors

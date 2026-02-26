@@ -22,8 +22,25 @@ logger = logging.getLogger(__name__)
 _TOKEN_EXPIRY_DAYS = 30
 _JWT_ALGORITHM = "HS256"
 
-# External SMS auth service (same one iOS uses)
-_SMS_AUTH_BASE = "https://ecs191-sms-authentication.uc.r.appspot.com"
+# Firebase Admin SDK — initialized lazily for phone auth token verification.
+# On Cloud Run with default credentials, no service account JSON is needed.
+_firebase_app = None
+
+
+def _ensure_firebase_initialized():
+    """Initialize Firebase Admin SDK if not already done."""
+    global _firebase_app
+    if _firebase_app is not None:
+        return
+    import firebase_admin
+    from firebase_admin import credentials
+
+    # Use Application Default Credentials (works automatically on Cloud Run / GCP).
+    # Locally, set GOOGLE_APPLICATION_CREDENTIALS env var to a service account JSON.
+    try:
+        _firebase_app = firebase_admin.get_app()
+    except ValueError:
+        _firebase_app = firebase_admin.initialize_app()
 
 
 def _secret_key() -> str:
@@ -257,26 +274,35 @@ def verify_google_token(id_token: str) -> dict:
 # Phone Auth Verification
 # --------------------------------------------------------------------------
 
-def verify_phone_token(sms_token: str) -> dict:
+def verify_phone_token(firebase_id_token: str) -> dict:
     """
-    Verifies an SMS auth token by calling the external SMS service.
-    Returns dict with 'phone_number' and 'user_id' from the SMS service.
+    Verifies a Firebase ID token from Phone Auth.
+    Returns dict with 'phone_number' and 'user_id' (Firebase UID).
     Raises ValueError if the token is invalid.
     """
-    try:
-        resp = http_requests.get(
-            f"{_SMS_AUTH_BASE}/v1/user",
-            headers={"Authorization": f"Bearer {sms_token}"},
-            timeout=10,
-        )
-        if resp.status_code != 200:
-            raise ValueError("Invalid or expired SMS token")
+    from firebase_admin import auth as firebase_auth
 
-        data = resp.json()
+    _ensure_firebase_initialized()
+
+    try:
+        decoded = firebase_auth.verify_id_token(firebase_id_token)
+
+        phone = decoded.get("phone_number", "")
+        uid = decoded.get("uid", "")
+
+        if not phone:
+            raise ValueError("Firebase token does not contain a phone number")
+
         return {
-            "phone_number": data.get("phone_number", ""),
-            "user_id": data.get("user_id", ""),
+            "phone_number": phone,
+            "user_id": uid,
         }
+    except firebase_auth.InvalidIdTokenError:
+        raise ValueError("Invalid Firebase ID token")
+    except firebase_auth.ExpiredIdTokenError:
+        raise ValueError("Firebase ID token has expired")
+    except firebase_auth.RevokedIdTokenError:
+        raise ValueError("Firebase ID token has been revoked")
     except ValueError:
         raise
     except Exception as e:

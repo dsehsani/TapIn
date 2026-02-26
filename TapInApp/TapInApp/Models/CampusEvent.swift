@@ -124,6 +124,55 @@ struct CampusEvent: Identifiable, Equatable, Codable {
     }
 }
 
+import SwiftUI
+
+enum EventDateUrgency {
+    case today
+    case tomorrow
+    case thisWeek
+    case later
+
+    var badgeColor: Color {
+        switch self {
+        case .today:    return Color(red: 0.92, green: 0.27, blue: 0.27) // red
+        case .tomorrow: return Color(red: 1.0, green: 0.58, blue: 0.0)  // orange
+        case .thisWeek: return Color.ucdBlue
+        case .later:    return Color.clear
+        }
+    }
+}
+
+extension CampusEvent {
+    /// "Today", "Tomorrow", "This Friday", etc. for events within the week.
+    /// Falls back to standard date format (e.g. "Mar 5, 2026") for later events.
+    var friendlyDateLabel: String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        }
+        if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        }
+        let startOfToday = calendar.startOfDay(for: Date())
+        if let endOfWeek = calendar.date(byAdding: .day, value: 7, to: startOfToday),
+           date < endOfWeek {
+            let dayName = date.formatted(.dateTime.weekday(.wide))
+            return "This \(dayName)"
+        }
+        return date.formatted(.dateTime.month(.abbreviated).day().year())
+    }
+
+    var dateUrgency: EventDateUrgency {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return .today }
+        if calendar.isDateInTomorrow(date) { return .tomorrow }
+        let startOfToday = calendar.startOfDay(for: Date())
+        if let endOfWeek = calendar.date(byAdding: .day, value: 7, to: startOfToday),
+           date < endOfWeek { return .thisWeek }
+        return .later
+    }
+}
+
 enum EventFilterType: String, CaseIterable {
     case all = "All Events"
     case official = "Official"

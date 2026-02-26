@@ -20,7 +20,7 @@ struct EventDetailView: View {
     @State private var locationCoordinate: CLLocationCoordinate2D?
 
     var body: some View {
-        NavigationStack {
+        ZStack(alignment: .topTrailing) {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
 
@@ -264,17 +264,76 @@ struct EventDetailView: View {
             }
             .background(Color.adaptiveBackground(colorScheme))
             .task { await geocodeLocation() }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(.textSecondary)
-                    }
-                }
+
+            // Floating nav buttons (matches ArticleDetailView pattern)
+            floatingButtons
+        }
+    }
+
+    // MARK: - Floating Buttons
+
+    @ViewBuilder
+    private var floatingButtons: some View {
+        if #available(iOS 26, *) {
+            ios26FloatingButtons
+        } else {
+            legacyFloatingButtons
+        }
+    }
+
+    @available(iOS 26, *)
+    private var ios26FloatingButtons: some View {
+        HStack(spacing: 12) {
+            ShareLink(item: shareText) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 36, height: 36)
+                    .glassEffect(.regular, in: .circle)
+            }
+
+            Button(action: { dismiss() }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 36, height: 36)
+                    .glassEffect(.regular, in: .circle)
             }
         }
+        .padding(.trailing, 20)
+        .padding(.top, 16)
+    }
+
+    private var legacyFloatingButtons: some View {
+        HStack(spacing: 10) {
+            ShareLink(item: shareText) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 36, height: 36)
+                    .background(.thinMaterial, in: Circle())
+            }
+
+            Button(action: { dismiss() }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 36, height: 36)
+                    .background(.thinMaterial, in: Circle())
+            }
+        }
+        .padding(.trailing, 20)
+        .padding(.top, 16)
+    }
+
+    // MARK: - Share
+
+    private var shareText: String {
+        var text = "\(event.title)\n"
+        text += "\(event.friendlyDateLabel) at \(event.date.formatted(date: .omitted, time: .shortened))"
+        if !event.location.isEmpty && event.location != "N/A" {
+            text += "\n\(event.location)"
+        }
+        if let urlString = event.eventURL {
+            text += "\n\(urlString)"
+        }
+        return text
     }
 
     // MARK: - Helpers

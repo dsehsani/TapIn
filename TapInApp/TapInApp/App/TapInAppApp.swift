@@ -8,6 +8,7 @@
 
 import SwiftUI
 import GoogleSignIn
+import FirebaseCore
 
 @main
 struct TapInAppApp: App {
@@ -15,6 +16,14 @@ struct TapInAppApp: App {
     // app gate both observe the exact same instance.
     @StateObject private var appState = AppState.shared
     @State private var isCheckingSession = true
+
+    init() {
+        // Only configure Firebase if GoogleService-Info.plist exists.
+        // Remove this guard once the plist is added to the project.
+        if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
+            FirebaseApp.configure()
+        }
+    }
 
     var body: some Scene {
         WindowGroup {

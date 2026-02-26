@@ -38,5 +38,8 @@ PyJWT[crypto]>=2.8.0
 # Password hashing (email/password auth)
 bcrypt>=4.1.0
 
-# HTTP requests (Apple JWKS fetch, SMS service verification)
+# HTTP requests (Apple JWKS fetch)
 requests>=2.31.0
+
+# Firebase Admin SDK (phone auth token verification)
+firebase-admin>=6.0.0
