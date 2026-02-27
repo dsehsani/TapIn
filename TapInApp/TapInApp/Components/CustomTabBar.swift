@@ -21,7 +21,7 @@ struct CustomTabBar: View {
 
             // Tab Items
             HStack(spacing: 0) {
-                ForEach(TabItem.allCases, id: \.self) { tab in
+                ForEach(TabItem.legacyTabs, id: \.self) { tab in
                     TabBarItem(
                         tab: tab,
                         isSelected: selectedTab == tab,

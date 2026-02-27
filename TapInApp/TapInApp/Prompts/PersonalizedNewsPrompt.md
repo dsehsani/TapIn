@@ -19,3 +19,4 @@
 * Provide the refactored `NewsViewModel.swift` to pass user preferences into the service during the `fetchDailyBriefing()` call.
 * Write the exact System Prompt we should give our backend AI (e.g., OpenAI/Gemini) to perfectly balance "World News" with "Personalized Interests."
 * Ensure the response strictly maintains our existing UI state logic (`isBriefingLoading`, `briefingError`) and doesn't break the `DailyBriefingCard` visual components.
+ 

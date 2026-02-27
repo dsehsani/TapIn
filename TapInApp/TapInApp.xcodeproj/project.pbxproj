@@ -56,6 +56,7 @@
 				Prompts/LEADERBOARD.md,
 				Prompts/PersonalizedNewsPrompt.md,
 				Prompts/PhoneOnboardingPrompt.md,
+				Prompts/RefreshedSerach.md,
 				Prompts/TextRenderingPrompt.md,
 				Prompts/TutorialPrompt.md,
 				ViewModels/README.md,

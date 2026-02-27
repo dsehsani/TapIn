@@ -14,6 +14,8 @@ import SwiftUI
 struct ContentView: View {
     // MARK: - State Properties
     @State private var selectedTab: TabItem = .news
+    @State private var showProfile = false
+    @State private var tabSearchText = ""
 
     // MARK: - ViewModels (MVVM - create once and pass to views)
     // These ViewModels are where ALL your data logic lives
@@ -62,11 +64,39 @@ struct ContentView: View {
                 SavedView(viewModel: savedViewModel, selectedTab: $selectedTab)
             }
 
-            Tab("Profile", systemImage: "person.circle.fill", value: .profile) {
-                ProfileView(viewModel: profileViewModel, savedViewModel: savedViewModel, gamesViewModel: gamesViewModel, selectedTab: $selectedTab)
+            Tab(value: .search, role: .search) {
+                NavigationStack {
+                    SearchView(
+                        selectedTab: $selectedTab,
+                        newsSearchText: $newsViewModel.searchText
+                    )
+                    .navigationTitle("Search")
+                }
+            }
+        }
+        .searchable(text: $tabSearchText, prompt: "Search UC Davis News")
+        .onSubmit(of: .search) {
+            if !tabSearchText.trimmingCharacters(in: .whitespaces).isEmpty {
+                newsViewModel.searchText = tabSearchText
+                tabSearchText = ""
+                selectedTab = .news
             }
         }
         .tint(colorScheme == .dark ? Color.accentOrange : Color.accentCoral)
+        .onChange(of: selectedTab) { _, newValue in
+            if newValue == .profile {
+                selectedTab = .news
+                showProfile = true
+            }
+        }
+        .sheet(isPresented: $showProfile) {
+            ProfileView(
+                viewModel: profileViewModel,
+                savedViewModel: savedViewModel,
+                gamesViewModel: gamesViewModel,
+                selectedTab: $selectedTab
+            )
+        }
     }
 
     // MARK: - Legacy Tab View (iOS 17–25)
@@ -92,6 +122,10 @@ struct ContentView: View {
 
             case .profile:
                 ProfileView(viewModel: profileViewModel, savedViewModel: savedViewModel, gamesViewModel: gamesViewModel, selectedTab: $selectedTab)
+
+            case .search:
+                // Search tab only exists on iOS 26+; redirect to news on legacy
+                Color.clear.onAppear { selectedTab = .news }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

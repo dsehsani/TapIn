@@ -25,24 +25,16 @@ struct NewsView: View {
             // Main Content
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
-                    // Spacer for header
-                    Color.clear.frame(height: 64)
-
-                    // Category Pills
-                    CategoryPillsView(
-                        selectedCategory: $viewModel.selectedCategory,
-                        categories: viewModel.categories,
-                        onCategoryTap: { category in
-                            viewModel.selectCategory(category)
-                        }
-                    )
-                    .pulsingHotspot(
-                        tip: .categoryPills,
-                        message: "Filter stories by what matters to you.",
-                        arrowEdge: .top,
-                        cornerRadius: 20
-                    )
-                    .padding(.vertical, 12)
+                    // Header: inline on iOS 26+, spacer for sticky overlay on legacy
+                    if #available(iOS 26, *) {
+                        TopNavigationBar(
+                            searchText: $viewModel.searchText,
+                            onSettingsTap: { selectedTab = .profile }
+                        )
+                        .padding(.bottom, 12)
+                    } else {
+                        Color.clear.frame(height: 64)
+                    }
 
                     if viewModel.isSearchActive {
                         // Search Results
@@ -118,6 +110,22 @@ struct NewsView: View {
                         )
                         .padding(.bottom, 24)
 
+                        // Category Pills
+                        CategoryPillsView(
+                            selectedCategory: $viewModel.selectedCategory,
+                            categories: viewModel.categories,
+                            onCategoryTap: { category in
+                                viewModel.selectCategory(category)
+                            }
+                        )
+                        .pulsingHotspot(
+                            tip: .categoryPills,
+                            message: "Filter stories by what matters to you.",
+                            arrowEdge: .top,
+                            cornerRadius: 20
+                        )
+                        .padding(.bottom, 16)
+
                         // Featured Article
                         if let featured = viewModel.featuredArticle {
                             FeaturedArticleCard(
@@ -179,16 +187,18 @@ struct NewsView: View {
                 ArticleDetailView(article: article, savedViewModel: savedViewModel)
             }
 
-            // Sticky Header
-            VStack(spacing: 0) {
-                TopNavigationBar(
-                    searchText: $viewModel.searchText,
-                    onSettingsTap: { selectedTab = .profile }
-                )
+            // Sticky Header (legacy only — iOS 26+ header scrolls inline)
+            if #unavailable(iOS 26) {
+                VStack(spacing: 0) {
+                    TopNavigationBar(
+                        searchText: $viewModel.searchText,
+                        onSettingsTap: { selectedTab = .profile }
+                    )
 
-                Rectangle()
-                    .fill(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#e2e8f0"))
-                    .frame(height: 1)
+                    Rectangle()
+                        .fill(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#e2e8f0"))
+                        .frame(height: 1)
+                }
             }
 
             // Loading Overlay — only shown on first load when there are no articles
