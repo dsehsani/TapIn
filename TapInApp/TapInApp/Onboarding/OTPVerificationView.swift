@@ -8,72 +8,11 @@
 
 import SwiftUI
 import Combine
-import UIKit
-
-// MARK: - UIKit OTP TextField (reliable autofill)
-
-struct AutofillOTPField: UIViewRepresentable {
-    @Binding var text: String
-    var onComplete: (() -> Void)?
-
-    func makeUIView(context: Context) -> UITextField {
-        let field = UITextField()
-        field.textContentType = .oneTimeCode
-        field.keyboardType = .numberPad
-        field.autocorrectionType = .no
-        field.textColor = .clear
-        field.tintColor = .clear
-        field.backgroundColor = .clear
-        field.font = .systemFont(ofSize: 24)
-        field.textAlignment = .center
-        field.delegate = context.coordinator
-        field.addTarget(context.coordinator, action: #selector(Coordinator.textChanged(_:)), for: .editingChanged)
-        return field
-    }
-
-    func updateUIView(_ uiView: UITextField, context: Context) {
-        if uiView.text != text {
-            uiView.text = text
-        }
-        // Auto-focus
-        if !uiView.isFirstResponder {
-            DispatchQueue.main.async { uiView.becomeFirstResponder() }
-        }
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-
-    class Coordinator: NSObject, UITextFieldDelegate {
-        var parent: AutofillOTPField
-
-        init(_ parent: AutofillOTPField) {
-            self.parent = parent
-        }
-
-        @objc func textChanged(_ textField: UITextField) {
-            let filtered = String((textField.text ?? "").filter(\.isNumber).prefix(6))
-            parent.text = filtered
-            textField.text = filtered
-            if filtered.count == 6 {
-                parent.onComplete?()
-            }
-        }
-
-        func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
-            let current = textField.text ?? ""
-            guard let range = Range(range, in: current) else { return false }
-            let updated = current.replacingCharacters(in: range, with: string)
-            let filtered = String(updated.filter(\.isNumber).prefix(6))
-            return filtered.count <= 6
-        }
-    }
-}
 
 struct OTPVerificationView: View {
     @ObservedObject var viewModel: OnboardingViewModel
     @Environment(\.colorScheme) var colorScheme
+    @FocusState private var isFieldFocused: Bool
 
     @State private var countdown: Int = 30
     @State private var canResend: Bool = false
@@ -142,9 +81,9 @@ struct OTPVerificationView: View {
                 .padding(.horizontal, 28)
                 .padding(.bottom, 40)
 
-                // OTP digit boxes + UIKit autofill TextField
+                // OTP digit boxes with native SwiftUI TextField for autofill
                 ZStack {
-                    // Digit boxes (visual layer behind)
+                    // Digit boxes (visual layer)
                     HStack(spacing: 10) {
                         ForEach(0..<6, id: \.self) { index in
                             OTPDigitBox(
@@ -156,16 +95,33 @@ struct OTPVerificationView: View {
                     }
                     .offset(x: shakeOffset)
 
-                    // UIKit TextField on top — handles autofill reliably
-                    AutofillOTPField(text: $viewModel.otpCode) {
-                        Task { await viewModel.verifyOTP() }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .onChange(of: viewModel.otpCode) { _, _ in
-                        if viewModel.errorMessage != nil { viewModel.errorMessage = nil }
-                    }
+                    // Native SwiftUI TextField — autofill works reliably
+                    TextField("", text: $viewModel.otpCode)
+                        .keyboardType(.numberPad)
+                        .textContentType(.oneTimeCode)
+                        .foregroundColor(.clear)
+                        .tint(.clear)
+                        .accentColor(.clear)
+                        .focused($isFieldFocused)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 70)
+                        .background(Color.clear)
+                        .autocorrectionDisabled()
+                        .onChange(of: viewModel.otpCode) { _, newValue in
+                            let filtered = String(newValue.filter(\.isNumber).prefix(6))
+                            if filtered != newValue {
+                                viewModel.otpCode = filtered
+                            }
+                            if viewModel.errorMessage != nil {
+                                viewModel.errorMessage = nil
+                            }
+                            if filtered.count == 6 {
+                                Task { await viewModel.verifyOTP() }
+                            }
+                        }
                 }
                 .frame(maxWidth: .infinity)
+                .frame(height: 70)
                 .padding(.horizontal, 24)
 
                 // Error message
@@ -232,6 +188,7 @@ struct OTPVerificationView: View {
                 .padding(.bottom, 48)
             }
         }
+        .onAppear { isFieldFocused = true }
         .onReceive(timer) { _ in
             if countdown > 0 {
                 countdown -= 1

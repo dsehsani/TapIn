@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		3DA1B8F52F47BA8E001EE7A2 /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = 3DA1B8F42F47BA8E001EE7A2 /* SwiftSoup */; };
 		3DD5E2B22F50C3E600D52393 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 3DD5E2B12F50C3E600D52393 /* FirebaseAuth */; };
+		3DD5E2B42F50E7AF00D52393 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3DD5E2B32F50E7AF00D52393 /* GoogleService-Info.plist */; };
+		3DD5E2B72F50E85D00D52393 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3DD5E2B62F50E85D00D52393 /* FirebaseCore */; };
 		3DF78DAE2F4965260099FDF7 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 3DF78DAD2F4965260099FDF7 /* GoogleSignIn */; };
 		3DF78DB02F4965260099FDF7 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 3DF78DAF2F4965260099FDF7 /* GoogleSignInSwift */; };
 /* End PBXBuildFile section */
@@ -31,6 +33,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		3DD5E2B32F50E7AF00D52393 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		3DF9C9162F29459A00080F48 /* TapInApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TapInApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3DF9C9252F29459B00080F48 /* TapInAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TapInAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3DF9C92F2F29459C00080F48 /* TapInAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TapInAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -51,6 +54,7 @@
 				Prompts/EventSummaryPrompt.md,
 				Prompts/FixUI.md,
 				Prompts/LEADERBOARD.md,
+				Prompts/PersonalizedNewsPrompt.md,
 				Prompts/PhoneOnboardingPrompt.md,
 				Prompts/TextRenderingPrompt.md,
 				Prompts/TutorialPrompt.md,
@@ -88,6 +92,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3DF78DB02F4965260099FDF7 /* GoogleSignInSwift in Frameworks */,
+				3DD5E2B72F50E85D00D52393 /* FirebaseCore in Frameworks */,
 				3DA1B8F52F47BA8E001EE7A2 /* SwiftSoup in Frameworks */,
 				3DF78DAE2F4965260099FDF7 /* GoogleSignIn in Frameworks */,
 				3DD5E2B22F50C3E600D52393 /* FirebaseAuth in Frameworks */,
@@ -111,6 +116,13 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		3DD5E2B52F50E85D00D52393 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		3DF9C90D2F29459A00080F48 = {
 			isa = PBXGroup;
 			children = (
@@ -118,6 +130,8 @@
 				3DF9C9282F29459B00080F48 /* TapInAppTests */,
 				3DF9C9322F29459C00080F48 /* TapInAppUITests */,
 				3DF9C9172F29459A00080F48 /* Products */,
+				3DD5E2B32F50E7AF00D52393 /* GoogleService-Info.plist */,
+				3DD5E2B52F50E85D00D52393 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -155,6 +169,7 @@
 				3DF78DAD2F4965260099FDF7 /* GoogleSignIn */,
 				3DF78DAF2F4965260099FDF7 /* GoogleSignInSwift */,
 				3DD5E2B12F50C3E600D52393 /* FirebaseAuth */,
+				3DD5E2B62F50E85D00D52393 /* FirebaseCore */,
 			);
 			productName = TapInApp;
 			productReference = 3DF9C9162F29459A00080F48 /* TapInApp.app */;
@@ -260,6 +275,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3DD5E2B42F50E7AF00D52393 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -686,6 +702,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 3DD5E2B02F50C3E600D52393 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseAuth;
+		};
+		3DD5E2B62F50E85D00D52393 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3DD5E2B02F50C3E600D52393 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
 		};
 		3DF78DAD2F4965260099FDF7 /* GoogleSignIn */ = {
 			isa = XCSwiftPackageProductDependency;

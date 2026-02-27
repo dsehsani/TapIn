@@ -192,7 +192,7 @@ class UserAPIService {
 
     /// Updates the current user's profile fields (email, username).
     /// Requires a valid backend JWT.
-    func updateProfile(token: String, email: String? = nil, username: String? = nil) async throws {
+    func updateProfile(token: String, email: String? = nil, username: String? = nil, interests: [String]? = nil) async throws {
         guard let requestURL = URL(string: APIConfig.meURL) else {
             throw UserAPIError.invalidResponse
         }
@@ -200,6 +200,7 @@ class UserAPIService {
         var body: [String: Any] = [:]
         if let email = email { body["email"] = email }
         if let username = username { body["username"] = username }
+        if let interests = interests { body["interests"] = interests }
 
         guard !body.isEmpty else { return }
 

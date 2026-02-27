@@ -165,7 +165,8 @@ class NewsViewModel: ObservableObject {
         isBriefingLoading = true
         briefingError = false
 
-        let result = await briefingService.fetchBriefing()
+        let interests = AppState.shared.currentUser?.interests ?? []
+        let result = await briefingService.fetchBriefing(interests: interests)
         dailyBriefing = result
         briefingError = (result == nil)
         isBriefingLoading = false

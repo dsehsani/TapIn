@@ -20,6 +20,7 @@ struct EditProfileView: View {
     @State private var photoPickerItem: PhotosPickerItem?
     @State private var profileImage: Image?
     @State private var profileImageData: Data?
+    @State private var selectedInterests: Set<String> = []
     @State private var isSaving: Bool = false
     @State private var showPhotoOptions: Bool = false
     @State private var showCamera: Bool = false
@@ -61,6 +62,9 @@ struct EditProfileView: View {
                     formSection
                         .padding(.horizontal, 24)
                     yearSection
+                        .padding(.horizontal, 24)
+                        .padding(.top, 24)
+                    interestsSection
                         .padding(.horizontal, 24)
                         .padding(.top, 24)
                     saveButton
@@ -105,6 +109,7 @@ struct EditProfileView: View {
         name = viewModel.userName
         email = viewModel.userEmail
         year = viewModel.user?.year ?? ""
+        selectedInterests = Set(viewModel.user?.interests ?? [])
 
         if let data = UserDefaults.standard.data(forKey: "profileImageData"),
            let uiImage = UIImage(data: data) {
@@ -279,6 +284,50 @@ struct EditProfileView: View {
         }
     }
 
+    // MARK: - Interests Section
+
+    private var interestsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Interests")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.white.opacity(0.7))
+                .padding(.leading, 4)
+
+            EditProfileFlowLayout(spacing: 8) {
+                ForEach(OnboardingViewModel.availableInterests, id: \.self) { interest in
+                    let isSelected = selectedInterests.contains(interest)
+
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            if isSelected {
+                                selectedInterests.remove(interest)
+                            } else {
+                                selectedInterests.insert(interest)
+                            }
+                        }
+                    }) {
+                        Text(interest)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white.opacity(isSelected ? 1 : 0.6))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(
+                                .white.opacity(isSelected ? 0.25 : 0.10),
+                                in: Capsule()
+                            )
+                            .overlay(
+                                Capsule().stroke(
+                                    .white.opacity(isSelected ? 0.6 : 0.2),
+                                    lineWidth: isSelected ? 1.5 : 1
+                                )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
     // MARK: - Save Button
 
     private var saveButton: some View {
@@ -289,7 +338,8 @@ struct EditProfileView: View {
                     name: name,
                     email: email,
                     year: year,
-                    imageData: profileImageData
+                    imageData: profileImageData,
+                    interests: Array(selectedInterests)
                 )
                 isSaving = false
                 dismiss()

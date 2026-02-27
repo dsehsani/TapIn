@@ -2,15 +2,9 @@
 #  briefing_service.py
 #  TapIn Backend
 #
-#  Generates a daily AI news briefing from today's Aggie articles.
-#  Exactly 1 Claude API call per day — cached in Firestore.
-#
-#  Flow:
-#    1. Check Firestore for today's cached briefing
-#    2. On miss: fetch articles from article_repository (or fresh RSS)
-#    3. Send titles + excerpts to Claude
-#    4. Parse structured response → summary + bullet points
-#    5. Cache in Firestore
+#  Generates a personalized daily briefing from articles + campus events.
+#  Returns structured items with images and links for story-card display.
+#  Cached in Firestore, scoped by user interests.
 #
 
 import logging
@@ -19,6 +13,8 @@ from zoneinfo import ZoneInfo
 
 from repositories.briefing_repository import briefing_repository
 from repositories.article_repository import article_repository
+from repositories.article_content_repository import article_content_repository
+from repositories.event_repository import event_repository
 from services.aggie_rss_service import fetch_articles
 from services.claude_service import claude_service
 
@@ -27,144 +23,264 @@ logger = logging.getLogger(__name__)
 PACIFIC = ZoneInfo("America/Los_Angeles")
 
 BRIEFING_SYSTEM_PROMPT = (
-    "You are a friendly campus news briefer for TapIn, a UC Davis student app. "
-    "Given today's article headlines and excerpts from The California Aggie, write:\n"
-    "1. A conversational 2-3 sentence summary of today's top news themes. "
-    "Write like you're telling a friend what's happening on campus today. "
-    "Keep it under 280 characters.\n"
-    "2. Exactly 4-5 bullet points, each starting with a relevant emoji, "
-    "each under 80 characters, highlighting the most important individual stories.\n\n"
-    "Format your response EXACTLY as:\n"
-    "SUMMARY: <your summary>\n"
-    "BULLETS:\n"
-    "<emoji> <bullet 1>\n"
-    "<emoji> <bullet 2>\n"
-    "<emoji> <bullet 3>\n"
-    "<emoji> <bullet 4>\n"
-    "[optional 5th bullet]"
+    "You are a campus briefing bot for TapIn, a UC Davis student app. "
+    "You receive numbered articles [A1], [A2]... and events [E1], [E2]... "
+    "Your job: pick the most exciting, relevant items for this user.\n\n"
+
+    "PRODUCE:\n"
+    "1. HERO — One short, exciting sentence (under 40 chars) about the SINGLE most "
+    "appealing thing for this user. Be specific — reference the actual event or story.\n"
+    "   Examples: \"Free Tacos at the MU Today!\", \"Aggies vs UCSB Tonight at 7!\", "
+    "\"UC Davis Makes Medical History\"\n\n"
+
+    "2. PICKS — 2 to 5 items from the numbered list. For each, give:\n"
+    "   - The item ID (e.g. A1 or E3)\n"
+    "   - One emoji\n"
+    "   - A short catchy subtitle (under 45 chars) — this overlays the image\n\n"
+
+    "RULES:\n"
+    "- ONLY pick items matching the user's interests. Quality over quantity.\n"
+    "- Events with free food, live music, or games are always high priority.\n"
+    "- The HERO should reference the most enticing picked item.\n"
+    "- If fewer than 2 items match, return only what matches.\n"
+    "- Do NOT pad with irrelevant filler.\n"
+    "- If no interests provided, pick the 3-4 most exciting things overall.\n\n"
+
+    "Format EXACTLY as:\n"
+    "HERO: <hero sentence>\n"
+    "PICKS:\n"
+    "<id> | <emoji> | <subtitle>\n"
+    "<id> | <emoji> | <subtitle>\n"
+    "[up to 5 lines]"
 )
 
 
-def get_daily_briefing() -> dict:
+def _cache_key(date_str: str, interests: list[str]) -> str:
+    """Returns a Firestore document key scoped by date and interests."""
+    if not interests:
+        return date_str
+    suffix = ",".join(sorted(i.lower() for i in interests))
+    return f"{date_str}_{hash(suffix)}"
+
+
+def get_daily_briefing(interests: list[str] | None = None) -> dict:
     """
     Returns today's briefing, generating it if not cached.
-    Returns: { summary, bullet_points, article_count, generated_at, cached }
+    When interests are provided, the cache and prompt are scoped per interest set.
     """
+    interests = interests or []
     today = datetime.now(tz=PACIFIC).strftime("%Y-%m-%d")
+    cache_key = _cache_key(today, interests)
 
     # Check Firestore cache
-    cached = briefing_repository.get_briefing(today)
+    cached = briefing_repository.get_briefing(cache_key)
     if cached:
-        logger.info(f"Briefing cache hit for {today}")
+        logger.info(f"Briefing cache hit for {cache_key}")
         return {
-            "summary": cached.get("summary", ""),
+            "summary": "",
             "bullet_points": cached.get("bullet_points", []),
+            "hero_title": cached.get("hero_title"),
+            "items": cached.get("items", []),
             "article_count": cached.get("article_count", 0),
             "generated_at": cached.get("generated_at", ""),
             "cached": True,
         }
 
     # Cache miss — generate new briefing
-    logger.info(f"Briefing cache miss for {today} — generating")
-    return _generate_briefing(today)
+    logger.info(f"Briefing cache miss for {cache_key} — generating")
+    return _generate_briefing(cache_key, interests)
 
 
-def _generate_briefing(date_str: str) -> dict:
-    """Fetches articles, calls Claude, caches and returns the briefing."""
+def _generate_briefing(cache_key: str, interests: list[str] | None = None) -> dict:
+    """Fetches articles + events, calls Claude, caches and returns the briefing."""
+    interests = interests or []
 
-    # Step 1: Get articles (stale-check → fresh RSS → stale cache fallback)
+    # Step 1a: Get articles
     if article_repository.is_stale("all"):
         articles = fetch_articles("all")
         if articles:
             article_repository.save_articles("all", articles)
         else:
-            # RSS failed — fall back to stale cache rather than nothing
             articles = article_repository.get_articles("all")
     else:
         articles = article_repository.get_articles("all")
 
     if not articles:
         articles = fetch_articles("all")
+    articles = articles or []
 
-    if not articles:
+    # Step 1b: Get campus events from Firestore
+    events = []
+    try:
+        events = event_repository.get_all_events()
+    except Exception as e:
+        logger.warning(f"Failed to fetch events for briefing: {e}")
+
+    if not articles and not events:
         return {
-            "summary": "No articles available yet today. Check back soon!",
+            "summary": "",
             "bullet_points": [],
+            "hero_title": None,
+            "items": [],
             "article_count": 0,
             "generated_at": datetime.now(tz=timezone.utc).isoformat(),
             "cached": False,
         }
 
-    # Step 2: Build prompt from top 12 articles
-    top_articles = articles[:12]
-    article_text = "\n\n".join(
-        f"HEADLINE: {a.get('title', '')}\nEXCERPT: {a.get('excerpt', '')[:200]}"
-        for a in top_articles
-    )
+    # Step 2: Build numbered item lists and lookup maps
+    top_articles = articles[:10]
+    top_events = events[:10]
+    item_lookup = {}
+
+    article_lines = []
+    for i, a in enumerate(top_articles):
+        key = f"A{i+1}"
+        article_lines.append(
+            f"[{key}] {a.get('title', '')} — {a.get('excerpt', '')[:150]}"
+        )
+        item_lookup[key] = {
+            "type": "article",
+            "title": a.get("title", ""),
+            "imageURL": a.get("imageURL") or a.get("image_url") or None,
+            "linkURL": a.get("articleURL") or a.get("article_url") or a.get("link"),
+        }
+        # Treat empty strings as None
+        if not item_lookup[key]["imageURL"]:
+            item_lookup[key]["imageURL"] = None
+
+    event_lines = []
+    for i, e in enumerate(top_events):
+        key = f"E{i+1}"
+        desc = (e.get("description") or e.get("aiSummary") or "")[:120]
+        event_lines.append(
+            f"[{key}] {e.get('title', '')} — {e.get('location', 'TBD')} — "
+            f"{(e.get('startDate') or '')[:16]} — {desc}"
+        )
+        item_lookup[key] = {
+            "type": "event",
+            "title": e.get("title", ""),
+            "imageURL": e.get("imageURL") or e.get("image_url"),
+            "linkURL": e.get("eventURL") or e.get("event_url"),
+        }
+
+    total_items = len(top_articles) + len(top_events)
+
+    # Build user message
+    user_content = ""
+    if article_lines:
+        user_content += "TODAY'S ARTICLES:\n" + "\n".join(article_lines) + "\n\n"
+    if event_lines:
+        user_content += "UPCOMING CAMPUS EVENTS:\n" + "\n".join(event_lines) + "\n\n"
+    if interests:
+        user_content += f"User interests: {', '.join(interests)}"
+    else:
+        user_content += "No user interests specified — pick the most exciting things overall."
 
     # Step 3: Call Claude API
     try:
         client = claude_service._get_client()
         message = client.messages.create(
             model="claude-sonnet-4-5-20250929",
-            max_tokens=400,
+            max_tokens=300,
             system=BRIEFING_SYSTEM_PROMPT,
             messages=[{
                 "role": "user",
-                "content": f"Here are today's articles from The California Aggie:\n\n{article_text}"
+                "content": user_content,
             }]
         )
         raw = message.content[0].text.strip()
     except Exception as e:
         logger.error(f"Claude API call failed for briefing: {e}")
         return {
-            "summary": "AI briefing is temporarily unavailable.",
+            "summary": "",
             "bullet_points": [],
-            "article_count": len(top_articles),
+            "hero_title": None,
+            "items": [],
+            "article_count": total_items,
             "generated_at": datetime.now(tz=timezone.utc).isoformat(),
             "cached": False,
         }
 
-    # Step 4: Parse the response
-    summary, bullets = _parse_briefing_response(raw)
+    # Step 4: Parse response and enrich with item data
+    hero_title, picks = _parse_briefing_response(raw)
+
+    items = []
+    bullet_points = []
+    for item_id, emoji, subtitle in picks:
+        source = item_lookup.get(item_id.upper())
+        if source:
+            image_url = source.get("imageURL")
+
+            # For articles without an image, try the scraped content cache
+            if not image_url and source["type"] == "article" and source.get("linkURL"):
+                image_url = _lookup_thumbnail(source["linkURL"])
+
+            items.append({
+                "type": source["type"],
+                "title": source["title"],
+                "subtitle": subtitle,
+                "emoji": emoji,
+                "imageURL": image_url,
+                "linkURL": source.get("linkURL"),
+            })
+        # Also build legacy bullet_points for backward compat
+        bullet_points.append(f"{emoji} {subtitle}")
 
     # Step 5: Cache in Firestore
     briefing = {
-        "summary": summary,
-        "bullet_points": bullets,
-        "article_count": len(top_articles),
-        "source_titles": [a.get("title", "") for a in top_articles],
+        "summary": "",
+        "bullet_points": bullet_points,
+        "hero_title": hero_title,
+        "items": items,
+        "article_count": total_items,
     }
-    briefing_repository.save_briefing(date_str, briefing)
+    briefing_repository.save_briefing(cache_key, briefing)
 
     return {
-        "summary": summary,
-        "bullet_points": bullets,
-        "article_count": len(top_articles),
+        "summary": "",
+        "bullet_points": bullet_points,
+        "hero_title": hero_title,
+        "items": items,
+        "article_count": total_items,
         "generated_at": datetime.now(tz=timezone.utc).isoformat(),
         "cached": False,
     }
 
 
-def _parse_briefing_response(raw: str) -> tuple[str, list[str]]:
-    """Parses Claude's formatted response into (summary, bullet_points)."""
-    summary = ""
-    bullets = []
+def _lookup_thumbnail(article_url: str) -> str | None:
+    """Checks the article content cache for a thumbnailURL."""
+    try:
+        cached = article_content_repository.get_content(article_url)
+        if cached:
+            thumb = cached.get("thumbnailURL") or cached.get("thumbnail_url")
+            if thumb:
+                return thumb
+    except Exception as e:
+        logger.debug(f"Thumbnail lookup failed for {article_url}: {e}")
+    return None
+
+
+def _parse_briefing_response(raw: str) -> tuple[str | None, list[tuple[str, str, str]]]:
+    """
+    Parses Claude's response into (hero_title, picks).
+    Each pick is (item_id, emoji, subtitle).
+    """
+    hero_title = None
+    picks = []
 
     lines = raw.strip().splitlines()
-    in_bullets = False
+    in_picks = False
 
     for line in lines:
         stripped = line.strip()
-        if stripped.upper().startswith("SUMMARY:"):
-            summary = stripped[len("SUMMARY:"):].strip()
-        elif stripped.upper().startswith("BULLETS:"):
-            in_bullets = True
-        elif in_bullets and stripped:
-            bullets.append(stripped)
+        if stripped.upper().startswith("HERO:"):
+            hero_title = stripped[len("HERO:"):].strip()
+        elif stripped.upper().startswith("PICKS:"):
+            in_picks = True
+        elif in_picks and "|" in stripped:
+            parts = [p.strip() for p in stripped.split("|", 2)]
+            if len(parts) == 3:
+                item_id, emoji, subtitle = parts
+                picks.append((item_id.strip(), emoji.strip(), subtitle.strip()))
 
-    # Fallback if parsing fails — use the entire response as the summary
-    if not summary and not bullets:
-        summary = raw[:280]
-
-    return summary, bullets[:5]
+    return hero_title, picks[:5]

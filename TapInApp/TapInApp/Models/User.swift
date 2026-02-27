@@ -13,19 +13,22 @@ struct User: Identifiable, Codable {
     var email: String
     var profileImageURL: String?
     var year: String?
+    var interests: [String]?
 
     init(
         id: UUID = UUID(),
         name: String,
         email: String,
         profileImageURL: String? = nil,
-        year: String? = nil
+        year: String? = nil,
+        interests: [String]? = nil
     ) {
         self.id = id
         self.name = name
         self.email = email
         self.profileImageURL = profileImageURL
         self.year = year
+        self.interests = interests
     }
 }
 

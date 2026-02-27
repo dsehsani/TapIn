@@ -150,7 +150,10 @@ def get_article_content():
 def get_daily_briefing():
     """
     Returns today's AI-generated news briefing.
-    Cached in Firestore — at most 1 Claude API call per day.
+    Cached in Firestore — scoped by interests hash (one per unique combo per day).
+
+    Query params:
+        interests (str, optional): comma-separated list e.g. "Sports,Science & Tech"
 
     Response (200):
         {
@@ -159,13 +162,17 @@ def get_daily_briefing():
                 "summary": "...",
                 "bulletPoints": [...],
                 "articleCount": 10,
-                "generatedAt": "2026-02-20T..."
+                "generatedAt": "2026-02-20T...",
+                "heroTitle": "Scores & Discoveries"
             }
         }
     """
     try:
+        raw_interests = request.args.get("interests", "").strip()
+        interests = [i.strip() for i in raw_interests.split(",") if i.strip()] if raw_interests else []
+
         from services.briefing_service import get_daily_briefing as generate
-        result = generate()
+        result = generate(interests=interests)
         return jsonify({
             "success": True,
             "briefing": {
@@ -173,6 +180,8 @@ def get_daily_briefing():
                 "bulletPoints": result["bullet_points"],
                 "articleCount": result["article_count"],
                 "generatedAt": result["generated_at"],
+                "heroTitle": result.get("hero_title"),
+                "items": result.get("items", []),
             }
         }), 200
     except Exception as e:

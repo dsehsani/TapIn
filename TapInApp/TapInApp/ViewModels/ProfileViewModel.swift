@@ -99,12 +99,13 @@ class ProfileViewModel: ObservableObject {
 
     // MARK: - Profile Updates
 
-    func updateProfile(name: String, email: String, year: String, imageData: Data?) async {
+    func updateProfile(name: String, email: String, year: String, imageData: Data?, interests: [String] = []) async {
         guard var currentUser = AppState.shared.currentUser else { return }
 
         currentUser.name = name
         currentUser.email = email
         currentUser.year = year.isEmpty ? nil : year
+        currentUser.interests = interests.isEmpty ? nil : interests
         AppState.shared.currentUser = currentUser
 
         // Persist profile image
@@ -113,35 +114,40 @@ class ProfileViewModel: ObservableObject {
         }
 
         // Update local profile cache (survives sign-out)
-        updateLocalProfileCache(name: name, email: email, year: year)
+        updateLocalProfileCache(name: name, email: email, year: year, interests: interests)
 
         // Persist AppState to UserDefaults
         AppState.shared.persistStatePublic()
 
-        // Sync name/email to backend (best-effort)
+        // Sync name/email/interests to backend (best-effort)
         if let token = AppState.shared.backendToken {
             try? await UserAPIService.shared.updateProfile(
                 token: token,
                 email: email.isEmpty ? nil : email,
-                username: name.isEmpty ? nil : name
+                username: name.isEmpty ? nil : name,
+                interests: interests.isEmpty ? nil : interests
             )
         }
     }
 
     /// Updates the localProfiles cache so edits survive sign-out/re-sign-in.
-    private func updateLocalProfileCache(name: String, email: String, year: String) {
+    private func updateLocalProfileCache(name: String, email: String, year: String, interests: [String] = []) {
         let providerKey = UserDefaults.standard.string(forKey: "appleUserId")
             ?? AppState.shared.smsUserId
             ?? ""
         guard !providerKey.isEmpty else { return }
 
         var profiles = UserDefaults.standard.dictionary(forKey: "localProfiles") as? [String: [String: String]] ?? [:]
-        profiles[providerKey] = [
+        var profile: [String: String] = [
             "name": name,
             "email": email,
             "year": year,
             "providerKey": providerKey
         ]
+        if !interests.isEmpty {
+            profile["interests"] = interests.joined(separator: ",")
+        }
+        profiles[providerKey] = profile
         UserDefaults.standard.set(profiles, forKey: "localProfiles")
     }
 

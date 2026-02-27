@@ -13,6 +13,7 @@ struct NewsView: View {
     @Binding var selectedTab: TabItem
 
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.openURL) var openURL
     @State private var selectedArticle: NewsArticle? = nil
 
     var body: some View {
@@ -99,7 +100,15 @@ struct NewsView: View {
                         DailyBriefingCard(
                             briefing: viewModel.dailyBriefing,
                             isLoading: viewModel.isBriefingLoading,
-                            hasError: viewModel.briefingError
+                            hasError: viewModel.briefingError,
+                            onBulletTap: { bulletText in
+                                if let match = findMatchingArticle(for: bulletText) {
+                                    selectedArticle = match
+                                }
+                            },
+                            onItemTap: { item in
+                                handleBriefingItemTap(item)
+                            }
                         )
                         .pulsingHotspot(
                             tip: .dailyBriefing,
@@ -197,6 +206,74 @@ struct NewsView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Briefing Item Tap Handler
+
+    private func handleBriefingItemTap(_ item: BriefingItem) {
+        // For articles, try to match to a loaded NewsArticle for the detail view
+        if item.type == "article" {
+            if let match = viewModel.articles.first(where: {
+                $0.title == item.title || $0.articleURL == (item.linkURL ?? "")
+            }) {
+                selectedArticle = match
+                return
+            }
+        }
+
+        // Fallback: open the link URL in Safari
+        if let linkStr = item.linkURL, let url = URL(string: linkStr) {
+            openURL(url)
+        }
+    }
+
+    // MARK: - Bullet Point → Article Matching
+
+    private static let stopWords: Set<String> = [
+        "the", "and", "for", "that", "this", "with", "from", "are", "was",
+        "were", "been", "has", "have", "had", "its", "but", "not", "you",
+        "all", "can", "her", "his", "one", "our", "out", "new", "now"
+    ]
+
+    private func findMatchingArticle(for bulletText: String) -> NewsArticle? {
+        // Strip emoji — keep only letters, numbers, and whitespace
+        let cleaned = bulletText.unicodeScalars
+            .filter { CharacterSet.alphanumerics.union(.whitespaces).contains($0) }
+            .map { String($0) }
+            .joined()
+
+        // Tokenize into words, filter out very short words and common stop words
+        let keywords = cleaned
+            .components(separatedBy: .whitespaces)
+            .map { $0.lowercased() }
+            .filter { $0.count >= 3 && !Self.stopWords.contains($0) }
+
+        guard !keywords.isEmpty else { return nil }
+
+        // Score each article: title matches worth 2, excerpt matches worth 1
+        var bestMatch: NewsArticle?
+        var bestScore = 0
+
+        for article in viewModel.articles {
+            let titleLower = article.title.lowercased()
+            let excerptLower = article.excerpt.lowercased()
+
+            var score = 0
+            for keyword in keywords {
+                if titleLower.contains(keyword) {
+                    score += 2
+                } else if excerptLower.contains(keyword) {
+                    score += 1
+                }
+            }
+
+            if score > bestScore {
+                bestScore = score
+                bestMatch = article
+            }
+        }
+
+        return bestMatch
     }
 }
 

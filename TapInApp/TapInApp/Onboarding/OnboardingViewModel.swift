@@ -16,6 +16,7 @@ enum OnboardingStep: Equatable {
     case phoneEntry
     case otpVerification
     case profileSetup
+    case interestsPicker
 }
 
 @MainActor
@@ -33,6 +34,12 @@ class OnboardingViewModel: ObservableObject {
     @Published var email: String = ""
     @Published var year: String = "Freshman"
     @Published var profileImageData: Data? = nil
+    @Published var selectedInterests: Set<String> = []
+
+    static let availableInterests = [
+        "Sports", "Arts & Entertainment", "Science & Tech",
+        "Campus Life", "Politics", "Health & Wellness", "Food & Dining"
+    ]
 
     // MARK: - UI State
     @Published var isLoading: Bool = false
@@ -80,7 +87,8 @@ class OnboardingViewModel: ObservableObject {
         case .otpVerification:
             otpCode = ""
             navigateTo(.phoneEntry)
-        case .profileSetup:  navigateTo(.signInOptions)
+        case .interestsPicker: navigateTo(.signInOptions)
+        case .profileSetup:  navigateTo(.interestsPicker)
         default: break
         }
     }
@@ -104,8 +112,17 @@ class OnboardingViewModel: ObservableObject {
             try? await UserAPIService.shared.updateProfile(token: token, email: email)
         }
 
+        // Push interests to backend if available
+        if let token = AppState.shared.backendToken, !selectedInterests.isEmpty {
+            try? await UserAPIService.shared.updateProfile(
+                token: token,
+                interests: Array(selectedInterests)
+            )
+        }
+
         // Now mark as authenticated (even if backend failed — user can still use app locally)
-        AppState.shared.currentUser = User(name: name, email: email, year: year)
+        let interests = selectedInterests.isEmpty ? nil : Array(selectedInterests)
+        AppState.shared.currentUser = User(name: name, email: email, year: year, interests: interests)
         AppState.shared.isAuthenticated = true
 
         // Persist profile image separately (too large for Codable User)
@@ -129,12 +146,15 @@ class OnboardingViewModel: ObservableObject {
         let providerKey = appleUserId ?? googleUserId ?? AppState.shared.smsUserId ?? ""
         guard !providerKey.isEmpty else { return }
 
-        let profile: [String: String] = [
+        var profile: [String: String] = [
             "name": name,
             "email": email,
             "year": year,
             "providerKey": providerKey
         ]
+        if !selectedInterests.isEmpty {
+            profile["interests"] = selectedInterests.sorted().joined(separator: ",")
+        }
         // Store under a key that won't be cleared on sign-out
         var profiles = UserDefaults.standard.dictionary(forKey: "localProfiles") as? [String: [String: String]] ?? [:]
         profiles[providerKey] = profile
@@ -302,7 +322,7 @@ class OnboardingViewModel: ObservableObject {
             }
 
             // Truly new user — go to profile setup
-            navigateTo(.profileSetup)
+            navigateTo(.interestsPicker)
         } catch {
             let nsError = error as NSError
             // Don't show error if user cancelled
@@ -403,7 +423,7 @@ class OnboardingViewModel: ObservableObject {
             }
 
             // New user or backend unavailable — go to profile setup
-            navigateTo(.profileSetup)
+            navigateTo(.interestsPicker)
         } catch {
             errorMessage = error.localizedDescription
             otpCode = ""
@@ -504,7 +524,7 @@ class OnboardingViewModel: ObservableObject {
             }
 
             // Truly new user — go to profile setup
-            navigateTo(.profileSetup)
+            navigateTo(.interestsPicker)
         } catch {
             let nsError = error as NSError
             // GIDSignIn cancellation error code

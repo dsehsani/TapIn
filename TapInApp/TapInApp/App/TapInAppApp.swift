@@ -9,21 +9,40 @@
 import SwiftUI
 import GoogleSignIn
 import FirebaseCore
+import FirebaseAuth
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
+            FirebaseApp.configure()
+        }
+        application.registerForRemoteNotifications()
+        return true
+    }
+
+    func application(_ application: UIApplication,
+                     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        Auth.auth().setAPNSToken(deviceToken, type: .unknown)
+    }
+
+    func application(_ application: UIApplication,
+                     didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
+        if Auth.auth().canHandleNotification(userInfo) {
+            return .noData
+        }
+        return .newData
+    }
+}
 
 @main
 struct TapInAppApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+
     // Use AppState.shared so the onboarding ViewModel and the
     // app gate both observe the exact same instance.
     @StateObject private var appState = AppState.shared
     @State private var isCheckingSession = true
-
-    init() {
-        // Only configure Firebase if GoogleService-Info.plist exists.
-        // Remove this guard once the plist is added to the project.
-        if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
-            FirebaseApp.configure()
-        }
-    }
 
     var body: some Scene {
         WindowGroup {
