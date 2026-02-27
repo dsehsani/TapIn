@@ -43,9 +43,18 @@ def _ensure_firebase_initialized():
         _firebase_app = firebase_admin.initialize_app()
 
 
+_INSECURE_DEFAULTS = {"dev-secret-change-in-production", "SET_IN_CLOUD_CONSOLE", ""}
+
+
 def _secret_key() -> str:
     key = os.environ.get("SECRET_KEY", "dev-secret-change-in-production")
-    if key == "dev-secret-change-in-production":
+    is_production = os.environ.get("GAE_ENV") or os.environ.get("K_SERVICE")
+    if key in _INSECURE_DEFAULTS:
+        if is_production:
+            raise RuntimeError(
+                "FATAL: SECRET_KEY is not set or is a known default. "
+                "Set a strong SECRET_KEY in Cloud Run environment variables."
+            )
         logger.warning("SECRET_KEY not set — using insecure default (dev only)")
     return key
 

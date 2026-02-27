@@ -106,6 +106,12 @@ def get_article_content():
     if not url:
         return jsonify({"success": False, "error": "Missing 'url' query parameter"}), 400
 
+    # SSRF protection: only allow scraping from The Aggie
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    if parsed.hostname not in ("theaggie.org", "www.theaggie.org"):
+        return jsonify({"success": False, "error": "Only theaggie.org URLs are allowed"}), 400
+
     try:
         # Check Firestore cache
         cached_content = article_content_repository.get_content(url)

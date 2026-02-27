@@ -156,17 +156,18 @@ class ClaudeAPIService {
             return generateMockBulletPoints(from: description)
         }
 
-        let systemPrompt = """
-        You are a concise event summarizer for a UC Davis campus app. \
-        Extract the 3 to 5 most important facts from the event details provided. \
+        let message = """
+        Extract the 3 to 5 most important facts from this campus event. \
         Return ONLY emoji bullet points, one per line, with no extra text, headers, or markdown. \
         Each line must start with a relevant emoji followed by a space, then a brief phrase under 12 words. \
         Pick emojis that match the content (📍 location, 💰 cost, 🎓 academic, 🍕 food, 🎤 speaker, 🕐 time, 🔗 link, etc.).
+
+        Event: \(title)
+
+        \(description)
         """
 
-        let message = "Event: \(title)\n\n\(description)"
-
-        guard let response = await chat(message: message, systemPrompt: systemPrompt, maxTokens: 200) else {
+        guard let response = await chat(message: message, maxTokens: 200) else {
             return nil
         }
 
@@ -192,27 +193,26 @@ class ClaudeAPIService {
 
     /// Sends a message to Claude via the backend proxy.
     /// Use this for future features like campus Q&A, study help, etc.
+    /// Requires authentication — sends the backend JWT token.
     ///
     /// - Parameters:
     ///   - message: The user's message.
-    ///   - systemPrompt: Optional system prompt override.
     ///   - maxTokens: Max response length (default 300, server caps at 1000).
     /// - Returns: Claude's response string, or nil on failure.
-    func chat(message: String, systemPrompt: String? = nil, maxTokens: Int = 300) async -> String? {
+    func chat(message: String, maxTokens: Int = 300) async -> String? {
         guard let url = URL(string: APIConfig.chatURL) else { return nil }
+        guard let token = await AppState.shared.backendToken else { return nil }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 30
 
-        var body: [String: Any] = [
+        let body: [String: Any] = [
             "message": message,
             "max_tokens": maxTokens
         ]
-        if let systemPrompt = systemPrompt {
-            body["system_prompt"] = systemPrompt
-        }
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         do {

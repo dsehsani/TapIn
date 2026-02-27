@@ -111,11 +111,16 @@ class AppState: ObservableObject {
         backendToken = nil
         GIDSignIn.sharedInstance.signOut()
 
-        // Remove all user-related persisted data
+        // Remove auth tokens from Keychain
+        KeychainService.delete(key: "authToken")
+        KeychainService.delete(key: "smsUserId")
+        KeychainService.delete(key: "backendToken")
+
+        // Remove all user-related persisted data from UserDefaults
         let keysToRemove = [
             "profileImageData", "appleUserId", "localProfiles",
-            "currentUser", "isAuthenticated", "authToken",
-            "smsUserId", "backendToken",
+            "currentUser", "isAuthenticated",
+            "authToken", "smsUserId", "backendToken",  // legacy cleanup
             "savedArticles", "savedEvents"
         ]
         for key in keysToRemove {
@@ -136,6 +141,9 @@ class AppState: ObservableObject {
         smsUserId = nil
         backendToken = nil
         GIDSignIn.sharedInstance.signOut()
+        KeychainService.delete(key: "authToken")
+        KeychainService.delete(key: "smsUserId")
+        KeychainService.delete(key: "backendToken")
         UserDefaults.standard.removeObject(forKey: "profileImageData")
         UserDefaults.standard.removeObject(forKey: "appleUserId")
         UserDefaults.standard.removeObject(forKey: "savedArticles")
@@ -184,21 +192,21 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(notificationsEnabled, forKey: "notificationsEnabled")
         UserDefaults.standard.set(darkModeEnabled, forKey: "darkModeEnabled")
 
-        // Save auth token
+        // Save auth tokens to Keychain (encrypted at rest)
         if let token = authToken {
-            UserDefaults.standard.set(token, forKey: "authToken")
+            KeychainService.save(key: "authToken", value: token)
         } else {
-            UserDefaults.standard.removeObject(forKey: "authToken")
+            KeychainService.delete(key: "authToken")
         }
         if let uid = smsUserId {
-            UserDefaults.standard.set(uid, forKey: "smsUserId")
+            KeychainService.save(key: "smsUserId", value: uid)
         } else {
-            UserDefaults.standard.removeObject(forKey: "smsUserId")
+            KeychainService.delete(key: "smsUserId")
         }
         if let bToken = backendToken {
-            UserDefaults.standard.set(bToken, forKey: "backendToken")
+            KeychainService.save(key: "backendToken", value: bToken)
         } else {
-            UserDefaults.standard.removeObject(forKey: "backendToken")
+            KeychainService.delete(key: "backendToken")
         }
 
         // Save user data if authenticated
@@ -216,9 +224,27 @@ class AppState: ObservableObject {
         isAuthenticated = UserDefaults.standard.bool(forKey: "isAuthenticated")
         notificationsEnabled = UserDefaults.standard.bool(forKey: "notificationsEnabled")
         darkModeEnabled = UserDefaults.standard.bool(forKey: "darkModeEnabled")
-        authToken = UserDefaults.standard.string(forKey: "authToken")
-        smsUserId = UserDefaults.standard.string(forKey: "smsUserId")
-        backendToken = UserDefaults.standard.string(forKey: "backendToken")
+        // Load auth tokens from Keychain (migrate from UserDefaults if needed)
+        authToken = KeychainService.load(key: "authToken")
+            ?? UserDefaults.standard.string(forKey: "authToken")
+        smsUserId = KeychainService.load(key: "smsUserId")
+            ?? UserDefaults.standard.string(forKey: "smsUserId")
+        backendToken = KeychainService.load(key: "backendToken")
+            ?? UserDefaults.standard.string(forKey: "backendToken")
+
+        // Migrate: if loaded from UserDefaults, move to Keychain and clear UserDefaults
+        if let t = authToken, KeychainService.load(key: "authToken") == nil {
+            KeychainService.save(key: "authToken", value: t)
+            UserDefaults.standard.removeObject(forKey: "authToken")
+        }
+        if let s = smsUserId, KeychainService.load(key: "smsUserId") == nil {
+            KeychainService.save(key: "smsUserId", value: s)
+            UserDefaults.standard.removeObject(forKey: "smsUserId")
+        }
+        if let b = backendToken, KeychainService.load(key: "backendToken") == nil {
+            KeychainService.save(key: "backendToken", value: b)
+            UserDefaults.standard.removeObject(forKey: "backendToken")
+        }
 
         if let userData = UserDefaults.standard.data(forKey: "currentUser"),
            let user = try? JSONDecoder().decode(User.self, from: userData) {

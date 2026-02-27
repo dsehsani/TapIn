@@ -15,6 +15,7 @@
 #
 
 from flask import Blueprint, request, jsonify
+from middleware.auth_middleware import require_auth
 from services.claude_service import claude_service
 
 
@@ -101,15 +102,16 @@ def summarize_event():
 # ------------------------------------------------------------------------------
 
 @claude_bp.route("/chat", methods=["POST"])
+@require_auth
 def chat():
     """
     General-purpose Claude chat endpoint for future features
     (e.g., campus Q&A, study help, etc.).
+    Requires authentication via Bearer token.
 
     Request Body (JSON):
         {
             "message": str,           # User message (required)
-            "system_prompt": str,     # Optional system prompt override
             "max_tokens": int         # Optional, default 300, max 1000
         }
 
@@ -151,7 +153,8 @@ def chat():
                 "remaining": 0
             }), 429
 
-        system_prompt = data.get("system_prompt", "You are a helpful assistant for UC Davis students.")
+        # System prompt is server-controlled — never accept from client
+        system_prompt = "You are a helpful assistant for UC Davis students using the TapIn app."
         max_tokens = min(data.get("max_tokens", 300), 1000)
 
         client = claude_service._get_client()
