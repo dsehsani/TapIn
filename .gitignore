@@ -60,6 +60,10 @@ playground.xcworkspace
 .env.production
 *.xcconfig
 
+# Firebase / Google Cloud credentials
+GoogleService-Info.plist
+google-services.json
+
 # Python virtual environments
 venv/
 __pycache__/
