@@ -111,17 +111,21 @@ class NewsService {
     /// Layer 1: FileManager disk cache (30-min TTL, works offline)
     /// Layer 2: Backend /api/articles (Firestore-cached, shared across users)
     /// Layer 3: Direct Aggie RSS fallback (original behaviour)
-    func fetchArticles(category: NewsCategory = .all) async throws -> [NewsArticle] {
+    ///
+    /// - Parameters:
+    ///   - category: The news category to fetch.
+    ///   - forceRefresh: When true, skips the disk cache and fetches fresh data from the backend.
+    func fetchArticles(category: NewsCategory = .all, forceRefresh: Bool = false) async throws -> [NewsArticle] {
         let slug = category.rawValue.isEmpty ? "all" : category.rawValue
 
-        // Layer 1 — disk cache
-        if let cached = diskCache.loadArticleList(category: slug) {
+        // Layer 1 — disk cache (skipped on force refresh)
+        if !forceRefresh, let cached = diskCache.loadArticleList(category: slug) {
             return cached
         }
 
-        // Layer 2 — backend
+        // Layer 2 — backend (now returns imageURL from scraped content cache)
         if var backendArticles = await fetchFromBackend(category: slug) {
-            // Backend articles don't include images — scrape them client-side
+            // Only scrape images for articles the backend couldn't enrich
             backendArticles = await fetchArticleImages(for: backendArticles)
             diskCache.saveArticleList(backendArticles, category: slug)
             return backendArticles
@@ -267,9 +271,13 @@ class NewsService {
     // MARK: - Image Scraping
 
     /// Fetches each article's webpage and extracts the featured image (first img inside <article>).
+    /// Skips articles that already have an imageURL (e.g. from the backend).
     private func fetchArticleImages(for articles: [NewsArticle]) async -> [NewsArticle] {
         await withTaskGroup(of: (Int, String).self) { group in
             for (index, article) in articles.enumerated() {
+                // Skip if the backend already provided an image
+                guard article.imageURL.isEmpty else { continue }
+
                 guard let urlString = article.articleURL,
                       let url = URL(string: urlString) else { continue }
 

@@ -56,6 +56,13 @@ TAG_NORMALIZE = {
     "Breaking News":        "Campus",
 }
 
+# Sub-categories that have their own dedicated feeds/tabs.
+# When fetching a parent category, exclude articles tagged with these
+# so they only appear under their own tab.
+_SUBCATEGORY_EXCLUSIONS = {
+    "opinion": {"Column", "Editorial"},
+}
+
 WORDS_PER_MINUTE = 200
 
 
@@ -82,6 +89,11 @@ def fetch_articles(category: str = "all") -> list[dict]:
         article = _parse_entry(entry, default_category=display_name)
         if article:
             articles.append(article)
+
+    # Filter out sub-category articles that have their own dedicated tabs
+    exclusions = _SUBCATEGORY_EXCLUSIONS.get(category, set())
+    if exclusions:
+        articles = [a for a in articles if a["category"] not in exclusions]
 
     # Sort newest first
     articles.sort(key=lambda a: a["publishDate"], reverse=True)

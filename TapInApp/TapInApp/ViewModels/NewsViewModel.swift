@@ -40,12 +40,20 @@ class NewsViewModel: ObservableObject {
     private var categoryCache: [String: [NewsArticle]] = [:]
 
     init() {
+        // One-time: wipe stale disk caches that were saved without imageURLs.
+        // Fresh fetches from the backend now include enriched images.
+        let cacheVersion = UserDefaults.standard.integer(forKey: "articleCacheVersion")
+        if cacheVersion < 1 {
+            ArticleCacheService.shared.clearAllArticleLists()
+            UserDefaults.standard.set(1, forKey: "articleCacheVersion")
+        }
+
         // Instantly show cached articles (even if stale) so the user never sees a loading spinner
         loadCachedArticlesImmediately()
 
         Task {
-            // Fetch fresh articles and briefing in parallel
-            async let articlesTask: () = fetchArticles()
+            // Fetch fresh articles (bypassing disk cache) and briefing in parallel
+            async let articlesTask: () = fetchArticles(forceRefresh: true)
             async let briefingTask: () = fetchDailyBriefing()
             _ = await (articlesTask, briefingTask)
             // Prefetch all other categories in the background so filter switches are instant
@@ -65,7 +73,7 @@ class NewsViewModel: ObservableObject {
 
     // MARK: - Fetch Articles from RSS
 
-    func fetchArticles() async {
+    func fetchArticles(forceRefresh: Bool = false) async {
         errorMessage = nil
 
         // Find the selected category
@@ -80,7 +88,7 @@ class NewsViewModel: ObservableObject {
         }
 
         do {
-            let fetched = try await newsService.fetchArticles(category: newsCategory)
+            let fetched = try await newsService.fetchArticles(category: newsCategory, forceRefresh: forceRefresh)
             allFetchedArticles = fetched
             categoryCache[cacheKey] = fetched
             processArticles(fetched)
@@ -107,13 +115,22 @@ class NewsViewModel: ObservableObject {
             Category(id: cat.id, name: cat.name, icon: cat.icon, isSelected: cat.name == category)
         }
 
-        // Show cached articles instantly if available
+        // Show cached articles instantly — in-memory first, then disk
         if let cached = categoryCache[category] {
             allFetchedArticles = cached
             processArticles(cached)
+        } else {
+            // In-memory cache miss — try disk cache for instant display
+            let cat = categories.first { $0.name == category } ?? categories[0]
+            let slug = cat.newsCategory.rawValue.isEmpty ? "all" : cat.newsCategory.rawValue
+            if let diskCached = ArticleCacheService.shared.loadArticleListIgnoringTTL(category: slug), !diskCached.isEmpty {
+                allFetchedArticles = diskCached
+                categoryCache[category] = diskCached
+                processArticles(diskCached)
+            }
         }
 
-        // Refresh in the background (won't show loading spinner if cache hit)
+        // Silent background refresh (disk cache is fine — prefetch already populated fresh data)
         Task {
             await fetchArticles()
         }
@@ -154,7 +171,7 @@ class NewsViewModel: ObservableObject {
     }
 
     func refreshArticles() async {
-        async let articlesTask: () = fetchArticles()
+        async let articlesTask: () = fetchArticles(forceRefresh: true)
         async let briefingTask: () = fetchDailyBriefing()
         _ = await (articlesTask, briefingTask)
     }
@@ -185,7 +202,7 @@ class NewsViewModel: ObservableObject {
                 if categoryCache[name] != nil { continue }
 
                 group.addTask { [newsService] in
-                    let articles = try? await newsService.fetchArticles(category: newsCategory)
+                    let articles = try? await newsService.fetchArticles(category: newsCategory, forceRefresh: true)
                     return (name, articles)
                 }
             }

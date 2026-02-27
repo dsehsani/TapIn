@@ -70,6 +70,21 @@ def get_articles():
             if articles:
                 article_repository.save_articles(category, articles)
 
+        # Enrich articles that have empty imageURL with scraped thumbnails
+        for a in articles:
+            img = a.get("imageURL") or a.get("image_url") or ""
+            if not img:
+                link = a.get("articleURL") or a.get("article_url") or a.get("link", "")
+                if link:
+                    try:
+                        content = article_content_repository.get_content(link)
+                        if content:
+                            thumb = content.get("thumbnailURL") or content.get("thumbnail_url")
+                            if thumb:
+                                a["imageURL"] = thumb
+                    except Exception:
+                        pass
+
         return jsonify({
             "success":  True,
             "articles": articles,

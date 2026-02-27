@@ -62,6 +62,15 @@ final class ArticleCacheService {
         try? data.write(to: listCacheURL(category: category), options: .atomic)
     }
 
+    /// Deletes all article list cache files so the next fetch hits the backend.
+    func clearAllArticleLists() {
+        guard let files = try? fileManager.contentsOfDirectory(at: cacheDirectory,
+                                                                includingPropertiesForKeys: nil) else { return }
+        for file in files where file.lastPathComponent.hasPrefix("articles_") {
+            try? fileManager.removeItem(at: file)
+        }
+    }
+
     // --------------------------------------------------------------------------
     // MARK: - Article Content Cache (No TTL)
     // --------------------------------------------------------------------------
