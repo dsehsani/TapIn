@@ -178,12 +178,6 @@ struct DailyBriefingCard: View {
                     bulletsFallback(bullets: briefing.bulletPoints)
                 }
 
-                // Footer
-                HStack(spacing: 6) {
-                    AIBadgePill()
-                    Spacer()
-                }
-                .padding(.top, 2)
             }
         }
     }
@@ -239,8 +233,8 @@ struct DailyBriefingCard: View {
                     ForEach(0..<items.count, id: \.self) { index in
                         Capsule()
                             .fill(index == currentIndex
-                                ? Color.white.opacity(0.9)
-                                : Color.white.opacity(0.3))
+                                ? (colorScheme == .dark ? Color.white.opacity(0.9) : Color(hex: "#1e293b"))
+                                : (colorScheme == .dark ? Color.white.opacity(0.3) : Color(hex: "#cbd5e1")))
                             .frame(height: 3)
                     }
                 }

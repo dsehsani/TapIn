@@ -215,6 +215,10 @@ def _generate_briefing(cache_key: str, interests: list[str] | None = None) -> di
             if not image_url and source["type"] == "article" and source.get("linkURL"):
                 image_url = _lookup_thumbnail(source["linkURL"])
 
+            # For any item still without an image, assign a themed fallback
+            if not image_url:
+                image_url = _fallback_image(source["title"], subtitle)
+
             items.append({
                 "type": source["type"],
                 "title": source["title"],
@@ -225,6 +229,22 @@ def _generate_briefing(cache_key: str, interests: list[str] | None = None) -> di
             })
         # Also build legacy bullet_points for backward compat
         bullet_points.append(f"{emoji} {subtitle}")
+
+    # Step 4b: Reorder so the hero-matching item is first
+    if hero_title and len(items) > 1:
+        hero_lower = hero_title.lower()
+        best_idx = 0
+        best_score = 0
+        for i, item in enumerate(items):
+            title_words = item["title"].lower().split()
+            score = sum(1 for w in title_words if w in hero_lower)
+            sub_words = item["subtitle"].lower().split()
+            score += sum(1 for w in sub_words if w in hero_lower)
+            if score > best_score:
+                best_score = score
+                best_idx = i
+        if best_idx != 0 and best_score > 0:
+            items.insert(0, items.pop(best_idx))
 
     # Step 5: Cache in Firestore
     briefing = {
@@ -245,6 +265,53 @@ def _generate_briefing(cache_key: str, interests: list[str] | None = None) -> di
         "generated_at": datetime.now(tz=timezone.utc).isoformat(),
         "cached": False,
     }
+
+
+# Themed fallback images from Unsplash (free to use).
+# Each category maps keywords → a curated campus/theme photo.
+_FALLBACK_IMAGES = {
+    "sports": "https://images.unsplash.com/photo-1461896836934-bd45ba8fcfdb?w=800&h=400&fit=crop&q=80",
+    "food": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=400&fit=crop&q=80",
+    "music": "https://images.unsplash.com/photo-1501386761578-0a55c12e6fa5?w=800&h=400&fit=crop&q=80",
+    "art": "https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=400&fit=crop&q=80",
+    "study": "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=800&h=400&fit=crop&q=80",
+    "career": "https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=800&h=400&fit=crop&q=80",
+    "social": "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&h=400&fit=crop&q=80",
+    "science": "https://images.unsplash.com/photo-1532094349884-543bc11b234d?w=800&h=400&fit=crop&q=80",
+    "health": "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&h=400&fit=crop&q=80",
+    "default": "https://images.unsplash.com/photo-1562774053-701939374585?w=800&h=400&fit=crop&q=80",
+}
+
+_FALLBACK_KEYWORDS = {
+    "sports": ["basketball", "football", "soccer", "baseball", "lacrosse", "tennis",
+               "volleyball", "track", "swim", "game", "match", "tournament", "athlete",
+               "aggies", "aggie", "ucsb", "rivalry", "playoff"],
+    "food": ["food", "taco", "pizza", "coffee", "cafe", "dining", "lunch", "dinner",
+             "snack", "brunch", "free food", "potluck", "cookout", "bake"],
+    "music": ["music", "concert", "band", "jazz", "dj", "open mic", "sing",
+              "guitar", "piano", "orchestra", "symphony", "festival"],
+    "art": ["art", "gallery", "exhibit", "theater", "theatre", "film", "movie",
+            "dance", "fashion", "design", "photography", "paint", "creative"],
+    "study": ["study", "library", "exam", "tutor", "workshop", "seminar",
+              "lecture", "academic", "research", "lab"],
+    "career": ["career", "job", "intern", "hiring", "resume", "interview",
+               "fair", "recruit", "profession", "networking"],
+    "social": ["party", "mixer", "social", "hangout", "meet", "club",
+               "organization", "welcome", "orientation", "community"],
+    "science": ["science", "tech", "engineering", "stem", "computer", "robot",
+                "ai", "data", "hack", "code", "bio", "chem", "physics"],
+    "health": ["health", "wellness", "yoga", "meditation", "mental", "fitness",
+               "gym", "run", "walk", "therapy", "counseling"],
+}
+
+
+def _fallback_image(title: str, subtitle: str) -> str:
+    """Returns a themed stock photo URL based on event title/subtitle keywords."""
+    text = f"{title} {subtitle}".lower()
+    for category, keywords in _FALLBACK_KEYWORDS.items():
+        if any(kw in text for kw in keywords):
+            return _FALLBACK_IMAGES[category]
+    return _FALLBACK_IMAGES["default"]
 
 
 def _lookup_thumbnail(article_url: str) -> str | None:
