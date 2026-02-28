@@ -143,7 +143,7 @@ class NewsViewModel: ObservableObject {
             return
         }
 
-        // Gather articles from ALL cached categories
+        // Show local results instantly while backend search loads
         var seen = Set<String>()
         var allArticles: [NewsArticle] = []
         for (_, cached) in categoryCache {
@@ -156,13 +156,38 @@ class NewsViewModel: ObservableObject {
             }
         }
 
-        let filtered = allArticles.filter {
+        let localResults = allArticles.filter {
             $0.title.localizedCaseInsensitiveContains(query) ||
             $0.excerpt.localizedCaseInsensitiveContains(query) ||
             ($0.author?.localizedCaseInsensitiveContains(query) ?? false) ||
             $0.category.localizedCaseInsensitiveContains(query)
         }
-        processArticles(filtered)
+        processArticles(localResults)
+
+        // Then fetch from backend for deeper results across the full archive
+        Task {
+            let backendResults = await newsService.searchArticles(query: query)
+            guard !backendResults.isEmpty, isSearchActive else { return }
+
+            // Merge: backend results first (ranked by relevance), then any local-only extras
+            var mergedSeen = Set<String>()
+            var merged: [NewsArticle] = []
+            for article in backendResults {
+                let key = article.articleURL ?? article.title
+                if !mergedSeen.contains(key) {
+                    mergedSeen.insert(key)
+                    merged.append(article)
+                }
+            }
+            for article in localResults {
+                let key = article.articleURL ?? article.title
+                if !mergedSeen.contains(key) {
+                    mergedSeen.insert(key)
+                    merged.append(article)
+                }
+            }
+            processArticles(merged)
+        }
     }
 
     func clearSearch() {

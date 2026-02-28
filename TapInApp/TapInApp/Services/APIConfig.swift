@@ -32,6 +32,14 @@ enum APIConfig {
         "\(baseURL)api/articles?category=\(category)"
     }
 
+    // MARK: - Article Search Endpoint
+
+    /// GET /api/articles/search?q=<query> — Full-text search across all archived articles
+    static func articleSearchURL(query: String) -> String {
+        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+        return "\(baseURL)api/articles/search?q=\(encoded)"
+    }
+
     // MARK: - Article Content Endpoint
 
     /// GET /api/articles/content?url=<encoded_url> — Scraped article body (Firestore-cached)

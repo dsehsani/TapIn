@@ -29,16 +29,39 @@ class ArticleRepository:
     # --------------------------------------------------------------------------
 
     def save_articles(self, category: str, articles: list[dict]) -> None:
-        """Upserts the article list for a category into Firestore."""
+        """
+        Merges new articles into the persistent archive for a category.
+        New articles from RSS are prepended; duplicates (by id) are skipped.
+        The cached_at timestamp tracks when we last fetched from RSS.
+        """
         try:
             db = get_firestore_client()
-            db.collection(COLLECTION).document(category).set({
-                "articles":  articles,
+            doc_ref = db.collection(COLLECTION).document(category)
+            doc = doc_ref.get()
+
+            # Build a set of existing article IDs for fast dedup
+            existing_articles = []
+            if doc.exists:
+                existing_articles = doc.to_dict().get("articles", [])
+            existing_ids = {a.get("id") for a in existing_articles if a.get("id")}
+
+            # Find genuinely new articles
+            new_articles = [a for a in articles if a.get("id") not in existing_ids]
+
+            # Prepend new articles to the archive (newest first)
+            merged = new_articles + existing_articles
+
+            doc_ref.set({
+                "articles":  merged,
                 "cached_at": datetime.now(tz=timezone.utc),
                 "category":  category,
-                "count":     len(articles),
+                "count":     len(merged),
             })
-            logger.info(f"Cached {len(articles)} articles for category '{category}'")
+
+            if new_articles:
+                logger.info(f"Added {len(new_articles)} new articles for '{category}' (total: {len(merged)})")
+            else:
+                logger.info(f"No new articles for '{category}', refreshed timestamp (total: {len(merged)})")
         except Exception as e:
             logger.error(f"Failed to save articles for '{category}': {e}")
             raise
@@ -87,6 +110,82 @@ class ArticleRepository:
         except Exception as e:
             logger.error(f"Staleness check failed for '{category}': {e}")
             return True
+
+    # Topic → expanded keywords so general topics match Aggie categories
+    TOPIC_EXPANSIONS = {
+        "technology":    ["tech", "sciencetech", "science", "computer", "software", "ai"],
+        "entertainment": ["film", "movie", "music", "show", "concert", "arts", "theater", "comedy"],
+        "politics":      ["political", "election", "vote", "government", "policy", "legislation", "senate", "congress"],
+        "business":      ["economy", "economic", "startup", "finance", "company", "market", "job"],
+        "food & dining": ["food", "dining", "restaurant", "recipe", "chef", "eat", "menu", "cafe"],
+        "campus life":   ["campus", "student", "dorm", "quad", "aggie", "uc davis", "university"],
+        "health":        ["health", "medical", "hospital", "wellness", "mental", "clinic", "disease"],
+        "science":       ["science", "sciencetech", "research", "study", "lab", "discovery"],
+        "sports":        ["sports", "game", "basketball", "football", "soccer", "tennis", "athlete", "team"],
+        "arts":          ["arts", "art", "gallery", "museum", "painting", "theater", "dance", "culture"],
+    }
+
+    def search_articles(self, query: str, limit: int = 50) -> list[dict]:
+        """
+        Searches across ALL category archives for articles matching the query.
+        Matches against title, excerpt, category, and author fields.
+        Returns deduplicated results sorted by relevance (title match > excerpt).
+        """
+        if not query or not query.strip():
+            return []
+
+        query_lower = query.lower().strip()
+        query_words = query_lower.split()
+
+        # Expand query with topic synonyms
+        expanded = list(query_words)
+        for topic, synonyms in self.TOPIC_EXPANSIONS.items():
+            if query_lower == topic or query_lower in synonyms:
+                expanded.extend(s for s in synonyms if s not in expanded)
+                break
+        query_words = expanded
+
+        try:
+            db = get_firestore_client()
+            docs = db.collection(COLLECTION).stream()
+
+            seen_ids = set()
+            scored_articles = []
+
+            for doc in docs:
+                data = doc.to_dict()
+                for article in data.get("articles", []):
+                    article_id = article.get("id", "")
+                    if article_id in seen_ids:
+                        continue
+                    seen_ids.add(article_id)
+
+                    title = (article.get("title") or "").lower()
+                    excerpt = (article.get("excerpt") or "").lower()
+                    category = (article.get("category") or "").lower()
+                    author = (article.get("author") or "").lower()
+
+                    score = 0
+                    for word in query_words:
+                        if word in title:
+                            score += 3
+                        if word in category:
+                            score += 2
+                        if word in excerpt:
+                            score += 1
+                        if word in author:
+                            score += 1
+
+                    if score > 0:
+                        scored_articles.append((score, article))
+
+            # Sort by score descending, then take top results
+            scored_articles.sort(key=lambda x: x[0], reverse=True)
+            return [a for _, a in scored_articles[:limit]]
+
+        except Exception as e:
+            logger.error(f"Search failed for query '{query}': {e}")
+            return []
 
     def count(self, category: str = "all") -> int:
         """Returns the cached article count for a category."""

@@ -67,19 +67,12 @@ struct ContentView: View {
             Tab(value: .search, role: .search) {
                 NavigationStack {
                     SearchView(
-                        selectedTab: $selectedTab,
-                        newsSearchText: $newsViewModel.searchText
+                        searchText: $tabSearchText,
+                        savedViewModel: savedViewModel
                     )
                     .navigationTitle("Search")
                 }
-            }
-        }
-        .searchable(text: $tabSearchText, prompt: "Search UC Davis News")
-        .onSubmit(of: .search) {
-            if !tabSearchText.trimmingCharacters(in: .whitespaces).isEmpty {
-                newsViewModel.searchText = tabSearchText
-                tabSearchText = ""
-                selectedTab = .news
+                .searchable(text: $tabSearchText, prompt: "Search UC Davis News")
             }
         }
         .tint(colorScheme == .dark ? Color.accentOrange : Color.accentCoral)

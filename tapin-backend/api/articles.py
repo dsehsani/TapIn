@@ -6,6 +6,7 @@
 #
 #  Endpoints:
 #  GET  /api/articles?category=all              - Returns cached article list (refreshes if stale)
+#  GET  /api/articles/search?q=<query>          - Full-text search across all archived articles
 #  GET  /api/articles/content?url=<url>         - Returns scraped article content (Firestore-cached)
 #  GET  /api/articles/daily-briefing            - Today's AI-generated news briefing
 #  POST /api/articles/daily-briefing/generate   - Cron: force-generate today's briefing
@@ -94,6 +95,69 @@ def get_articles():
 
     except Exception as e:
         logger.error(f"GET /api/articles failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ------------------------------------------------------------------------------
+# MARK: - GET /api/articles/search
+# ------------------------------------------------------------------------------
+
+@articles_bp.route("/search", methods=["GET"])
+def search_articles():
+    """
+    Full-text search across ALL archived articles in Firestore.
+    Matches title, excerpt, category, and author fields.
+    Results are ranked by relevance.
+
+    Query params:
+        q     (str): search query (required)
+        limit (int): max results, default 30
+
+    Response (200):
+        {
+            "success": true,
+            "articles": [...],
+            "count": 12,
+            "query": "politics"
+        }
+    """
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"success": False, "error": "Missing 'q' query parameter"}), 400
+
+    limit = request.args.get("limit", "30")
+    try:
+        limit = min(int(limit), 100)
+    except ValueError:
+        limit = 30
+
+    try:
+        articles = article_repository.search_articles(query, limit=limit)
+
+        # Enrich articles that have empty imageURL
+        for a in articles:
+            img = a.get("imageURL") or a.get("image_url") or ""
+            if not img:
+                link = a.get("articleURL") or a.get("article_url") or a.get("link", "")
+                if link:
+                    try:
+                        content = article_content_repository.get_content(link)
+                        if content:
+                            thumb = content.get("thumbnailURL") or content.get("thumbnail_url")
+                            if thumb:
+                                a["imageURL"] = thumb
+                    except Exception:
+                        pass
+
+        return jsonify({
+            "success":  True,
+            "articles": articles,
+            "count":    len(articles),
+            "query":    query,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"GET /api/articles/search failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

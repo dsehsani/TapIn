@@ -191,6 +191,29 @@ class NewsService {
         return try await fetchArticles(category: .all)
     }
 
+    // MARK: - Backend Search
+
+    /// Searches all archived articles on the backend by keyword.
+    /// Returns relevance-ranked results from the full Firestore archive.
+    func searchArticles(query: String) async -> [NewsArticle] {
+        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return [] }
+        guard let url = URL(string: APIConfig.articleSearchURL(query: query)) else { return [] }
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else { return [] }
+            let decoded = try JSONDecoder().decode(BackendArticlesResponse.self, from: data)
+            if decoded.success {
+                return await fetchArticleImages(for: decoded.articles)
+            }
+            return []
+        } catch {
+            #if DEBUG
+            print("NewsService: backend search failed — \(error)")
+            #endif
+            return []
+        }
+    }
+
     // MARK: - Article Content Fetching (in-memory → disk → backend → scrape)
 
     /// Fetches the full article body for in-app reading.
