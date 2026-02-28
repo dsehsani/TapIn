@@ -18,11 +18,38 @@ struct SavedView: View {
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
-        Group {
-            if #available(iOS 26, *) {
-                ios26Body
-            } else {
-                legacyBody
+        ZStack {
+            Color.adaptiveBackground(colorScheme)
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text("Saved")
+                        .font(.system(size: 34, weight: .black))
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+
+                // Segment Picker
+                HStack(spacing: 0) {
+                    segmentButton(title: "Articles", index: 0)
+                    segmentButton(title: "Events", index: 1)
+                }
+                .padding(3)
+                .background(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+
+                if selectedSegment == 0 {
+                    articlesContent
+                } else {
+                    eventsContent
+                }
             }
         }
         .sheet(item: $selectedEvent) { event in
@@ -33,88 +60,6 @@ struct SavedView: View {
         }
     }
 
-    // MARK: - iOS 26+ Liquid Glass Navigation
-
-    @available(iOS 26, *)
-    private var ios26Body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                Picker("", selection: $selectedSegment) {
-                    Text("Articles").tag(0)
-                    Text("Events").tag(1)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-
-                if selectedSegment == 0 {
-                    articlesContent
-                } else {
-                    eventsContent
-                }
-            }
-            .navigationTitle("Saved")
-        }
-    }
-
-    // MARK: - Legacy Body (iOS 17–25)
-
-    private var legacyBody: some View {
-        ZStack {
-            Color.adaptiveBackground(colorScheme)
-                .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                // MARK: - Gradient Header
-                VStack(spacing: 16) {
-                    HStack {
-                        Text("Saved")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(.white)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 20)
-
-                    HStack(spacing: 0) {
-                        segmentButton(title: "Saved Articles", index: 0)
-                        segmentButton(title: "Saved Events", index: 1)
-                    }
-                    .padding(3)
-                    .background(.black.opacity(0.2))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .padding(.horizontal, 20)
-                }
-                .padding(.top, 60)
-                .padding(.bottom, 20)
-                .frame(maxWidth: .infinity)
-                .background(
-                    LinearGradient(
-                        colors: colorScheme == .dark
-                            ? [Color(hex: "#1e2545"), Color(hex: "#302050")]
-                            : [Color.accentCoral, Color.accentOrange],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .clipShape(
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 0,
-                        bottomLeadingRadius: 24,
-                        bottomTrailingRadius: 24,
-                        topTrailingRadius: 0
-                    )
-                )
-
-                if selectedSegment == 0 {
-                    articlesContent
-                } else {
-                    eventsContent
-                }
-            }
-        }
-        .ignoresSafeArea(edges: .top)
-    }
-
     // MARK: - Segment Button
 
     private func segmentButton(title: String, index: Int) -> some View {
@@ -123,10 +68,14 @@ struct SavedView: View {
         }) {
             Text(title)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(selectedSegment == index ? Color(hex: "#022851") : .white.opacity(0.8))
+                .foregroundColor(selectedSegment == index
+                    ? (colorScheme == .dark ? .white : Color(hex: "#0f172a"))
+                    : .secondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
-                .background(selectedSegment == index ? .white : .clear)
+                .background(selectedSegment == index
+                    ? (colorScheme == .dark ? Color(hex: "#2a2a3e") : .white)
+                    : .clear)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)

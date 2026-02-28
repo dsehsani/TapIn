@@ -201,7 +201,7 @@ class ClaudeAPIService {
     /// - Returns: Claude's response string, or nil on failure.
     func chat(message: String, maxTokens: Int = 300) async -> String? {
         guard let url = URL(string: APIConfig.chatURL) else { return nil }
-        guard let token = await AppState.shared.backendToken else { return nil }
+        guard let token = AppState.shared.backendToken else { return nil }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"

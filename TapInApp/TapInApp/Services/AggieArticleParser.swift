@@ -122,7 +122,7 @@ final class AggieArticleParser {
         let paragraphs = try root.select("p")
         let noisePatterns = ["follow us on", "subscribe to", "support the aggie", "©", "written by"]
 
-        let cleaned: [String] = try paragraphs.compactMap { p in
+        let cleaned: [String] = paragraphs.compactMap { p in
             // Use inner HTML to preserve bold/strong markup
             let text = extractTextPreservingBold(from: p)
                 .trimmingCharacters(in: .whitespacesAndNewlines)

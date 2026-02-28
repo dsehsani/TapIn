@@ -65,6 +65,7 @@ struct LeaderboardView: View {
                 .presentationDetents([.medium])
             }
             .task {
+                viewModel.selectedDate = Date()
                 await viewModel.loadData()
             }
         }
@@ -101,17 +102,13 @@ struct LeaderboardView: View {
 
             Spacer()
 
-            if !viewModel.isToday {
-                Button {
-                    viewModel.goToToday()
-                } label: {
-                    Text("Today")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(Color.ucdGold))
-                }
+            if viewModel.isToday {
+                Text("Today")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(Color.ucdGold))
             }
         }
     }

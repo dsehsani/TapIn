@@ -213,7 +213,7 @@ struct EventDetailView: View {
                         }
                     }
 
-                    // MARK: - Attend Button
+                    // MARK: - Save Event Button
                     Button(action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                             savedViewModel.toggleEventSaved(event)
@@ -221,9 +221,9 @@ struct EventDetailView: View {
                     }) {
                         HStack {
                             Spacer()
-                            Image(systemName: savedViewModel.isEventSaved(event) ? "checkmark.circle.fill" : "plus.circle")
+                            Image(systemName: savedViewModel.isEventSaved(event) ? "bookmark.fill" : "bookmark")
                                 .font(.system(size: 18, weight: .semibold))
-                            Text(savedViewModel.isEventSaved(event) ? "Attending" : "Attend")
+                            Text(savedViewModel.isEventSaved(event) ? "Saved" : "Save Event")
                                 .font(.system(size: 16, weight: .semibold))
                             Spacer()
                         }

@@ -22,9 +22,9 @@ struct CampusView: View {
             VStack(spacing: 24) {
                 // Header
                 HStack {
-                    Text("Campus Events")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(colorScheme == .dark ? .white : Color.ucdBlue)
+                    Text("Events")
+                        .font(.system(size: 34, weight: .black))
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
                     Spacer()
                 }
                 .padding(.horizontal, 16)
@@ -188,16 +188,15 @@ struct EventCard: View {
 
                 Spacer()
 
-                // Attending Toggle
+                // Save Toggle
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                         savedViewModel.toggleEventSaved(event)
                     }
                 }) {
-                    Image(systemName: savedViewModel.isEventSaved(event) ? "checkmark.circle.fill" : "plus.circle")
-                        .font(.system(size: 22))
-                        .foregroundColor(savedViewModel.isEventSaved(event) ? Color(hex: "#10b981") : .textSecondary)
-                        .scaleEffect(savedViewModel.isEventSaved(event) ? 1.1 : 1.0)
+                    Image(systemName: savedViewModel.isEventSaved(event) ? "bookmark.fill" : "bookmark")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(savedViewModel.isEventSaved(event) ? (colorScheme == .dark ? Color.ucdGold : Color.ucdBlue) : .textSecondary)
                 }
                 .buttonStyle(.plain)
                 .sensoryFeedback(.impact(weight: .medium), trigger: savedViewModel.isEventSaved(event))

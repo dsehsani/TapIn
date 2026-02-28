@@ -10,11 +10,13 @@ import SwiftUI
 struct NewsView: View {
     @ObservedObject var viewModel: NewsViewModel
     @ObservedObject var savedViewModel: SavedViewModel
+    @ObservedObject var campusViewModel: CampusViewModel
     @Binding var selectedTab: TabItem
 
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.openURL) var openURL
     @State private var selectedArticle: NewsArticle? = nil
+    @State private var selectedEvent: CampusEvent? = nil
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -186,6 +188,9 @@ struct NewsView: View {
             .sheet(item: $selectedArticle) { article in
                 ArticleDetailView(article: article, savedViewModel: savedViewModel)
             }
+            .sheet(item: $selectedEvent) { event in
+                EventDetailView(event: event, savedViewModel: savedViewModel)
+            }
 
             // Sticky Header (legacy only — iOS 26+ header scrolls inline)
             if #unavailable(iOS 26) {
@@ -227,6 +232,26 @@ struct NewsView: View {
                 $0.title == item.title || $0.articleURL == (item.linkURL ?? "")
             }) {
                 selectedArticle = match
+                return
+            }
+        }
+
+        // For events, match to a loaded CampusEvent and open the detail sheet
+        if item.type == "event" {
+            let itemTitle = item.title.lowercased()
+            let itemLink = item.linkURL?.lowercased() ?? ""
+            if let match = campusViewModel.allEvents.first(where: { event in
+                let eventTitle = event.title.lowercased()
+                let eventURL = (event.eventURL ?? "").lowercased()
+                // Match by URL first (most reliable), then by title
+                if !itemLink.isEmpty && !eventURL.isEmpty && (eventURL.contains(itemLink) || itemLink.contains(eventURL)) {
+                    return true
+                }
+                return eventTitle == itemTitle
+                    || eventTitle.contains(itemTitle)
+                    || itemTitle.contains(eventTitle)
+            }) {
+                selectedEvent = match
                 return
             }
         }
@@ -397,6 +422,7 @@ struct ArticleRowCard: View {
     NewsView(
         viewModel: NewsViewModel(),
         savedViewModel: SavedViewModel(),
+        campusViewModel: CampusViewModel(),
         selectedTab: .constant(.news)
     )
 }

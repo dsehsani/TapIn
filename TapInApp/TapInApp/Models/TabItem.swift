@@ -9,7 +9,7 @@ import SwiftUI
 
 enum TabItem: String, CaseIterable {
     case news = "News"
-    case campus = "Campus"
+    case campus = "Events"
     case games = "Games"
     case saved = "Saved"
     case profile = "Profile"

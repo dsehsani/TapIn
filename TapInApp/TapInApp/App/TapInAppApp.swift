@@ -26,7 +26,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         Auth.auth().setAPNSToken(deviceToken, type: .unknown)
     }
 
-    func application(_ application: UIApplication,
+    nonisolated func application(_ application: UIApplication,
                      didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
         if Auth.auth().canHandleNotification(userInfo) {
             return .noData

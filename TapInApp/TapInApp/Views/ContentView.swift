@@ -48,11 +48,12 @@ struct ContentView: View {
                 NewsView(
                     viewModel: newsViewModel,
                     savedViewModel: savedViewModel,
+                    campusViewModel: campusViewModel,
                     selectedTab: $selectedTab
                 )
             }
 
-            Tab("Campus", systemImage: "building.2.fill", value: .campus) {
+            Tab("Events", systemImage: "building.2.fill", value: .campus) {
                 CampusView(viewModel: campusViewModel, savedViewModel: savedViewModel)
             }
 
@@ -101,6 +102,7 @@ struct ContentView: View {
                 NewsView(
                     viewModel: newsViewModel,
                     savedViewModel: savedViewModel,
+                    campusViewModel: campusViewModel,
                     selectedTab: $selectedTab
                 )
 
@@ -139,7 +141,7 @@ struct ContentView: View {
             CustomTabBar(selectedTab: $selectedTab)
                 .pulsingHotspot(
                     tip: .navigationBar,
-                    message: "Jump between News, Campus, Games & more.",
+                    message: "Jump between News, Events, Games & more.",
                     arrowEdge: .bottom,
                     highlightStyle: .topGlow
                 )

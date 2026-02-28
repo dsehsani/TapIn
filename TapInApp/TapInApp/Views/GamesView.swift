@@ -22,9 +22,9 @@ struct GamesView: View {
                 VStack(spacing: 24) {
                     // Header
                     HStack {
-                        Text("Aggie Games")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(colorScheme == .dark ? .white : Color.ucdBlue)
+                        Text("Games")
+                            .font(.system(size: 34, weight: .black))
+                            .foregroundColor(colorScheme == .dark ? .white : .black)
 
                         Spacer()
 

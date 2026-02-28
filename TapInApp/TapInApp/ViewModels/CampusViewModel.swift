@@ -21,7 +21,7 @@ class CampusViewModel: ObservableObject {
     @Published var filterType: EventFilterType = .all
 
     private let service = EventsAPIService.shared
-    private var allEvents: [CampusEvent] = []
+    @Published private(set) var allEvents: [CampusEvent] = []
 
     init() {
         Task { await fetchEvents() }

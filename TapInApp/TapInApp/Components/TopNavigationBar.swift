@@ -26,16 +26,9 @@ struct TopNavigationBar: View {
     @available(iOS 26, *)
     private var ios26Header: some View {
         HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(Self.currentDateString)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
-
-                Text("TapIn")
-                    .font(.system(size: 34, weight: .black))
-                    .foregroundColor(Color.adaptiveText(colorScheme))
-            }
+            Text(Self.currentDateString)
+                .font(.system(size: 34, weight: .black))
+                .foregroundColor(Color.adaptiveText(colorScheme))
 
             Spacer()
 
@@ -54,7 +47,7 @@ struct TopNavigationBar: View {
 
     private static var currentDateString: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMMM d"
+        formatter.dateFormat = "MMMM d"
         return formatter.string(from: Date())
     }
 
