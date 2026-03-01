@@ -5,329 +5,315 @@
 //  Created by Darius Ehsani on 1/20/26.
 //
 //  MARK: - View Layer (MVVM)
-//  This view displays the game over overlay with results and navigation options.
-//  It appears when the player wins or loses, providing feedback and next actions.
-//
-//  Integration Notes:
-//  - Used by ContentView as a modal overlay
-//  - Displays different content based on win/loss and archive mode
-//  - Provides navigation to archive or today's game
-//  - Shows leaderboard ranking on win
-//  - Can be dismissed by tapping the background
+//  Bottom sheet overlay showing game results, podium leaderboard, and actions.
 //
 
 import SwiftUI
 
-// MARK: - Game Over View
-/// Displays the game over overlay with results and navigation options.
-///
-/// Content varies based on:
-/// - Win vs Loss: Different icons, messages, and details
-/// - Archive mode: Different action button options
-/// - Today's completion: Adjusts messaging and options
-/// - Leaderboard: Shows top 5 players on win
-///
-/// Layout:
-/// - Semi-transparent backdrop (tappable to dismiss)
-/// - Centered card with icon, message, leaderboard, and action buttons
-///
 struct GameOverView: View {
     // MARK: - Properties
 
-    /// The final game state (won or lost)
     let gameState: GameState
-
-    /// The target word (revealed on loss)
     let targetWord: String
-
-    /// Number of guesses used (displayed on win)
     let attempts: Int
-
-    /// Whether viewing an archived game
     let isArchiveMode: Bool
-
-    /// Whether today's game has been completed
     let isTodayCompleted: Bool
 
-    // MARK: - Leaderboard Properties
-
-    /// Top 5 leaderboard entries for this puzzle
     var leaderboardEntries: [LeaderboardEntryResponse] = []
-
-    /// The username assigned to the current player (if score was submitted)
     var assignedUsername: String? = nil
-
-    /// Whether the leaderboard is currently loading
     var isLoadingLeaderboard: Bool = false
 
-    // MARK: - Callbacks
-
-    /// Called when "Play Today's Word" is tapped
     let onPlayToday: () -> Void
-
-    /// Called when "Play Previous Weeks" is tapped
     let onBrowseArchive: () -> Void
-
-    /// Called when the backdrop is tapped (dismiss overlay)
     let onDismiss: () -> Void
-
-    /// Called when "Back" is tapped (placeholder for future use)
     let onBack: () -> Void
 
-    /// Color scheme for dark mode support
     var colorScheme: ColorScheme = .light
 
-    // MARK: - Computed Properties
+    // MARK: - Helpers
 
-    private var accentColor: Color {
-        Color.adaptiveAccent(colorScheme)
+    private var cardBg: Color {
+        colorScheme == .dark ? Color(hex: "#141424") : .white
     }
 
-    private var cardBackground: Color {
-        colorScheme == .dark ? Color(hex: "#1a1a2e") : .white
+    private var muted: Color {
+        colorScheme == .dark ? Color(hex: "#8b8fa3") : Color(hex: "#64748b")
+    }
+
+    private var textPrimary: Color {
+        colorScheme == .dark ? .white : Color(hex: "#0f172a")
     }
 
     // MARK: - Body
 
     var body: some View {
-        ZStack {
-            // Semi-transparent backdrop
-            Color.black.opacity(colorScheme == .dark ? 0.6 : 0.4)
+        ZStack(alignment: .bottom) {
+            // Backdrop
+            Color.black.opacity(colorScheme == .dark ? 0.5 : 0.25)
                 .ignoresSafeArea()
-                .onTapGesture {
-                    onDismiss()
-                }
+                .onTapGesture { onDismiss() }
 
-            // Result card
-            VStack(spacing: 20) {
-                // Result icon
-                resultIcon
+            // Bottom sheet
+            VStack(spacing: 0) {
+                // Drag indicator
+                Capsule()
+                    .fill(Color.gray.opacity(0.4))
+                    .frame(width: 36, height: 4)
+                    .padding(.top, 10)
+                    .padding(.bottom, 16)
 
-                // Title
-                Text(gameState == .won ? "Congratulations!" : "Game Over")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundColor(accentColor)
+                // Result header
+                resultHeader
+                    .padding(.bottom, 18)
 
-                // Result details
-                resultDetails
-
-                // Leaderboard section (only shown on win with data)
+                // Leaderboard (win + non-archive only)
                 if gameState == .won && !isArchiveMode {
                     leaderboardSection
+                        .padding(.bottom, 18)
                 }
 
-                // Action buttons
-                actionButtons
-                    .padding(.top, 8)
+                // Actions
+                actionSection
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 30)
             }
-            .padding(32)
             .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(cardBackground)
-                    .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.5 : 0.2), radius: 20)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(cardBg)
+                    .shadow(color: .black.opacity(0.2), radius: 30, y: -5)
             )
-            .padding(40)
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(colorScheme == .dark ? Color.white.opacity(0.06) : .clear, lineWidth: 1)
+            )
         }
+        .ignoresSafeArea(edges: .bottom)
     }
 
-    // MARK: - Subviews
+    // MARK: - Result Header
 
-    /// Icon showing win (checkmark) or loss (X)
-    private var resultIcon: some View {
-        Image(systemName: gameState == .won ? "checkmark.circle.fill" : "xmark.circle.fill")
-            .font(.system(size: 60))
-            .foregroundColor(gameState == .won ? .wordleGreen : .ucdGold)
-    }
+    private var resultHeader: some View {
+        VStack(spacing: 8) {
+            Image(systemName: gameState == .won ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .font(.system(size: 38))
+                .foregroundColor(gameState == .won ? Color.wordleGreen : Color(red: 0.85, green: 0.3, blue: 0.3))
 
-    /// Details about the result (attempts for win, word for loss)
-    @ViewBuilder
-    private var resultDetails: some View {
-        if gameState == .won {
-            // Show number of guesses on win
-            Text("Solved in \(attempts) \(attempts == 1 ? "guess" : "guesses")")
-                .font(.system(size: 16))
-                .foregroundColor(.secondary)
-        } else {
-            // Reveal the target word on loss
-            VStack(spacing: 4) {
-                Text("The word was")
-                    .font(.system(size: 16))
-                    .foregroundColor(.secondary)
-                Text(targetWord)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(accentColor)
+            Text(gameState == .won ? "Nice Work!" : "Game Over")
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundColor(textPrimary)
+
+            if gameState == .won {
+                Text("\(attempts)/6 guesses")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(muted)
+            } else {
+                HStack(spacing: 6) {
+                    Text("Answer:")
+                        .font(.system(size: 14))
+                        .foregroundColor(muted)
+                    Text(targetWord)
+                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .foregroundColor(Color.wordleGreen)
+                }
             }
         }
     }
 
-    /// Leaderboard section showing top 5 players
-    @ViewBuilder
+    // MARK: - Leaderboard
+
     private var leaderboardSection: some View {
         VStack(spacing: 12) {
-            // Section header
-            HStack {
+            // Section label
+            HStack(spacing: 5) {
                 Image(systemName: "trophy.fill")
-                    .foregroundColor(.ucdGold)
-                Text("Today's Leaderboard")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundColor(accentColor)
+                    .font(.system(size: 11))
+                    .foregroundColor(Color.ucdGold)
+                Text("LEADERBOARD")
+                    .font(.system(size: 11, weight: .bold))
+                    .tracking(1)
+                    .foregroundColor(muted)
             }
 
             if isLoadingLeaderboard {
-                // Loading state
                 ProgressView()
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 16)
             } else if leaderboardEntries.isEmpty {
-                // No entries yet
-                Text("Be the first to complete today's puzzle!")
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+                Text("No entries yet")
+                    .font(.system(size: 13))
+                    .foregroundColor(muted)
+                    .padding(.vertical, 8)
             } else {
-                // Leaderboard entries
-                VStack(spacing: 8) {
-                    ForEach(leaderboardEntries) { entry in
-                        leaderboardRow(entry: entry)
+                // Podium for top 3
+                podiumView
+                    .padding(.horizontal, 24)
+
+                // Current user rank (if not in top 3)
+                if let me = leaderboardEntries.first(where: { assignedUsername != nil && $0.username == assignedUsername }),
+                   me.rank > 3 {
+                    HStack(spacing: 8) {
+                        Text("#\(me.rank)")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundColor(Color.wordleGreen)
+                        Text(me.username)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(textPrimary)
+                        Spacer()
+                        Text(me.guessesDisplay)
+                            .font(.system(size: 12))
+                        Text(formatTime(me.timeSeconds))
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundColor(muted)
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.wordleGreen.opacity(0.1))
+                    )
+                    .padding(.horizontal, 24)
                 }
             }
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(colorScheme == .dark ? Color.black.opacity(0.3) : Color.gray.opacity(0.1))
-        )
     }
 
-    /// Single row in the leaderboard
-    private func leaderboardRow(entry: LeaderboardEntryResponse) -> some View {
-        let isCurrentUser = assignedUsername != nil && entry.username == assignedUsername
+    // MARK: - Podium
 
-        return HStack(spacing: 12) {
-            // Rank badge
-            ZStack {
-                Circle()
-                    .fill(rankColor(for: entry.rank))
-                    .frame(width: 28, height: 28)
-                Text("\(entry.rank)")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+    private var podiumView: some View {
+        let top3 = Array(leaderboardEntries.prefix(3))
+        let first = top3.first(where: { $0.rank == 1 })
+        let second = top3.first(where: { $0.rank == 2 })
+        let third = top3.first(where: { $0.rank == 3 })
+
+        return HStack(alignment: .bottom, spacing: 8) {
+            // 2nd place (left)
+            if let entry = second {
+                podiumSlot(entry: entry, height: 52, medal: "2")
+            } else {
+                Spacer().frame(maxWidth: .infinity)
             }
 
+            // 1st place (center, tallest)
+            if let entry = first {
+                podiumSlot(entry: entry, height: 72, medal: "1")
+            } else {
+                Spacer().frame(maxWidth: .infinity)
+            }
+
+            // 3rd place (right)
+            if let entry = third {
+                podiumSlot(entry: entry, height: 40, medal: "3")
+            } else {
+                Spacer().frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func podiumSlot(entry: LeaderboardEntryResponse, height: CGFloat, medal: String) -> some View {
+        let isMe = assignedUsername != nil && entry.username == assignedUsername
+        let podiumColor: Color = {
+            switch entry.rank {
+            case 1: return Color.ucdGold
+            case 2: return Color(hex: "#94a3b8")
+            case 3: return Color(hex: "#b45309")
+            default: return Color.gray
+            }
+        }()
+
+        return VStack(spacing: 0) {
             // Username
             Text(entry.username)
-                .font(.system(size: 15, weight: isCurrentUser ? .bold : .medium, design: .rounded))
-                .foregroundColor(isCurrentUser ? accentColor : .primary)
+                .font(.system(size: 11, weight: isMe ? .bold : .semibold))
+                .foregroundColor(isMe ? Color.wordleGreen : textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.bottom, 4)
 
-            Spacer()
+            // Stats
+            Text("\(entry.guesses)/6")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(muted)
+                .padding(.bottom, 6)
 
-            // Guesses display (green blocks)
-            Text(entry.guessesDisplay)
-                .font(.system(size: 14))
+            // Pedestal
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(podiumColor.opacity(colorScheme == .dark ? 0.3 : 0.15))
 
-            // Time taken
-            Text(formatTime(entry.timeSeconds))
-                .font(.system(size: 13, design: .monospaced))
-                .foregroundColor(.secondary)
+                VStack(spacing: 2) {
+                    Text(medal)
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .foregroundColor(podiumColor)
+                    Text(formatTime(entry.timeSeconds))
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundColor(muted)
+                }
+            }
+            .frame(height: height)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(isCurrentUser ? accentColor.opacity(0.15) : Color.clear)
-        )
+        .frame(maxWidth: .infinity)
     }
 
-    /// Returns the color for a rank badge
-    private func rankColor(for rank: Int) -> Color {
-        switch rank {
-        case 1: return .ucdGold        // Gold
-        case 2: return Color.gray      // Silver
-        case 3: return Color.brown     // Bronze
-        default: return Color.gray.opacity(0.5)
+    // MARK: - Actions
+
+    private var actionSection: some View {
+        VStack(spacing: 10) {
+            if isArchiveMode {
+                if !isTodayCompleted {
+                    actionButton("Play Today's Word", filled: true, action: onPlayToday)
+                }
+                actionButton("Browse Archive", filled: isTodayCompleted, action: onBrowseArchive)
+            } else {
+                Text("Come back tomorrow!")
+                    .font(.system(size: 13))
+                    .foregroundColor(muted)
+                actionButton("Browse Archive", filled: true, action: onBrowseArchive)
+            }
         }
     }
 
-    /// Formats seconds into a readable time string (e.g., "1:23")
+    private func actionButton(_ title: String, filled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundColor(filled ? .white : textPrimary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(filled ? Color.wordleGreen : Color.clear)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(filled ? Color.clear : (colorScheme == .dark ? Color.white.opacity(0.12) : Color(hex: "#e2e8f0")), lineWidth: 1)
+                )
+        }
+    }
+
+    // MARK: - Helpers
+
     private func formatTime(_ seconds: Int) -> String {
         let minutes = seconds / 60
         let secs = seconds % 60
         return String(format: "%d:%02d", minutes, secs)
-    }
-
-    /// Action buttons based on context
-    @ViewBuilder
-    private var actionButtons: some View {
-        VStack(spacing: 12) {
-            if isArchiveMode {
-                // Archive mode: offer to play today if not completed
-                archiveModeButtons
-            } else {
-                // Today's game completed: offer to browse archive
-                todayModeButtons
-            }
-        }
-    }
-
-    /// Buttons shown when viewing an archived game
-    @ViewBuilder
-    private var archiveModeButtons: some View {
-        // Only show "Play Today" if today isn't completed
-        if !isTodayCompleted {
-            Button(action: onPlayToday) {
-                Text("Play Today's Word")
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
-                    .frame(width: 200, height: 48)
-                    .background(accentColor)
-                    .cornerRadius(24)
-            }
-        }
-
-        Button(action: onBrowseArchive) {
-            Text("Play Previous Weeks")
-                .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundColor(accentColor)
-        }
-    }
-
-    /// Buttons shown when today's game is completed
-    @ViewBuilder
-    private var todayModeButtons: some View {
-        Text("Come back tomorrow for a new word!")
-            .font(.system(size: 14))
-            .foregroundColor(.secondary)
-            .multilineTextAlignment(.center)
-
-        Button(action: onBrowseArchive) {
-            Text("Play Previous Weeks")
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                .foregroundColor(.white)
-                .frame(width: 200, height: 48)
-                .background(accentColor)
-                .cornerRadius(24)
-        }
-
-        Button(action: onBack) {
-            Text("Back")
-                .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundColor(accentColor)
-        }
     }
 }
 
 // MARK: - Preview
 #Preview {
     ZStack {
-        Color.gray.opacity(0.3)
-            .ignoresSafeArea()
-
+        Color.gray.opacity(0.3).ignoresSafeArea()
         GameOverView(
             gameState: .won,
             targetWord: "BRAIN",
             attempts: 4,
             isArchiveMode: false,
             isTodayCompleted: true,
+            leaderboardEntries: [
+                LeaderboardEntryResponse(rank: 1, username: "darius", guesses: 3, guesses_display: "🟩🟩🟩", time_seconds: 45),
+                LeaderboardEntryResponse(rank: 2, username: "alex", guesses: 4, guesses_display: "🟩🟩🟩🟩", time_seconds: 72),
+                LeaderboardEntryResponse(rank: 3, username: "maya", guesses: 5, guesses_display: "🟩🟩🟩🟩🟩", time_seconds: 120),
+            ],
+            assignedUsername: "darius",
             onPlayToday: { },
             onBrowseArchive: { },
             onDismiss: { },

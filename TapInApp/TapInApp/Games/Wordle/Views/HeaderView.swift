@@ -44,6 +44,10 @@ struct HeaderView: View {
     /// Should present the archive sheet
     let onArchiveTap: () -> Void
 
+    /// Called when the trophy button is tapped
+    /// Should present the leaderboard sheet
+    var onLeaderboardTap: (() -> Void)? = nil
+
     /// Called when the home button is tapped (archive mode)
     /// Should load today's game
     let onBackToToday: () -> Void
@@ -81,6 +85,16 @@ struct HeaderView: View {
                     Image(systemName: "calendar")
                         .font(.system(size: 20, weight: .medium))
                         .foregroundColor(accentColor)
+                }
+
+                // Leaderboard button
+                if let onLeaderboardTap {
+                    Button(action: onLeaderboardTap) {
+                        Image(systemName: "trophy.fill")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(Color.ucdGold)
+                    }
+                    .padding(.leading, 6)
                 }
 
                 Spacer()

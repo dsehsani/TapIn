@@ -116,17 +116,106 @@ struct LeaderboardView: View {
     // MARK: - Rankings List
 
     private var rankingsList: some View {
-        LazyVStack(spacing: 8) {
-            ForEach(viewModel.entries) { entry in
-                LeaderboardRowView(
-                    entry: entry,
-                    isCurrentUser: viewModel.isCurrentUserEntry(entry),
-                    colorScheme: colorScheme
-                )
+        VStack(spacing: 16) {
+            // Podium for top 3
+            let top3 = viewModel.entries.filter { $0.rank <= 3 }
+            if !top3.isEmpty {
+                podiumView(top3: top3)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+            }
+
+            // Remaining entries (4th+)
+            let remaining = viewModel.entries.filter { $0.rank > 3 }
+            if !remaining.isEmpty {
+                LazyVStack(spacing: 8) {
+                    ForEach(remaining) { entry in
+                        LeaderboardRowView(
+                            entry: entry,
+                            isCurrentUser: viewModel.isCurrentUserEntry(entry),
+                            colorScheme: colorScheme
+                        )
+                    }
+                }
+                .padding(.horizontal, 16)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
+    }
+
+    // MARK: - Podium
+
+    private func podiumView(top3: [LeaderboardEntryResponse]) -> some View {
+        let first = top3.first(where: { $0.rank == 1 })
+        let second = top3.first(where: { $0.rank == 2 })
+        let third = top3.first(where: { $0.rank == 3 })
+
+        return HStack(alignment: .bottom, spacing: 10) {
+            // 2nd place
+            if let entry = second {
+                podiumSlot(entry: entry, height: 64, medalEmoji: "🥈")
+            } else {
+                Spacer().frame(maxWidth: .infinity)
+            }
+
+            // 1st place
+            if let entry = first {
+                podiumSlot(entry: entry, height: 88, medalEmoji: "🥇")
+            } else {
+                Spacer().frame(maxWidth: .infinity)
+            }
+
+            // 3rd place
+            if let entry = third {
+                podiumSlot(entry: entry, height: 48, medalEmoji: "🥉")
+            } else {
+                Spacer().frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func podiumSlot(entry: LeaderboardEntryResponse, height: CGFloat, medalEmoji: String) -> some View {
+        let isMe = viewModel.isCurrentUserEntry(entry)
+        let podiumColor: Color = {
+            switch entry.rank {
+            case 1: return Color.ucdGold
+            case 2: return Color(hex: "#94a3b8")
+            case 3: return Color(hex: "#b45309")
+            default: return Color.gray
+            }
+        }()
+
+        return VStack(spacing: 0) {
+            Text(medalEmoji)
+                .font(.system(size: 26))
+                .padding(.bottom, 4)
+
+            Text(entry.username)
+                .font(.system(size: 13, weight: isMe ? .bold : .semibold))
+                .foregroundColor(isMe ? Color.ucdGold : (colorScheme == .dark ? .white : .primary))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.bottom, 2)
+
+            Text("\(entry.guesses)/6 · \(formatTime(entry.timeSeconds))")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.textSecondary)
+                .padding(.bottom, 8)
+
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(podiumColor.opacity(colorScheme == .dark ? 0.25 : 0.15))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(podiumColor.opacity(0.3), lineWidth: 1)
+                )
+                .frame(height: height)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func formatTime(_ seconds: Int) -> String {
+        let mins = seconds / 60
+        let secs = seconds % 60
+        return "\(mins):\(String(format: "%02d", secs))"
     }
 
     // MARK: - Loading View

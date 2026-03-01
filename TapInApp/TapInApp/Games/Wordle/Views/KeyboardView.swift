@@ -61,7 +61,7 @@ struct KeyboardView: View {
     private let rows: [[String]] = [
         ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
         ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
-        ["ENTER", "Z", "X", "C", "V", "B", "N", "M", "DEL"]
+        ["DEL", "Z", "X", "C", "V", "B", "N", "M", "ENTER"]
     ]
 
     // MARK: - Body
@@ -152,7 +152,7 @@ struct KeyView: View {
         case .wrongPosition:
             return .ucdGold
         case .notInWord:
-            return .wordleGray
+            return colorScheme == .dark ? Color(red: 0.7, green: 0.2, blue: 0.2) : .wordleGray
         default:
             return Color.wordleKeyBackground(colorScheme)
         }

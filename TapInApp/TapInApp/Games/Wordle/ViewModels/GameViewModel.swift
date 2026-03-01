@@ -261,7 +261,9 @@ class GameViewModel {
 
     /// Persists the current game state to storage
     private func saveCurrentState() {
-        let guesses = (0..<currentRow).map { row in
+        // When won, currentRow isn't incremented, so include the winning row
+        let rowCount = gameState == .won ? currentRow + 1 : currentRow
+        let guesses = (0..<rowCount).map { row in
             String(grid[row].compactMap { $0.letter })
         }
         GameStorage.shared.saveGameState(for: currentDate, guesses: guesses, gameState: gameState)
