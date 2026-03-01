@@ -26,6 +26,22 @@ struct CampusView: View {
                         .font(.system(size: 34, weight: .black))
                         .foregroundColor(colorScheme == .dark ? .white : .black)
                     Spacer()
+                    Menu {
+                        Picker("Time Filter", selection: Binding(
+                            get: { viewModel.timeFilter },
+                            set: { viewModel.filterByTime($0) }
+                        )) {
+                            ForEach(EventTimeFilter.allCases, id: \.self) { filter in
+                                Text(filter.rawValue).tag(filter)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: viewModel.timeFilter == .thisWeek
+                              ? "line.3.horizontal.decrease.circle"
+                              : "line.3.horizontal.decrease.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(colorScheme == .dark ? .white : .black)
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
@@ -35,9 +51,18 @@ struct CampusView: View {
                     HStack(spacing: 12) {
                         ForEach(EventFilterType.allCases, id: \.self) { filter in
                             Button(action: {
+                                if filter == .forYou {
+                                    viewModel.setProfileEvents(savedViewModel.savedEvents)
+                                }
                                 viewModel.filterEvents(by: filter)
                             }) {
-                                Text(filter.rawValue)
+                                HStack(spacing: 4) {
+                                    if filter == .forYou {
+                                        Image(systemName: "sparkles")
+                                            .font(.system(size: 12, weight: .medium))
+                                    }
+                                    Text(filter.rawValue)
+                                }
                                     .font(.system(size: 14, weight: viewModel.filterType == filter ? .semibold : .medium))
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 8)
@@ -65,6 +90,26 @@ struct CampusView: View {
                             }
                         }
                     }
+                    .padding(.horizontal, 16)
+                }
+
+                // Cold-start hint for "For You"
+                if viewModel.filterType == .forYou && !EventPreferenceEngine.shared.hasHistory {
+                    HStack(spacing: 8) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 14))
+                            .foregroundColor(Color.ucdGold)
+                        Text("Save events to personalize your feed")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(colorScheme == .dark ? Color(hex: "#cbd5e1") : Color(hex: "#475569"))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(colorScheme == .dark ? Color(hex: "#1a2033") : Color(hex: "#fef9c3"))
+                    )
                     .padding(.horizontal, 16)
                 }
 

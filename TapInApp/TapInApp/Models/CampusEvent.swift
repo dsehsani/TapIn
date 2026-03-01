@@ -174,10 +174,17 @@ extension CampusEvent {
 }
 
 enum EventFilterType: String, CaseIterable {
+    case forYou = "For You"
     case all = "All Events"
-    case official = "Official"
+    case official = "UC Davis"
     case studentPosted = "Club Events"
+}
+
+enum EventTimeFilter: String, CaseIterable {
     case today = "Today"
+    case thisWeek = "This Week"
+    case thisMonth = "This Month"
+    case allUpcoming = "All Upcoming"
 }
 
 // MARK: - Sample Data

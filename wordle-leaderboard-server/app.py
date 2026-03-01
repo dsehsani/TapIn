@@ -27,6 +27,7 @@ from flask import Flask, jsonify, send_file
 from flask_cors import CORS
 from api.leaderboard import leaderboard_bp
 from api.claude import claude_bp
+from api.events import events_bp
 
 
 # ------------------------------------------------------------------------------
@@ -79,6 +80,10 @@ def create_app() -> Flask:
     # All Claude endpoints will be prefixed with /api/claude
     app.register_blueprint(claude_bp)
 
+    # Register the Events API blueprint
+    # All events endpoints will be prefixed with /api/events
+    app.register_blueprint(events_bp)
+
     # --------------------------------------------------------------------------
     # MARK: - Root Endpoint
     # --------------------------------------------------------------------------
@@ -109,6 +114,8 @@ def create_app() -> Flask:
                 "summarize_event": "POST /api/claude/summarize",
                 "claude_chat": "POST /api/claude/chat",
                 "claude_health": "GET /api/claude/health",
+                "get_events": "GET /api/events",
+                "events_health": "GET /api/events/health",
                 "privacy_policy": "GET /privacy",
                 "terms_of_service": "GET /terms"
             }
@@ -186,6 +193,9 @@ if __name__ == "__main__":
     print("  POST /api/claude/summarize      - Summarize event")
     print("  POST /api/claude/chat           - Claude chat")
     print("  GET  /api/claude/health         - Claude health")
+    print("")
+    print("  GET  /api/events                - Get campus events")
+    print("  GET  /api/events/health         - Events health")
     print("")
     print("  GET  /privacy                   - Privacy Policy")
     print("  GET  /terms                     - Terms of Service")

@@ -226,11 +226,14 @@ def _extract_organizer_url(block: str) -> str | None:
 
 
 def _check_if_official(organizer_url: str | None, organizer_name: str | None) -> bool:
-    if organizer_url and "/admin/" in organizer_url:
+    # No organizer → posted directly by UC Davis (official)
+    if not organizer_name:
         return True
-    if organizer_name:
-        name_lower = organizer_name.lower()
-        return any(o in name_lower for o in OFFICIAL_ORGANIZERS)
+    # Check if organizer is a known official campus entity
+    name_lower = organizer_name.lower()
+    if any(o in name_lower for o in OFFICIAL_ORGANIZERS):
+        return True
+    # Has a specific organizer that isn't on the whitelist → club event
     return False
 
 
@@ -259,11 +262,9 @@ def _extract_tags(block: str) -> list[str]:
 
 def _clean_events(events: list[dict]) -> list[dict]:
     now = datetime.now(tz=timezone.utc)
-    cutoff = now + timedelta(days=7)
 
+    # Only filter out past events; let the client control the time window
     return [
         e for e in events
-        if "meeting" not in e["title"].lower()
-        and e["startDate"] >= now
-        and e["startDate"] <= cutoff
+        if e["startDate"] >= now
     ]

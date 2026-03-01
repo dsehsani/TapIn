@@ -9,5 +9,6 @@
 #
 
 from .leaderboard import leaderboard_bp
+from .events import events_bp
 
-__all__ = ["leaderboard_bp"]
+__all__ = ["leaderboard_bp", "events_bp"]

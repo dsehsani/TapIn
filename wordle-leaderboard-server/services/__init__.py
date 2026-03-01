@@ -9,5 +9,6 @@
 #
 
 from .leaderboard_service import LeaderboardService
+from .events_service import EventsService
 
-__all__ = ["LeaderboardService"]
+__all__ = ["LeaderboardService", "EventsService"]

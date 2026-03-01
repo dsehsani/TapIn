@@ -218,14 +218,15 @@ struct ICalParser {
     // MARK: - Official Event Detection
 
     /// Determines if an event is from an official UC Davis source vs a student club.
-    /// Official sources use the /admin/ URL path or are known campus resource centers.
+    /// No organizer → posted directly by UC Davis (official).
+    /// Has organizer → club event unless on the whitelist.
     private static func checkIfOfficial(organizerURL: String?, organizerName: String?) -> Bool {
-        // Known official organizer URL paths
-        if let url = organizerURL {
-            if url.contains("/admin/") { return true }
+        // No organizer → posted directly by UC Davis (official)
+        guard let name = organizerName?.lowercased(), !name.isEmpty else {
+            return true
         }
 
-        // Known official campus resource centers
+        // Check if organizer is a known official campus entity
         let officialOrganizers = [
             "center for student involvement",
             "cross cultural center",
@@ -235,11 +236,7 @@ struct ICalParser {
             "student affairs",
         ]
 
-        if let name = organizerName?.lowercased() {
-            return officialOrganizers.contains(where: { name.contains($0) })
-        }
-
-        return false
+        return officialOrganizers.contains(where: { name.contains($0) })
     }
 
     // MARK: - Category Extraction

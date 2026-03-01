@@ -6,8 +6,8 @@
 //
 //  MARK: - Campus/Events ViewModel
 //  Fetches AI-processed events from the TapIn backend.
-//  Events arrive with aiSummary and aiBulletPoints already populated —
-//  no client-side Claude calls needed.
+//  Falls back to client-side AI summarization when backend
+//  summaries are missing.
 //
 
 import Foundation
@@ -18,10 +18,14 @@ class CampusViewModel: ObservableObject {
     @Published var events: [CampusEvent] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
-    @Published var filterType: EventFilterType = .all
+    @Published var filterType: EventFilterType = .forYou
+    @Published var timeFilter: EventTimeFilter = .thisWeek
 
     private let service = EventsAPIService.shared
     @Published private(set) var allEvents: [CampusEvent] = []
+
+    /// Client-generated summaries for events missing backend AI content
+    private var localSummaries: [UUID: String] = [:]
 
     init() {
         Task { await fetchEvents() }
@@ -38,6 +42,7 @@ class CampusViewModel: ObservableObject {
             let fetched = try await service.fetchEvents()
             allEvents = fetched.map { resolveLocation($0) }
             applyFilter()
+            generateMissingSummaries()
         } catch {
             errorMessage = error.localizedDescription
             // Fall back to sample data if network fails
@@ -48,10 +53,22 @@ class CampusViewModel: ObservableObject {
         isLoading = false
     }
 
+    // MARK: - Preference Engine
+
+    /// Rebuilds the "For You" preference profile from the user's saved events.
+    func setProfileEvents(_ events: [CampusEvent]) {
+        EventPreferenceEngine.shared.rebuildProfile(from: events)
+    }
+
     // MARK: - Filtering
 
     func filterEvents(by type: EventFilterType) {
         filterType = type
+        applyFilter()
+    }
+
+    func filterByTime(_ filter: EventTimeFilter) {
+        timeFilter = filter
         applyFilter()
     }
 
@@ -60,23 +77,41 @@ class CampusViewModel: ObservableObject {
     }
 
     private func applyFilter() {
-        let now = Date()
-        let startOfToday = Calendar.current.startOfDay(for: now)
-        let oneWeekFromNow = Calendar.current.date(byAdding: .day, value: 7, to: startOfToday)!
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
 
-        // Only show events from today through the next 7 days
-        let upcoming = allEvents.filter { $0.date >= startOfToday && $0.date <= oneWeekFromNow }
-            .sorted { $0.date < $1.date }
+        // Apply time window based on timeFilter
+        let upcoming: [CampusEvent]
+        switch timeFilter {
+        case .today:
+            let endOfToday = calendar.date(byAdding: .day, value: 1, to: startOfToday)!
+            upcoming = allEvents.filter { $0.date >= startOfToday && $0.date < endOfToday }
+                .sorted { $0.date < $1.date }
+        case .thisWeek:
+            let endDate = calendar.date(byAdding: .day, value: 7, to: startOfToday)!
+            upcoming = allEvents.filter { $0.date >= startOfToday && $0.date <= endDate }
+                .sorted { $0.date < $1.date }
+        case .thisMonth:
+            let endDate = calendar.date(byAdding: .day, value: 30, to: startOfToday)!
+            upcoming = allEvents.filter { $0.date >= startOfToday && $0.date <= endDate }
+                .sorted { $0.date < $1.date }
+        case .allUpcoming:
+            upcoming = allEvents.filter { $0.date >= startOfToday }
+                .sorted { $0.date < $1.date }
+        }
 
+        // Apply category filter
+        // Events without an organizerName are official UC Davis events;
+        // events with one are from student clubs/orgs.
         switch filterType {
         case .all:
             events = upcoming
+        case .forYou:
+            events = EventPreferenceEngine.shared.recommend(from: upcoming)
         case .official:
-            events = upcoming.filter { $0.isOfficial }
+            events = upcoming.filter { $0.organizerName == nil }
         case .studentPosted:
-            events = upcoming.filter { !$0.isOfficial }
-        case .today:
-            events = upcoming.filter { Calendar.current.isDateInToday($0.date) }
+            events = upcoming.filter { $0.organizerName != nil }
         }
     }
 
@@ -172,14 +207,51 @@ class CampusViewModel: ObservableObject {
         return nil
     }
 
-    // MARK: - AI Content Accessors
-    // These read directly from the model — no extra fetching needed.
+    // MARK: - AI Summaries
 
+    /// Returns the AI summary for an event: backend-provided first, then local fallback.
     func summary(for event: CampusEvent) -> String? {
-        event.aiSummary
+        if let backend = event.aiSummary { return backend }
+        if let local = localSummaries[event.id] { return local }
+        return nil
     }
 
     func bulletPoints(for event: CampusEvent) -> [String] {
         event.aiBulletPoints
+    }
+
+    /// Generates local summaries instantly for events missing backend AI content.
+    private func generateMissingSummaries() {
+        for event in allEvents where event.aiSummary == nil && localSummaries[event.id] == nil {
+            localSummaries[event.id] = generateLocalSummary(from: event.description)
+        }
+    }
+
+    /// Extracts the first sentence or truncates the description as a summary.
+    private func generateLocalSummary(from description: String) -> String {
+        let cleaned = description
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !cleaned.isEmpty else { return "Campus event" }
+
+        // Take first sentence
+        if let dotRange = cleaned.range(of: ". ") ?? cleaned.range(of: ".") {
+            let sentence = String(cleaned[cleaned.startIndex..<dotRange.upperBound]).trimmingCharacters(in: .whitespaces)
+            if sentence.count > 10 && sentence.count <= 100 {
+                return sentence
+            }
+        }
+
+        // Truncate at word boundary
+        if cleaned.count > 80 {
+            let truncated = String(cleaned.prefix(80))
+            if let lastSpace = truncated.lastIndex(of: " ") {
+                return String(truncated[truncated.startIndex..<lastSpace]) + "..."
+            }
+            return truncated + "..."
+        }
+
+        return cleaned
     }
 }

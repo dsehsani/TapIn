@@ -51,6 +51,7 @@
 				Prompts/AttendingPrompt.md,
 				Prompts/DashboardPrompt.md,
 				Prompts/DashboardUIDesign.md,
+				Prompts/EventsPhaseTwo.md,
 				Prompts/EventSummaryPrompt.md,
 				Prompts/FixUI.md,
 				Prompts/LEADERBOARD.md,
