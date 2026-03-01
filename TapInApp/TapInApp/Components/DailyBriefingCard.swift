@@ -59,7 +59,8 @@ struct DailyBriefingCard: View {
                     .transition(.opacity)
             }
         }
-        .padding(16)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .background(
             RoundedRectangle(cornerRadius: 16)
@@ -162,13 +163,13 @@ struct DailyBriefingCard: View {
     @ViewBuilder
     private var expandedContent: some View {
         if let briefing = briefing {
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 Rectangle()
                     .fill(colorScheme == .dark
                         ? Color.white.opacity(0.1)
                         : Color.black.opacity(0.08))
                     .frame(height: 1)
-                    .padding(.top, 8)
+                    .padding(.top, 4)
 
                 // Story cards or fallback to text bullets
                 if let items = briefing.items, !items.isEmpty {
@@ -224,7 +225,7 @@ struct DailyBriefingCard: View {
                     }
                 }
             }
-            .frame(height: 180)
+            .frame(height: 140)
             .clipShape(RoundedRectangle(cornerRadius: 12))
 
             // Instagram-style progress bars
@@ -256,7 +257,7 @@ struct DailyBriefingCard: View {
                         image
                             .resizable()
                             .scaledToFill()
-                            .frame(height: 180)
+                            .frame(height: 140)
                             .clipped()
                     default:
                         storyCardGradient(item: item)
@@ -288,7 +289,7 @@ struct DailyBriefingCard: View {
 
                 // Subtitle (main headline)
                 Text(item.subtitle)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .font(.system(size: 19, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                     .lineLimit(2)
                     .shadow(color: .black.opacity(0.5), radius: 6, x: 0, y: 2)
@@ -303,7 +304,7 @@ struct DailyBriefingCard: View {
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(height: 180)
+        .frame(height: 140)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 

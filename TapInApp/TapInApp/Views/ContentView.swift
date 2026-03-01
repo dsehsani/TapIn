@@ -6,7 +6,7 @@
 //  Primary container for the app - MVVM Architecture
 //  Views: Multiple view screens (NewsView, CampusView, etc.)
 //  ViewModels: Each view has its own ViewModel for state/logic
-//  ARCHITECTURE: Uses custom tab bar for navigation between main sections
+//  ARCHITECTURE: Uses native TabView for navigation between main sections
 //
 
 import SwiftUI
@@ -93,37 +93,54 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Legacy Tab View (iOS 17–25)
+    // MARK: - Legacy Tab View (iOS 17–25) — matches iOS 26+ design
 
     private var legacyTabView: some View {
-        Group {
-            switch selectedTab {
-            case .news:
-                NewsView(
-                    viewModel: newsViewModel,
-                    savedViewModel: savedViewModel,
-                    campusViewModel: campusViewModel,
-                    selectedTab: $selectedTab
-                )
+        ZStack {
+            NewsView(
+                viewModel: newsViewModel,
+                savedViewModel: savedViewModel,
+                campusViewModel: campusViewModel,
+                selectedTab: $selectedTab
+            )
+            .opacity(selectedTab == .news ? 1 : 0)
+            .allowsHitTesting(selectedTab == .news)
 
-            case .campus:
-                CampusView(viewModel: campusViewModel, savedViewModel: savedViewModel)
+            CampusView(viewModel: campusViewModel, savedViewModel: savedViewModel)
+                .opacity(selectedTab == .campus ? 1 : 0)
+                .allowsHitTesting(selectedTab == .campus)
 
-            case .games:
-                GamesView(viewModel: gamesViewModel, selectedTab: $selectedTab)
+            GamesView(viewModel: gamesViewModel, selectedTab: $selectedTab)
+                .opacity(selectedTab == .games ? 1 : 0)
+                .allowsHitTesting(selectedTab == .games)
 
-            case .saved:
-                SavedView(viewModel: savedViewModel, selectedTab: $selectedTab)
+            SavedView(viewModel: savedViewModel, selectedTab: $selectedTab)
+                .opacity(selectedTab == .saved ? 1 : 0)
+                .allowsHitTesting(selectedTab == .saved)
 
-            case .profile:
-                ProfileView(viewModel: profileViewModel, savedViewModel: savedViewModel, gamesViewModel: gamesViewModel, selectedTab: $selectedTab)
-
-            case .search:
-                // Search tab only exists on iOS 26+; redirect to news on legacy
-                Color.clear.onAppear { selectedTab = .news }
-            }
+            SearchView(searchText: $tabSearchText, savedViewModel: savedViewModel)
+                .opacity(selectedTab == .search ? 1 : 0)
+                .allowsHitTesting(selectedTab == .search)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .bottom) {
+            PillTabBar(selectedTab: $selectedTab, searchText: $tabSearchText)
+        }
+        .tint(colorScheme == .dark ? Color.accentOrange : Color.accentCoral)
+        .onChange(of: selectedTab) { _, newValue in
+            if newValue == .profile {
+                selectedTab = .news
+                showProfile = true
+            }
+        }
+        .sheet(isPresented: $showProfile) {
+            ProfileView(
+                viewModel: profileViewModel,
+                savedViewModel: savedViewModel,
+                gamesViewModel: gamesViewModel,
+                selectedTab: $selectedTab
+            )
+        }
         .overlay {
             // MARK: - Onboarding Dismiss Overlay
             if OnboardingManager.shared.activeTip != nil {
@@ -135,16 +152,6 @@ struct ContentView: View {
                         }
                     }
             }
-        }
-        .safeAreaInset(edge: .bottom) {
-            // MARK: - Custom Tab Bar (inserted within the safe area)
-            CustomTabBar(selectedTab: $selectedTab)
-                .pulsingHotspot(
-                    tip: .navigationBar,
-                    message: "Jump between News, Events, Games & more.",
-                    arrowEdge: .bottom,
-                    highlightStyle: .topGlow
-                )
         }
         // MARK: - Onboarding Tooltip Overlay (floats above everything)
         .overlayPreferenceValue(OnboardingTipOverlayKey.self) { tipInfos in

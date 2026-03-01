@@ -8,23 +8,11 @@
 import SwiftUI
 
 struct TopNavigationBar: View {
-    @Binding var searchText: String
     var onSettingsTap: () -> Void
 
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
-        if #available(iOS 26, *) {
-            ios26Header
-        } else {
-            legacyHeader
-        }
-    }
-
-    // MARK: - iOS 26+ Header (Clean title + date + avatar)
-
-    @available(iOS 26, *)
-    private var ios26Header: some View {
         HStack(alignment: .center) {
             Text(Self.currentDateString)
                 .font(.system(size: 34, weight: .black))
@@ -53,7 +41,6 @@ struct TopNavigationBar: View {
 
     // MARK: - Profile Avatar
 
-    @available(iOS 26, *)
     private var profileAvatar: some View {
         Group {
             if let data = UserDefaults.standard.data(forKey: "profileImageData"),
@@ -86,66 +73,11 @@ struct TopNavigationBar: View {
             }
         }
     }
-
-    // MARK: - Legacy Header (search bar + gear)
-
-    private var legacyHeader: some View {
-        HStack(spacing: 12) {
-            // Search Bar
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.textSecondary)
-                    .font(.system(size: 16))
-
-                TextField("Search UC Davis News", text: $searchText)
-                    .font(.system(size: 14))
-
-                if !searchText.isEmpty {
-                    Button(action: { searchText = "" }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.textSecondary)
-                            .font(.system(size: 14))
-                    }
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                colorScheme == .dark
-                    ? Color(hex: "#1a2033")
-                    : Color(hex: "#fff5f0")
-            )
-            .clipShape(Capsule())
-            .pulsingHotspot(
-                tip: .searchBar,
-                message: "Find any story — search by topic or keyword.",
-                arrowEdge: .top,
-                cornerRadius: 100
-            )
-
-            // Settings Button
-            Button(action: onSettingsTap) {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 20))
-                    .foregroundColor(colorScheme == .dark ? .textSecondary : Color(hex: "#475569"))
-            }
-            .padding(8)
-            .contentShape(Circle())
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            (colorScheme == .dark ? Color.backgroundDark : Color.white)
-                .opacity(0.8)
-        )
-        .background(.ultraThinMaterial)
-    }
 }
 
 #Preview {
     VStack {
         TopNavigationBar(
-            searchText: .constant(""),
             onSettingsTap: {}
         )
         Spacer()

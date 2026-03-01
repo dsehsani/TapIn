@@ -29,15 +29,8 @@ enum TabItem: String, CaseIterable {
     
     
 
-    /// Tabs shown in the iOS 26+ floating pill (excludes Profile & Search)
-    static var pillTabs: [TabItem] {
-        [.news, .campus, .games, .saved]
-    }
-
-    /// Tabs shown in the legacy custom tab bar (excludes Search)
-    static var legacyTabs: [TabItem] {
-        [.news, .campus, .games, .saved, .profile]
-    }
+    /// Tabs shown in the tab bar (Profile opens via avatar sheet)
+    static let visibleTabs: [TabItem] = [.news, .campus, .games, .saved, .search]
 
     var iconFilled: String {
         switch self {

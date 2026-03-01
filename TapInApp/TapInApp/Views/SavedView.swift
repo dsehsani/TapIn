@@ -118,27 +118,16 @@ struct SavedView: View {
     private var eventsContent: some View {
         VStack(spacing: 0) {
             // Sub-tabs: Attending / Attended
-            if #available(iOS 26, *) {
-                Picker("", selection: $selectedEventSegment) {
-                    Text("Attending").tag(0)
-                    Text("Attended").tag(1)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 8)
-            } else {
-                HStack(spacing: 0) {
-                    eventSubTab(title: "Attending", index: 0)
-                    eventSubTab(title: "Attended", index: 1)
-                }
-                .padding(3)
-                .background(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"))
-                .clipShape(Capsule())
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 8)
+            HStack(spacing: 0) {
+                eventSubTab(title: "Attending", index: 0)
+                eventSubTab(title: "Attended", index: 1)
             }
+            .padding(3)
+            .background(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"))
+            .clipShape(Capsule())
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
 
             if selectedEventSegment == 0 {
                 eventsList(

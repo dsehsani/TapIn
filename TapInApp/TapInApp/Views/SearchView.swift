@@ -7,7 +7,6 @@
 
 import SwiftUI
 
-@available(iOS 26, *)
 struct SearchView: View {
     @Binding var searchText: String
     @ObservedObject var savedViewModel: SavedViewModel
@@ -194,7 +193,6 @@ struct SearchCategory: Identifiable {
 
 // MARK: - Category Card
 
-@available(iOS 26, *)
 struct SearchCategoryCard: View {
     let category: SearchCategory
     let colorScheme: ColorScheme
