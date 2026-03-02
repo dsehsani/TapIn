@@ -58,7 +58,7 @@ class GameStorage {
     ///
     /// 1. Acquires `stateLock`, merges into the local dictionary, writes to UserDefaults
     /// 2. Pushes this single date to the backend (fire-and-forget, no local mutation)
-    func saveGameState(for date: Date, guesses: [String], gameState: GameState) {
+    func saveGameState(for date: Date, guesses: [String], gameState: GameState, didExitGame: Bool = false) {
         let dateKey = DateWordGenerator.dateKey(for: date)
 
         let stateString: String
@@ -71,7 +71,8 @@ class GameStorage {
         let storedState = StoredGameState(
             guesses: guesses,
             gameState: stateString,
-            dateKey: dateKey
+            dateKey: dateKey,
+            didExitGame: didExitGame
         )
 
         // Thread-safe local write
@@ -86,7 +87,7 @@ class GameStorage {
             guard let token = AppState.shared.backendToken else { return }
             try? await UserAPIService.shared.syncWordleProgress(
                 token: token, dateKey: dateKey, guesses: guesses,
-                gameState: stateString
+                gameState: stateString, didExitGame: didExitGame
             )
         }
     }
@@ -185,7 +186,8 @@ class GameStorage {
                 try? await UserAPIService.shared.syncWordleProgress(
                     token: token, dateKey: dateKey,
                     guesses: localState.guesses,
-                    gameState: localState.gameState
+                    gameState: localState.gameState,
+                    didExitGame: localState.didExitGame
                 )
             }
         }
@@ -203,13 +205,15 @@ class GameStorage {
         for (dateKey, entry) in remote {
             let remoteGuesses = entry["guesses"] as? [String] ?? []
             let remoteGameState = entry["gameState"] as? String ?? "playing"
+            let remoteDidExit = entry["didExitGame"] as? Bool ?? false
             let localState = allStates[dateKey]
 
             if localState == nil || remoteGuesses.count > (localState?.guesses.count ?? 0) {
                 allStates[dateKey] = StoredGameState(
                     guesses: remoteGuesses,
                     gameState: remoteGameState,
-                    dateKey: dateKey
+                    dateKey: dateKey,
+                    didExitGame: remoteDidExit
                 )
                 localChanged = true
             }

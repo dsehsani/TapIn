@@ -50,6 +50,28 @@ struct StoredGameState: Codable {
     /// Used as the dictionary key for storage
     let dateKey: String
 
+    /// Whether the player explicitly left the game mid-session (disqualifies from leaderboard)
+    let didExitGame: Bool
+
+    // MARK: - Codable
+
+    /// Custom decoder that defaults `didExitGame` to `false` for legacy data
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guesses = try container.decode([String].self, forKey: .guesses)
+        gameState = try container.decode(String.self, forKey: .gameState)
+        dateKey = try container.decode(String.self, forKey: .dateKey)
+        didExitGame = try container.decodeIfPresent(Bool.self, forKey: .didExitGame) ?? false
+    }
+
+    /// Memberwise initializer
+    init(guesses: [String], gameState: String, dateKey: String, didExitGame: Bool = false) {
+        self.guesses = guesses
+        self.gameState = gameState
+        self.dateKey = dateKey
+        self.didExitGame = didExitGame
+    }
+
     // MARK: - Computed Properties
 
     /// Returns true if the game has ended (won or lost)

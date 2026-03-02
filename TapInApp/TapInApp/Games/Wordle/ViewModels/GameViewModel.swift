@@ -186,12 +186,11 @@ class GameViewModel {
         if gameState == .playing && !isArchiveMode {
             scoreSubmitted = false
             assignedUsername = nil
-            // If resuming a game with progress, the user exited previously — disqualify from leaderboard
+            // Load didExitGame from persisted state instead of inferring
+            didExitGame = GameStorage.shared.loadGameState(for: date)?.didExitGame ?? false
             if currentRow > 0 {
-                didExitGame = true
                 gameStartTime = gameStartTime ?? Date()
             } else {
-                didExitGame = false
                 gameStartTime = nil
             }
         }
@@ -280,13 +279,19 @@ class GameViewModel {
     }
 
     /// Persists the current game state to storage
-    private func saveCurrentState() {
+    func saveCurrentState() {
         // When won, currentRow isn't incremented, so include the winning row
         let rowCount = gameState == .won ? currentRow + 1 : currentRow
         let guesses = (0..<rowCount).map { row in
             String(grid[row].compactMap { $0.letter })
         }
-        GameStorage.shared.saveGameState(for: currentDate, guesses: guesses, gameState: gameState)
+        GameStorage.shared.saveGameState(for: currentDate, guesses: guesses, gameState: gameState, didExitGame: didExitGame)
+    }
+
+    /// Marks the game as exited (disqualifies from leaderboard) and persists immediately
+    func markAsExited() {
+        didExitGame = true
+        saveCurrentState()
     }
 
     /// Resets the game for the current date (clears progress)

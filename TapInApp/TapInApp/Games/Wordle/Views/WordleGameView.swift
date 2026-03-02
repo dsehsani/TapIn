@@ -45,8 +45,11 @@ struct WordleGameView: View {
     /// Whether the start screen is visible (for fresh games)
     @State private var showStartScreen = true
 
-    /// Whether the exit confirmation alert is shown
-    @State private var showExitAlert = false
+    /// Whether the custom leave-game dialog is visible
+    @State private var showExitDialog = false
+
+    /// Whether the exit dialog has already been shown this session (one-shot)
+    @State private var hasShownExitDialog = false
 
     // MARK: - Leaderboard State
 
@@ -87,9 +90,9 @@ struct WordleGameView: View {
                         showStartScreen = true
                     },
                     onBack: {
-                        // Warn if leaving an in-progress game with guesses
-                        if viewModel.gameState == .playing && viewModel.currentRow > 0 {
-                            showExitAlert = true
+                        // Warn if leaving an in-progress game with guesses (one-shot)
+                        if viewModel.gameState == .playing && viewModel.currentRow > 0 && !hasShownExitDialog {
+                            showExitDialog = true
                         } else {
                             onDismiss()
                         }
@@ -204,12 +207,23 @@ struct WordleGameView: View {
         .alert("Not in word list", isPresented: $viewModel.showInvalidWordAlert) {
             Button("OK", role: .cancel) { }
         }
-        // Exit confirmation alert
-        .alert("Leave game?", isPresented: $showExitAlert) {
-            Button("Stay", role: .cancel) { }
-            Button("Leave", role: .destructive) { onDismiss() }
-        } message: {
-            Text("If you leave now, your score won't be submitted to the leaderboard.")
+        // Leave game dialog overlay (one-shot with countdown)
+        .overlay {
+            if showExitDialog {
+                LeaveGameDialog(
+                    onStay: {
+                        hasShownExitDialog = true
+                        showExitDialog = false
+                    },
+                    onLeave: {
+                        showExitDialog = false
+                        viewModel.markAsExited()
+                        onDismiss()
+                    }
+                )
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.2), value: showExitDialog)
+            }
         }
         // Leaderboard sheet
         .sheet(isPresented: $showLeaderboard) {

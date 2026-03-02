@@ -191,7 +191,7 @@ class UserAPIService {
     // MARK: - Wordle Progress
 
     /// Pushes a single date's Wordle progress to the backend.
-    func syncWordleProgress(token: String, dateKey: String, guesses: [String], gameState: String) async throws {
+    func syncWordleProgress(token: String, dateKey: String, guesses: [String], gameState: String, didExitGame: Bool = false) async throws {
         guard let requestURL = URL(string: APIConfig.wordleProgressURL) else {
             throw UserAPIError.invalidResponse
         }
@@ -199,7 +199,8 @@ class UserAPIService {
         let body: [String: Any] = [
             "dateKey": dateKey,
             "guesses": guesses,
-            "gameState": gameState
+            "gameState": gameState,
+            "didExitGame": didExitGame
         ]
 
         var request = URLRequest(url: requestURL)
