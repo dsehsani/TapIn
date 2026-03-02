@@ -68,7 +68,8 @@ class EchoGameViewModel {
     // MARK: - Initialization
 
     init() {
-        startGame()
+        // Game start is deferred to the view layer so the tutorial
+        // overlay can display before any timers fire.
     }
 
     // MARK: - Lifecycle

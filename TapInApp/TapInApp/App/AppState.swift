@@ -122,7 +122,8 @@ class AppState: ObservableObject {
             "currentUser", "isAuthenticated",
             "authToken", "smsUserId", "backendToken",  // legacy cleanup
             "savedArticles", "savedEvents",
-            "eventPreferenceProfile"
+            "eventPreferenceProfile",
+            "tutorial_seen_wordle", "tutorial_seen_pipes", "tutorial_seen_echo"
         ]
         for key in keysToRemove {
             UserDefaults.standard.removeObject(forKey: key)
@@ -150,6 +151,9 @@ class AppState: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "savedArticles")
         UserDefaults.standard.removeObject(forKey: "savedEvents")
         UserDefaults.standard.removeObject(forKey: "eventPreferenceProfile")
+        UserDefaults.standard.removeObject(forKey: "tutorial_seen_wordle")
+        UserDefaults.standard.removeObject(forKey: "tutorial_seen_pipes")
+        UserDefaults.standard.removeObject(forKey: "tutorial_seen_echo")
         persistState()
     }
 

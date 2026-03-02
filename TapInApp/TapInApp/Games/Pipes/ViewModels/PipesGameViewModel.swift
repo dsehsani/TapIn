@@ -16,6 +16,8 @@ class PipesGameViewModel {
     var activeColor: PipeColor? = nil
     var gameState: PipesGameState = .playing
     var moves: Int = 0
+    var gameStartTime: Date? = nil
+    var gameDurationSeconds: Int = 0
 
     private(set) var currentPuzzle: PipePuzzle
     private var endpointMap: [PipePosition: PipeColor] = [:]
@@ -36,6 +38,13 @@ class PipesGameViewModel {
         loadDailyPuzzle()
     }
 
+    // MARK: - Timer
+
+    func startTimer() {
+        gameStartTime = Date()
+        gameDurationSeconds = 0
+    }
+
     // MARK: - Puzzle Management
 
     func loadDailyPuzzle() {
@@ -43,6 +52,8 @@ class PipesGameViewModel {
         gridSize = currentPuzzle.size
         gameState = .playing
         moves = 0
+        gameStartTime = nil
+        gameDurationSeconds = 0
         paths = [:]
         activeColor = nil
         lastDragCell = nil
@@ -63,6 +74,8 @@ class PipesGameViewModel {
         lastDragCell = nil
         dragLocked = false
         moves = 0
+        gameStartTime = nil
+        gameDurationSeconds = 0
         gameState = .playing
         rebuildGrid()
     }
@@ -156,6 +169,9 @@ class PipesGameViewModel {
         }
 
         if checkWinCondition() {
+            if let start = gameStartTime {
+                gameDurationSeconds = Int(Date().timeIntervalSince(start))
+            }
             UserDefaults.standard.set(
                 PipesPuzzleProvider.shared.dateKey(),
                 forKey: storageKey

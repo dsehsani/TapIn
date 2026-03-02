@@ -190,11 +190,27 @@ class GamesViewModel: ObservableObject {
                 if merged || localWasHigher {
                     await syncStatsToBackend()
                 }
+
+                // If user has played before, mark tutorials as seen
+                // so they aren't shown again on a new device.
+                if userStats.gamesPlayed > 0 {
+                    markTutorialsAsSeen()
+                }
             }
         } catch {
             #if DEBUG
             print("GamesVM: Failed to fetch stats from backend — \(error.localizedDescription)")
             #endif
+        }
+    }
+
+    /// Sets all tutorial-seen flags so returning users skip tutorials.
+    private func markTutorialsAsSeen() {
+        let keys = ["tutorial_seen_wordle", "tutorial_seen_pipes", "tutorial_seen_echo"]
+        for key in keys {
+            if !UserDefaults.standard.bool(forKey: key) {
+                UserDefaults.standard.set(true, forKey: key)
+            }
         }
     }
 

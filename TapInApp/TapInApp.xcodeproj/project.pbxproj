@@ -54,6 +54,7 @@
 				Prompts/EventsPhaseTwo.md,
 				Prompts/EventSummaryPrompt.md,
 				Prompts/FixUI.md,
+				Prompts/GameTutorialPrompt.md,
 				Prompts/LEADERBOARD.md,
 				Prompts/PersonalizedNewsPrompt.md,
 				Prompts/PhoneOnboardingPrompt.md,

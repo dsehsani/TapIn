@@ -10,6 +10,9 @@ struct PipesGameView: View {
     @State private var viewModel = PipesGameViewModel()
     @Environment(\.colorScheme) var colorScheme
 
+    @AppStorage("tutorial_seen_pipes") private var hasSeenTutorial = false
+    @State private var showStartScreen = true
+
     var body: some View {
         ZStack {
             Color.adaptiveBackground(colorScheme)
@@ -18,12 +21,31 @@ struct PipesGameView: View {
             VStack(spacing: 20) {
                 header
 
+                // Live timer
+                if viewModel.gameState == .playing, let startTime = viewModel.gameStartTime {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        let elapsed = Int(context.date.timeIntervalSince(startTime))
+                        let minutes = elapsed / 60
+                        let seconds = elapsed % 60
+                        Text(String(format: "%d:%02d", minutes, seconds))
+                            .font(.system(size: 18, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+                } else if viewModel.gameState == .solved && viewModel.gameDurationSeconds > 0 {
+                    let minutes = viewModel.gameDurationSeconds / 60
+                    let seconds = viewModel.gameDurationSeconds % 60
+                    Text(String(format: "%d:%02d", minutes, seconds))
+                        .font(.system(size: 18, weight: .medium, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+
                 Spacer()
 
                 flowStatus
 
                 PipesGridView(viewModel: viewModel)
                     .padding(.horizontal, 16)
+                    .allowsHitTesting(!showStartScreen)
 
                 Spacer()
 
@@ -36,6 +58,31 @@ struct PipesGameView: View {
 
             if viewModel.gameState == .solved {
                 completionOverlay
+            }
+
+            // Start screen / tutorial overlay
+            if showStartScreen && viewModel.gameState == .playing {
+                GameTutorialOverlay(
+                    gameName: "Pipes",
+                    gameIcon: "point.topleft.down.to.point.bottomright.curvepath.fill",
+                    accentColor: Color.ucdGold,
+                    rules: [
+                        (icon: "circle.circle.fill", text: "Connect matching colored dots by drawing paths."),
+                        (icon: "square.grid.3x3.fill", text: "Fill every cell on the board."),
+                        (icon: "xmark.circle", text: "Paths cannot cross each other."),
+                        (icon: "hand.draw", text: "Drag from a dot to draw its path.")
+                    ],
+                    onStart: {
+                        hasSeenTutorial = true
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showStartScreen = false
+                        }
+                        viewModel.startTimer()
+                    },
+                    onExit: onDismiss,
+                    subtitle: "Daily Puzzle",
+                    showRulesInitially: !hasSeenTutorial
+                )
             }
         }
     }
@@ -120,16 +167,27 @@ struct PipesGameView: View {
                     .font(.system(size: 28, weight: .bold))
                     .foregroundColor(.white)
 
-                Text("Completed in \(viewModel.moves) moves")
-                    .font(.system(size: 16))
-                    .foregroundColor(.white.opacity(0.8))
+                if viewModel.gameDurationSeconds > 0 {
+                    let minutes = viewModel.gameDurationSeconds / 60
+                    let seconds = viewModel.gameDurationSeconds % 60
+                    Text("Completed in \(String(format: "%d:%02d", minutes, seconds)) · \(viewModel.moves) moves")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.8))
+                } else {
+                    Text("Completed in \(viewModel.moves) moves")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.8))
+                }
 
                 Text("Come back tomorrow for a new puzzle!")
                     .font(.system(size: 14))
                     .foregroundColor(.white.opacity(0.6))
 
                 HStack(spacing: 16) {
-                    Button(action: { viewModel.resetPuzzle() }) {
+                    Button(action: {
+                        viewModel.resetPuzzle()
+                        showStartScreen = true
+                    }) {
                         Text("Play Again")
                             .font(.system(size: 16, weight: .bold))
                             .foregroundColor(.white)

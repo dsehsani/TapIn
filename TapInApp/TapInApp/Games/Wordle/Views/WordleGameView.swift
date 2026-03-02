@@ -25,6 +25,9 @@ struct WordleGameView: View {
     // MARK: - Environment
     @Environment(\.colorScheme) var colorScheme
 
+    // MARK: - Persistence
+    @AppStorage("tutorial_seen_wordle") private var hasSeenTutorial = false
+
     // MARK: - State
 
     /// The game ViewModel - central source of truth for game state
@@ -174,47 +177,27 @@ struct WordleGameView: View {
 
             // Start screen overlay for fresh games
             if showStartScreen && viewModel.isFreshGame {
-                Color.black.opacity(0.5)
-                    .ignoresSafeArea()
-                    .onTapGesture { } // absorb taps
-
-                VStack(spacing: 20) {
-                    Text("DailyFive")
-                        .font(.system(size: 40, weight: .bold, design: .rounded))
-                        .foregroundColor(Color.adaptiveAccent(colorScheme))
-
-                    Text(viewModel.formattedCurrentDate)
-                        .font(.system(size: 16, weight: .medium, design: .rounded))
-                        .foregroundColor(.secondary)
-
-                    Spacer().frame(height: 8)
-
-                    Text("Ready to play?")
-                        .font(.system(size: 22, weight: .semibold, design: .rounded))
-                        .foregroundColor(Color.adaptiveAccent(colorScheme))
-
-                    Button {
+                GameTutorialOverlay(
+                    gameName: "DailyFive",
+                    gameIcon: "square.grid.3x3.fill",
+                    accentColor: Color.ucdGold,
+                    rules: [
+                        (icon: "character.textbox", text: "Guess the 5-letter word in 6 tries."),
+                        (icon: "square.fill", text: "Green = correct letter, correct spot."),
+                        (icon: "square.lefthalf.filled", text: "Yellow = correct letter, wrong spot."),
+                        (icon: "square", text: "Gray = letter not in the word.")
+                    ],
+                    onStart: {
+                        hasSeenTutorial = true
                         withAnimation(.easeOut(duration: 0.3)) {
                             showStartScreen = false
                         }
                         viewModel.startTimer()
-                    } label: {
-                        Text("Start")
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                            .frame(width: 200, height: 54)
-                            .background(Color.ucdGold)
-                            .cornerRadius(14)
-                    }
-                }
-                .padding(32)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(colorScheme == .dark ? Color(.systemGray6) : Color.white)
-                        .shadow(color: .black.opacity(0.25), radius: 16, x: 0, y: 4)
+                    },
+                    onExit: onDismiss,
+                    subtitle: viewModel.formattedCurrentDate,
+                    showRulesInitially: !hasSeenTutorial
                 )
-                .padding(.horizontal, 32)
-                .transition(.opacity)
             }
         }
         // Invalid word alert

@@ -18,6 +18,9 @@ struct EchoGameView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var viewModel = EchoGameViewModel()
 
+    @AppStorage("tutorial_seen_echo") private var hasSeenTutorial = false
+    @State private var showTutorial = true
+
     var body: some View {
         ZStack {
             // Background
@@ -58,6 +61,29 @@ struct EchoGameView: View {
                 case .gameOver:
                     gameOverPhase
                 }
+            }
+            // Tutorial / start overlay
+            if showTutorial {
+                GameTutorialOverlay(
+                    gameName: "Echo",
+                    gameIcon: "waveform.circle.fill",
+                    accentColor: Color.ucdGold,
+                    rules: [
+                        (icon: "eye", text: "Memorize the sequence of shapes and colors."),
+                        (icon: "arrow.triangle.swap", text: "Transformation rules change the sequence — apply them in order."),
+                        (icon: "hand.tap", text: "Build the result using shape and color pickers."),
+                        (icon: "arrow.counterclockwise", text: "3 attempts per round, 5 rounds total.")
+                    ],
+                    onStart: {
+                        hasSeenTutorial = true
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showTutorial = false
+                        }
+                        viewModel.startGame()
+                    },
+                    onExit: onDismiss,
+                    showRulesInitially: !hasSeenTutorial
+                )
             }
         }
         .onChange(of: viewModel.gameState) { oldState, newState in
