@@ -9,6 +9,8 @@ import SwiftUI
 
 struct TopNavigationBar: View {
     var onSettingsTap: () -> Void
+    var onBellTap: () -> Void = {}
+    var hasUnseenNotifications: Bool = false
 
     @Environment(\.colorScheme) var colorScheme
 
@@ -19,6 +21,24 @@ struct TopNavigationBar: View {
                 .foregroundColor(Color.adaptiveText(colorScheme))
 
             Spacer()
+
+            // Notification bell
+            Button(action: onBellTap) {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "bell.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(Color.adaptiveText(colorScheme))
+                        .frame(width: 42, height: 42)
+
+                    if hasUnseenNotifications {
+                        Circle()
+                            .fill(.red)
+                            .frame(width: 10, height: 10)
+                            .offset(x: -6, y: 6)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
 
             // Profile avatar button
             Button(action: onSettingsTap) {

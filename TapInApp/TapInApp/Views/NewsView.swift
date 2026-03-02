@@ -11,12 +11,14 @@ struct NewsView: View {
     @ObservedObject var viewModel: NewsViewModel
     @ObservedObject var savedViewModel: SavedViewModel
     @ObservedObject var campusViewModel: CampusViewModel
+    @ObservedObject var notificationsViewModel: NotificationsViewModel
     @Binding var selectedTab: TabItem
 
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.openURL) var openURL
     @State private var selectedArticle: NewsArticle? = nil
     @State private var selectedEvent: CampusEvent? = nil
+    @State private var showBellSheet = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -29,7 +31,9 @@ struct NewsView: View {
                 VStack(spacing: 0) {
                     // Header
                     TopNavigationBar(
-                        onSettingsTap: { selectedTab = .profile }
+                        onSettingsTap: { selectedTab = .profile },
+                        onBellTap: { showBellSheet = true },
+                        hasUnseenNotifications: notificationsViewModel.hasUnseenNotifications
                     )
                     .padding(.bottom, 12)
 
@@ -129,6 +133,13 @@ struct NewsView: View {
             }
             .sheet(item: $selectedEvent) { event in
                 EventDetailView(event: event, savedViewModel: savedViewModel)
+            }
+            .sheet(isPresented: $showBellSheet) {
+                NotificationBellSheet(
+                    savedViewModel: savedViewModel,
+                    notificationsViewModel: notificationsViewModel,
+                    campusViewModel: campusViewModel
+                )
             }
 
             // Loading Overlay — only shown on first load when there are no articles
@@ -348,6 +359,7 @@ struct ArticleRowCard: View {
         viewModel: NewsViewModel(),
         savedViewModel: SavedViewModel(),
         campusViewModel: CampusViewModel(),
+        notificationsViewModel: NotificationsViewModel(),
         selectedTab: .constant(.news)
     )
 }

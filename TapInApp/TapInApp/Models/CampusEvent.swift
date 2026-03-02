@@ -171,6 +171,12 @@ extension CampusEvent {
            date < endOfWeek { return .thisWeek }
         return .later
     }
+
+    /// Stable identifier for notification scheduling (title + ISO date, since iCal UUIDs regenerate)
+    var stableNotificationId: String {
+        let formatter = ISO8601DateFormatter()
+        return "\(title)_\(formatter.string(from: date))"
+    }
 }
 
 enum EventFilterType: String, CaseIterable {

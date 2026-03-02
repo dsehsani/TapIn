@@ -10,15 +10,23 @@ import SwiftUI
 import GoogleSignIn
 import FirebaseCore
 import FirebaseAuth
+import UserNotifications
 
-class AppDelegate: NSObject, UIApplicationDelegate {
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
             FirebaseApp.configure()
         }
+        UNUserNotificationCenter.current().delegate = self
         application.registerForRemoteNotifications()
         return true
+    }
+
+    // Show local notification banners even when the app is in the foreground
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        [.banner, .sound]
     }
 
     func application(_ application: UIApplication,

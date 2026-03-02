@@ -102,6 +102,9 @@ class AppState: ObservableObject {
             try? await UserAPIService.shared.deleteAccount(token: token)
         }
 
+        // Cancel all pending notifications
+        NotificationService.shared.cancelAllReminders()
+
         // Always clear all local state
         currentUser = nil
         isAuthenticated = false
@@ -123,7 +126,8 @@ class AppState: ObservableObject {
             "authToken", "smsUserId", "backendToken",  // legacy cleanup
             "savedArticles", "savedEvents",
             "eventPreferenceProfile",
-            "tutorial_seen_wordle", "tutorial_seen_pipes", "tutorial_seen_echo"
+            "tutorial_seen_wordle", "tutorial_seen_pipes", "tutorial_seen_echo",
+            "unseenNotificationEventIds"
         ]
         for key in keysToRemove {
             UserDefaults.standard.removeObject(forKey: key)
@@ -136,6 +140,7 @@ class AppState: ObservableObject {
 
     /// Signs out the current user
     func signOut() {
+        NotificationService.shared.cancelAllReminders()
         currentUser = nil
         isAuthenticated = false
         authError = nil
@@ -154,6 +159,7 @@ class AppState: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "tutorial_seen_wordle")
         UserDefaults.standard.removeObject(forKey: "tutorial_seen_pipes")
         UserDefaults.standard.removeObject(forKey: "tutorial_seen_echo")
+        UserDefaults.standard.removeObject(forKey: "unseenNotificationEventIds")
         persistState()
     }
 
@@ -286,6 +292,9 @@ class AppState: ObservableObject {
 
     func toggleNotifications() {
         notificationsEnabled.toggle()
+        if !notificationsEnabled {
+            NotificationService.shared.cancelAllReminders()
+        }
         persistState()
     }
 }

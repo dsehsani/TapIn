@@ -24,6 +24,7 @@ struct ContentView: View {
     @StateObject private var gamesViewModel = GamesViewModel()
     @StateObject private var savedViewModel = SavedViewModel()
     @StateObject private var profileViewModel = ProfileViewModel()
+    @StateObject private var notificationsViewModel = NotificationsViewModel()
 
     @Environment(\.colorScheme) var colorScheme
 
@@ -37,6 +38,19 @@ struct ContentView: View {
             }
         }
         .ignoresSafeArea(.keyboard)
+        .task {
+            // Wire notification callbacks
+            savedViewModel.onEventSaved = { [weak notificationsViewModel] event in
+                notificationsViewModel?.markEventAsUnseen(event)
+            }
+            savedViewModel.onEventRemoved = { [weak notificationsViewModel] event in
+                notificationsViewModel?.removeFromUnseen(event)
+            }
+            // Re-schedule notifications for all saved upcoming events on launch
+            for event in savedViewModel.upcomingEvents {
+                await NotificationService.shared.scheduleReminders(for: event)
+            }
+        }
     }
 
     // MARK: - iOS 26+ Native TabView (Liquid Glass)
@@ -49,6 +63,7 @@ struct ContentView: View {
                     viewModel: newsViewModel,
                     savedViewModel: savedViewModel,
                     campusViewModel: campusViewModel,
+                    notificationsViewModel: notificationsViewModel,
                     selectedTab: $selectedTab
                 )
             }
@@ -101,6 +116,7 @@ struct ContentView: View {
                 viewModel: newsViewModel,
                 savedViewModel: savedViewModel,
                 campusViewModel: campusViewModel,
+                notificationsViewModel: notificationsViewModel,
                 selectedTab: $selectedTab
             )
             .opacity(selectedTab == .news ? 1 : 0)

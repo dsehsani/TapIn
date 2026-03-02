@@ -22,6 +22,10 @@ class SavedViewModel: ObservableObject {
     private let savedEventsKey = "savedEvents"
     private let savedArticlesKey = "savedArticles"
 
+    /// Callbacks for notification bell wiring (set by ContentView)
+    var onEventSaved: ((CampusEvent) -> Void)?
+    var onEventRemoved: ((CampusEvent) -> Void)?
+
     // MARK: - Temporal Filtering
 
     var upcomingEvents: [CampusEvent] {
@@ -87,6 +91,8 @@ class SavedViewModel: ObservableObject {
             savedEvents.append(event)
             persistContent()
             Task { await syncSaveEvent(event) }
+            Task { await NotificationService.shared.scheduleReminders(for: event) }
+            onEventSaved?(event)
         }
     }
 
@@ -94,6 +100,8 @@ class SavedViewModel: ObservableObject {
         savedEvents.removeAll { matchesEvent($0, event) }
         persistContent()
         Task { await syncRemoveEvent(event) }
+        NotificationService.shared.cancelReminders(for: event)
+        onEventRemoved?(event)
     }
 
     func isEventSaved(_ event: CampusEvent) -> Bool {
@@ -112,10 +120,9 @@ class SavedViewModel: ObservableObject {
         return a.title == b.title && a.date == b.date
     }
 
-    /// Stable identifier for an event (title-based, since iCal UUIDs regenerate)
+    /// Stable identifier for an event (delegates to CampusEvent.stableNotificationId)
     private func eventStableId(_ event: CampusEvent) -> String {
-        let formatter = ISO8601DateFormatter()
-        return "\(event.title)_\(formatter.string(from: event.date))"
+        event.stableNotificationId
     }
 
     // MARK: - Local Persistence
