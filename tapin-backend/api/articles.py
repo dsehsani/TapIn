@@ -335,7 +335,7 @@ def generate_daily_briefing():
 
     try:
         from services.briefing_service import get_daily_briefing as generate
-        result = generate()
+        result = generate(force=True)
         return jsonify({
             "success": True,
             "briefing": {

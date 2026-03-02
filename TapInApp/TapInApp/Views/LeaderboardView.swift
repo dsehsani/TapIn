@@ -7,10 +7,32 @@
 
 import SwiftUI
 
+enum LeaderboardGame: String, CaseIterable {
+    case dailyFive = "DailyFive"
+    case echo = "Echo"
+    case pipes = "Pipes"
+
+    var hasLeaderboard: Bool {
+        switch self {
+        case .dailyFive: return true
+        case .echo, .pipes: return false
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .dailyFive: return "puzzlepiece.extension.fill"
+        case .echo: return "waveform.path"
+        case .pipes: return "point.topleft.down.to.point.bottomright.curvepath.fill"
+        }
+    }
+}
+
 struct LeaderboardView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @State private var viewModel = LeaderboardViewModel()
+    @State private var selectedGame: LeaderboardGame = .dailyFive
 
     var body: some View {
         NavigationStack {
@@ -19,31 +41,40 @@ struct LeaderboardView: View {
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // Date Navigator
-                    dateNavigator
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                    // Game Picker Pills
+                    gamePicker
+                        .padding(.top, 4)
+                        .padding(.bottom, 12)
 
-                    Divider()
+                    if selectedGame.hasLeaderboard {
+                        // Date Navigator
+                        dateNavigator
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 12)
 
-                    // Content
-                    ScrollView {
-                        if viewModel.isLoading {
-                            loadingView
-                        } else if let error = viewModel.errorMessage {
-                            errorView(error)
-                        } else if viewModel.hasEntries {
-                            rankingsList
-                        } else {
-                            emptyView
+                        Divider()
+
+                        // Content
+                        ScrollView {
+                            if viewModel.isLoading {
+                                loadingView
+                            } else if let error = viewModel.errorMessage {
+                                errorView(error)
+                            } else if viewModel.hasEntries {
+                                rankingsList
+                            } else {
+                                emptyView
+                            }
                         }
-                    }
-                    .refreshable {
-                        await viewModel.refresh()
+                        .refreshable {
+                            await viewModel.refresh()
+                        }
+                    } else {
+                        comingSoonView
                     }
                 }
             }
-            .navigationTitle("DailyFive Leaderboard")
+            .navigationTitle("Leaderboard")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -111,6 +142,72 @@ struct LeaderboardView: View {
                     .background(Capsule().fill(Color.ucdGold))
             }
         }
+    }
+
+    // MARK: - Game Picker
+
+    private var gamePicker: some View {
+        HStack(spacing: 8) {
+            ForEach(LeaderboardGame.allCases, id: \.self) { game in
+                let isSelected = selectedGame == game
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectedGame = game
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Text(game.rawValue)
+                            .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
+
+                        if !game.hasLeaderboard {
+                            Text("Soon")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(
+                                    Capsule().fill(
+                                        isSelected
+                                            ? Color.white.opacity(0.2)
+                                            : (colorScheme == .dark ? Color(hex: "#334155") : Color(hex: "#e2e8f0"))
+                                    )
+                                )
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(height: 34)
+                    .background(
+                        isSelected
+                            ? (colorScheme == .dark ? Color(hex: "#1a1060") : Color.accentCoral)
+                            : (colorScheme == .dark ? Color(hex: "#1a2033") : Color.white)
+                    )
+                    .foregroundColor(
+                        isSelected
+                            ? .white
+                            : (colorScheme == .dark ? Color(hex: "#cbd5e1") : Color(hex: "#334155"))
+                    )
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(
+                                isSelected
+                                    ? Color.clear
+                                    : (colorScheme == .dark ? Color(hex: "#334155") : Color(hex: "#e2e8f0")),
+                                lineWidth: 1
+                            )
+                    )
+                    .shadow(
+                        color: isSelected
+                            ? (colorScheme == .dark ? Color(hex: "#1a1060").opacity(0.4) : Color.accentCoral.opacity(0.25))
+                            : .clear,
+                        radius: 4, x: 0, y: 2
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+        .padding(.horizontal, 16)
     }
 
     // MARK: - Rankings List
@@ -271,6 +368,37 @@ struct LeaderboardView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 80)
+    }
+
+    // MARK: - Coming Soon View
+
+    private var comingSoonView: some View {
+        VStack(spacing: 16) {
+            Spacer()
+
+            ZStack {
+                Circle()
+                    .fill(colorScheme == .dark ? Color(hex: "#1a2033") : Color(hex: "#f1f5f9"))
+                    .frame(width: 90, height: 90)
+
+                Image(systemName: selectedGame.icon)
+                    .font(.system(size: 36))
+                    .foregroundColor(colorScheme == .dark ? Color(hex: "#cbd5e1") : Color(hex: "#94a3b8"))
+            }
+
+            Text("Coming Soon")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(colorScheme == .dark ? .white : .primary)
+
+            Text("\(selectedGame.rawValue) leaderboards are on the way!")
+                .font(.system(size: 15))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 

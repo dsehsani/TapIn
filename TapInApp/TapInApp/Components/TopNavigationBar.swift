@@ -34,9 +34,24 @@ struct TopNavigationBar: View {
     // MARK: - Date Formatter
 
     private static var currentDateString: String {
+        let day = Calendar.current.component(.day, from: Date())
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM d"
-        return formatter.string(from: Date())
+        formatter.dateFormat = "MMMM"
+        let month = formatter.string(from: Date())
+        return "\(month) \(day)\(ordinalSuffix(for: day))"
+    }
+
+    private static func ordinalSuffix(for day: Int) -> String {
+        switch day {
+        case 11, 12, 13: return "th"
+        default:
+            switch day % 10 {
+            case 1: return "st"
+            case 2: return "nd"
+            case 3: return "rd"
+            default: return "th"
+            }
+        }
     }
 
     // MARK: - Profile Avatar
@@ -48,7 +63,7 @@ struct TopNavigationBar: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 34, height: 34)
+                    .frame(width: 42, height: 42)
                     .clipShape(Circle())
             } else {
                 // Initials fallback
@@ -57,9 +72,9 @@ struct TopNavigationBar: View {
                 ).uppercased()
 
                 Text(initial)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundColor(.white)
-                    .frame(width: 34, height: 34)
+                    .frame(width: 42, height: 42)
                     .background(
                         LinearGradient(
                             colors: colorScheme == .dark

@@ -8,7 +8,7 @@
 #
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 
 from repositories.briefing_repository import briefing_repository
@@ -63,31 +63,33 @@ def _cache_key(date_str: str, interests: list[str]) -> str:
     return f"{date_str}_{hash(suffix)}"
 
 
-def get_daily_briefing(interests: list[str] | None = None) -> dict:
+def get_daily_briefing(interests: list[str] | None = None, force: bool = False) -> dict:
     """
     Returns today's briefing, generating it if not cached.
     When interests are provided, the cache and prompt are scoped per interest set.
+    Pass force=True to bypass cache and regenerate.
     """
     interests = interests or []
     today = datetime.now(tz=PACIFIC).strftime("%Y-%m-%d")
     cache_key = _cache_key(today, interests)
 
-    # Check Firestore cache
-    cached = briefing_repository.get_briefing(cache_key)
-    if cached:
-        logger.info(f"Briefing cache hit for {cache_key}")
-        return {
-            "summary": "",
-            "bullet_points": cached.get("bullet_points", []),
-            "hero_title": cached.get("hero_title"),
-            "items": cached.get("items", []),
-            "article_count": cached.get("article_count", 0),
-            "generated_at": cached.get("generated_at", ""),
-            "cached": True,
-        }
+    # Check Firestore cache (skip if forcing)
+    if not force:
+        cached = briefing_repository.get_briefing(cache_key)
+        if cached:
+            logger.info(f"Briefing cache hit for {cache_key}")
+            return {
+                "summary": "",
+                "bullet_points": cached.get("bullet_points", []),
+                "hero_title": cached.get("hero_title"),
+                "items": cached.get("items", []),
+                "article_count": cached.get("article_count", 0),
+                "generated_at": cached.get("generated_at", ""),
+                "cached": True,
+            }
 
-    # Cache miss — generate new briefing
-    logger.info(f"Briefing cache miss for {cache_key} — generating")
+    # Cache miss (or forced) — generate new briefing
+    logger.info(f"Briefing {'force refresh' if force else 'cache miss'} for {cache_key} — generating")
     return _generate_briefing(cache_key, interests)
 
 
@@ -109,12 +111,18 @@ def _generate_briefing(cache_key: str, interests: list[str] | None = None) -> di
         articles = fetch_articles("all")
     articles = articles or []
 
-    # Step 1b: Get campus events from Firestore
+    # Step 1b: Get campus events from Firestore (future only)
     events = []
     try:
-        events = event_repository.get_all_events()
+        all_events = event_repository.get_all_events()
+        now_iso = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        events = [e for e in all_events if (e.get("startDate") or "") >= now_iso]
     except Exception as e:
         logger.warning(f"Failed to fetch events for briefing: {e}")
+
+    # Step 1c: Filter articles to recent ones only (last 7 days)
+    cutoff = (datetime.now(tz=timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    articles = [a for a in articles if (a.get("publishDate") or "") >= cutoff]
 
     if not articles and not events:
         return {
