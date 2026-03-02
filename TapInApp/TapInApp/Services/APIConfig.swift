@@ -89,6 +89,9 @@ enum APIConfig {
         "\(baseURL)api/users/me/games/\(gameType)"
     }
 
+    /// PATCH/GET - Wordle per-date progress
+    static var wordleProgressURL: String { "\(baseURL)api/users/me/wordle-progress" }
+
     /// GET/POST - Saved articles
     static var savedArticlesURL: String { "\(baseURL)api/users/me/articles/saved" }
 

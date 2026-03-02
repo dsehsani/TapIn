@@ -108,7 +108,7 @@ class GameViewModel {
     // MARK: - Leaderboard Properties
 
     /// Start time of the current game session (for tracking duration)
-    private var gameStartTime: Date?
+    var gameStartTime: Date?
 
     /// Total time taken for the game (in seconds)
     var gameDurationSeconds: Int = 0
@@ -118,6 +118,9 @@ class GameViewModel {
 
     /// Whether the score has been submitted for this game
     var scoreSubmitted: Bool = false
+
+    /// Whether the user exited and resumed this game (disqualifies from leaderboard)
+    var didExitGame: Bool = false
 
     // MARK: - Word Lists
 
@@ -179,12 +182,29 @@ class GameViewModel {
         // Set read-only if archive mode and completed
         isReadOnly = isArchiveMode && gameState != .playing
 
-        // Start timer for new games (leaderboard integration)
+        // Reset leaderboard state for new games
         if gameState == .playing && !isArchiveMode {
-            gameStartTime = Date()
             scoreSubmitted = false
             assignedUsername = nil
+            // If resuming a game with progress, the user exited previously — disqualify from leaderboard
+            if currentRow > 0 {
+                didExitGame = true
+                gameStartTime = gameStartTime ?? Date()
+            } else {
+                didExitGame = false
+                gameStartTime = nil
+            }
         }
+    }
+
+    /// Whether this is a fresh game with no guesses yet (for start screen)
+    var isFreshGame: Bool {
+        gameState == .playing && currentRow == 0 && !isArchiveMode
+    }
+
+    /// Starts the game timer (called when user presses Start)
+    func startTimer() {
+        gameStartTime = Date()
     }
 
     /// Loads today's game (convenience method)
@@ -284,7 +304,14 @@ class GameViewModel {
 
         grid[currentRow][currentTile].letter = letter
         grid[currentRow][currentTile].state = .filled
-        currentTile += 1
+
+        // Advance cursor to next empty tile, or past end if all filled
+        let next = currentTile + 1
+        if next < wordLength {
+            currentTile = next
+        } else {
+            currentTile = wordLength
+        }
     }
 
     /// Deletes the last entered letter
@@ -295,6 +322,30 @@ class GameViewModel {
         currentTile -= 1
         grid[currentRow][currentTile].letter = nil
         grid[currentRow][currentTile].state = .empty
+    }
+
+    /// Moves the cursor to a specific tile in the current row
+    /// - Parameter column: The column index (0-4) to move the cursor to
+    func selectTile(at column: Int) {
+        guard gameState == .playing else { return }
+        guard !isRevealing else { return }
+        guard column >= 0 && column < wordLength else { return }
+
+        // Only allow selecting tiles in the current row
+        // Allow tapping on filled tiles or the next empty position
+        if grid[currentRow][column].letter != nil || column == firstEmptyTile() {
+            currentTile = column
+        }
+    }
+
+    /// Returns the index of the first empty tile in the current row
+    private func firstEmptyTile() -> Int {
+        for i in 0..<wordLength {
+            if grid[currentRow][i].letter == nil {
+                return i
+            }
+        }
+        return wordLength
     }
 
     /// Submits the current guess for evaluation
@@ -308,7 +359,7 @@ class GameViewModel {
     func submitGuess() {
         guard gameState == .playing else { return }
         guard !isReadOnly else { return }
-        guard currentTile == wordLength else { return }
+        guard firstEmptyTile() == wordLength else { return }
         guard !isRevealing else { return }
 
         // Get the current guess
@@ -434,6 +485,9 @@ class GameViewModel {
 
         // Don't submit twice
         guard !scoreSubmitted else { return }
+
+        // Don't submit if user exited and resumed
+        guard !didExitGame else { return }
 
         // Calculate time if we have a start time
         guard let startTime = gameStartTime else { return }

@@ -38,6 +38,9 @@ struct TileView: View {
     /// Used to distinguish between animated reveals and restored states
     let isInRevealingRow: Bool
 
+    /// Whether this tile is the currently selected cursor position
+    var isSelected: Bool = false
+
     /// Color scheme for dark mode support
     var colorScheme: ColorScheme = .light
 
@@ -70,6 +73,13 @@ struct TileView: View {
             }
         }
         .frame(width: 58, height: 58)
+        // Cursor indicator overlay for selected tile
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.accentColor, lineWidth: 3)
+                .opacity(isSelected ? 1 : 0)
+                .animation(.easeInOut(duration: 0.15), value: isSelected)
+        )
         // 3D flip rotation on X-axis
         .rotation3DEffect(
             .degrees(flipped ? 180 : 0),

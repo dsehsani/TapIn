@@ -188,6 +188,56 @@ class UserAPIService {
         return overall
     }
 
+    // MARK: - Wordle Progress
+
+    /// Pushes a single date's Wordle progress to the backend.
+    func syncWordleProgress(token: String, dateKey: String, guesses: [String], gameState: String) async throws {
+        guard let requestURL = URL(string: APIConfig.wordleProgressURL) else {
+            throw UserAPIError.invalidResponse
+        }
+
+        let body: [String: Any] = [
+            "dateKey": dateKey,
+            "guesses": guesses,
+            "gameState": gameState
+        ]
+
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw UserAPIError.invalidResponse
+        }
+    }
+
+    /// Fetches all Wordle progress entries from the backend.
+    func fetchWordleProgress(token: String) async throws -> [String: [String: Any]]? {
+        guard let requestURL = URL(string: APIConfig.wordleProgressURL) else {
+            throw UserAPIError.invalidResponse
+        }
+
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw UserAPIError.invalidResponse
+        }
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let progress = json["wordleProgress"] as? [String: [String: Any]] else {
+            return nil
+        }
+        return progress
+    }
+
     // MARK: - Update Profile
 
     /// Updates the current user's profile fields (email, username).

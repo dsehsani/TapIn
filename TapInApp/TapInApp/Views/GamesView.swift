@@ -135,6 +135,9 @@ struct GamesView: View {
                 onDismiss: { viewModel.dismissGame() }
             )
         }
+        .onAppear {
+            viewModel.loadUserStats()
+        }
         .sheet(isPresented: $viewModel.showingLeaderboard) {
             LeaderboardView()
                 .presentationDetents([.large])

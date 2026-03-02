@@ -40,6 +40,15 @@ struct GameGridView: View {
     /// Used to trigger flip animations only on the active row
     let revealingRow: Int
 
+    /// The active row where the user is typing
+    var currentRow: Int = -1
+
+    /// The active tile (cursor position) within the current row
+    var currentTile: Int = -1
+
+    /// Callback when a tile is tapped (row, column)
+    var onTileTap: ((Int, Int) -> Void)? = nil
+
     /// Color scheme for dark mode support
     var colorScheme: ColorScheme = .light
 
@@ -51,12 +60,16 @@ struct GameGridView: View {
             ForEach(Array(grid.enumerated()), id: \.offset) { rowIndex, row in
                 HStack(spacing: 6) {
                     // Iterate through each tile in the row
-                    ForEach(row) { tile in
+                    ForEach(Array(row.enumerated()), id: \.element.id) { colIndex, tile in
                         TileView(
                             tile: tile,
                             isInRevealingRow: rowIndex == revealingRow,
+                            isSelected: rowIndex == currentRow && colIndex == currentTile,
                             colorScheme: colorScheme
                         )
+                        .onTapGesture {
+                            onTileTap?(rowIndex, colIndex)
+                        }
                     }
                 }
             }
@@ -71,6 +84,6 @@ struct GameGridView: View {
         (0..<5).map { _ in LetterTile() }
     }
 
-    GameGridView(grid: sampleGrid, revealingRow: -1)
+    GameGridView(grid: sampleGrid, revealingRow: -1, currentRow: 0, currentTile: 0)
         .padding()
 }

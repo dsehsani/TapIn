@@ -24,7 +24,10 @@ class GamesViewModel: ObservableObject {
     @Published var showingPipes: Bool = false
     @Published var showingLeaderboard: Bool = false
 
-    private let statsKey = "aggregateGameStats"
+    private var currentStatsKey: String {
+        let email = AppState.shared.userEmail
+        return email.isEmpty ? "aggregateGameStats" : "aggregateGameStats_\(email)"
+    }
 
     init() {
         loadAvailableGames()
@@ -70,9 +73,20 @@ class GamesViewModel: ObservableObject {
     // MARK: - Stats Persistence
 
     func loadUserStats() {
-        // Load from UserDefaults first (instant)
-        if let data = UserDefaults.standard.data(forKey: statsKey),
-           let stats = try? JSONDecoder().decode(GameStats.self, from: data) {
+        let key = currentStatsKey
+        let oldKey = "aggregateGameStats"
+
+        // Migration: if per-user key has no data but the old shared key does, copy it over
+        if key != oldKey,
+           UserDefaults.standard.data(forKey: key) == nil,
+           let oldData = UserDefaults.standard.data(forKey: oldKey),
+           let oldStats = try? JSONDecoder().decode(GameStats.self, from: oldData) {
+            userStats = oldStats
+            if let data = try? JSONEncoder().encode(userStats) {
+                UserDefaults.standard.set(data, forKey: key)
+            }
+        } else if let data = UserDefaults.standard.data(forKey: key),
+                  let stats = try? JSONDecoder().decode(GameStats.self, from: data) {
             userStats = stats
         }
 
@@ -88,7 +102,7 @@ class GamesViewModel: ObservableObject {
     func saveUserStats() {
         // Save to UserDefaults (instant)
         if let data = try? JSONEncoder().encode(userStats) {
-            UserDefaults.standard.set(data, forKey: statsKey)
+            UserDefaults.standard.set(data, forKey: currentStatsKey)
         }
 
         // Sync to backend in background
@@ -162,10 +176,19 @@ class GamesViewModel: ObservableObject {
                     merged = true
                 }
 
+                // If local had higher values than remote, push merged stats back
+                let localWasHigher = userStats.gamesPlayed > remoteGamesPlayed
+                    || userStats.wins > remoteWins
+                    || userStats.maxStreak > remoteMaxStreak
+
                 if merged {
                     if let data = try? JSONEncoder().encode(userStats) {
-                        UserDefaults.standard.set(data, forKey: statsKey)
+                        UserDefaults.standard.set(data, forKey: currentStatsKey)
                     }
+                }
+
+                if merged || localWasHigher {
+                    await syncStatsToBackend()
                 }
             }
         } catch {

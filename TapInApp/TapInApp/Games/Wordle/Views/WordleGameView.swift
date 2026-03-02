@@ -39,6 +39,12 @@ struct WordleGameView: View {
     /// Whether the standalone leaderboard sheet is shown
     @State private var showLeaderboard = false
 
+    /// Whether the start screen is visible (for fresh games)
+    @State private var showStartScreen = true
+
+    /// Whether the exit confirmation alert is shown
+    @State private var showExitAlert = false
+
     // MARK: - Leaderboard State
 
     /// Leaderboard entries for the current puzzle
@@ -75,15 +81,53 @@ struct WordleGameView: View {
                     onBackToToday: {
                         viewModel.loadTodaysGame()
                         showGameOverOverlay = true
+                        showStartScreen = true
                     },
-                    onBack: onDismiss,
+                    onBack: {
+                        // Warn if leaving an in-progress game with guesses
+                        if viewModel.gameState == .playing && viewModel.currentRow > 0 {
+                            showExitAlert = true
+                        } else {
+                            onDismiss()
+                        }
+                    },
                     colorScheme: colorScheme
                 )
+
+                // Live game timer
+                if viewModel.gameState == .playing, let startTime = viewModel.gameStartTime {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        let elapsed = Int(context.date.timeIntervalSince(startTime))
+                        let minutes = elapsed / 60
+                        let seconds = elapsed % 60
+                        Text(String(format: "%d:%02d", minutes, seconds))
+                            .font(.system(size: 18, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.top, 8)
+                } else if viewModel.gameState != .playing && viewModel.gameDurationSeconds > 0 {
+                    let minutes = viewModel.gameDurationSeconds / 60
+                    let seconds = viewModel.gameDurationSeconds % 60
+                    Text(String(format: "%d:%02d", minutes, seconds))
+                        .font(.system(size: 18, weight: .medium, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .padding(.top, 8)
+                }
 
                 // Game grid - centered in available space
                 Spacer(minLength: 10)
 
-                GameGridView(grid: viewModel.grid, revealingRow: viewModel.revealingRow, colorScheme: colorScheme)
+                GameGridView(
+                    grid: viewModel.grid,
+                    revealingRow: viewModel.revealingRow,
+                    currentRow: viewModel.gameState == .playing ? viewModel.currentRow : -1,
+                    currentTile: viewModel.gameState == .playing ? viewModel.currentTile : -1,
+                    onTileTap: { row, col in
+                        guard row == viewModel.currentRow else { return }
+                        viewModel.selectTile(at: col)
+                    },
+                    colorScheme: colorScheme
+                )
                     .padding(.horizontal, 20)
                     .fixedSize()
 
@@ -117,6 +161,7 @@ struct WordleGameView: View {
                         viewModel.loadTodaysGame()
                         leaderboardEntries = []
                         showGameOverOverlay = true
+                        showStartScreen = true
                     },
                     onBrowseArchive: { showArchive = true },
                     onDismiss: { showGameOverOverlay = false },
@@ -126,10 +171,62 @@ struct WordleGameView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showGameOverOverlay)
             }
+
+            // Start screen overlay for fresh games
+            if showStartScreen && viewModel.isFreshGame {
+                Color.black.opacity(0.5)
+                    .ignoresSafeArea()
+                    .onTapGesture { } // absorb taps
+
+                VStack(spacing: 20) {
+                    Text("DailyFive")
+                        .font(.system(size: 40, weight: .bold, design: .rounded))
+                        .foregroundColor(Color.adaptiveAccent(colorScheme))
+
+                    Text(viewModel.formattedCurrentDate)
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundColor(.secondary)
+
+                    Spacer().frame(height: 8)
+
+                    Text("Ready to play?")
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .foregroundColor(Color.adaptiveAccent(colorScheme))
+
+                    Button {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showStartScreen = false
+                        }
+                        viewModel.startTimer()
+                    } label: {
+                        Text("Start")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .frame(width: 200, height: 54)
+                            .background(Color.ucdGold)
+                            .cornerRadius(14)
+                    }
+                }
+                .padding(32)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(colorScheme == .dark ? Color(.systemGray6) : Color.white)
+                        .shadow(color: .black.opacity(0.25), radius: 16, x: 0, y: 4)
+                )
+                .padding(.horizontal, 32)
+                .transition(.opacity)
+            }
         }
         // Invalid word alert
         .alert("Not in word list", isPresented: $viewModel.showInvalidWordAlert) {
             Button("OK", role: .cancel) { }
+        }
+        // Exit confirmation alert
+        .alert("Leave game?", isPresented: $showExitAlert) {
+            Button("Stay", role: .cancel) { }
+            Button("Leave", role: .destructive) { onDismiss() }
+        } message: {
+            Text("If you leave now, your score won't be submitted to the leaderboard.")
         }
         // Leaderboard sheet
         .sheet(isPresented: $showLeaderboard) {
@@ -147,13 +244,16 @@ struct WordleGameView: View {
                     viewModel.loadGameForDate(date)
                     leaderboardEntries = []  // Clear leaderboard for new game
                     showGameOverOverlay = true  // Reset overlay when loading new game
+                    showStartScreen = true  // Show start screen if fresh game
                     showArchive = false
                 },
                 onDismiss: { showArchive = false }
             )
         }
-        // Fetch leaderboard on appear if game already won (e.g. returning to completed game)
-        .onAppear {
+        // Sync wordle progress with backend, then reload game state
+        .task {
+            await GameStorage.shared.performSync()
+            viewModel.loadGameForDate(viewModel.currentDate)
             if viewModel.gameState == .won && !viewModel.isArchiveMode && leaderboardEntries.isEmpty {
                 fetchLeaderboard()
             }

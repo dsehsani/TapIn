@@ -374,6 +374,33 @@ class OnboardingViewModel: ObservableObject {
                     year: "Senior"
                 )
                 AppState.shared.isAuthenticated = true
+
+                // Authenticate with backend so cloud sync works for demo account
+                do {
+                    let result = try await UserAPIService.shared.login(
+                        email: "reviewer@apple.com", password: "demo-reviewer-2026"
+                    )
+                    if let token = result.token {
+                        AppState.shared.backendToken = token
+                    }
+                } catch {
+                    // Account may not exist yet — register it
+                    do {
+                        let result = try await UserAPIService.shared.register(
+                            username: "App Reviewer",
+                            email: "reviewer@apple.com",
+                            password: "demo-reviewer-2026"
+                        )
+                        if let token = result.token {
+                            AppState.shared.backendToken = token
+                        }
+                    } catch {
+                        #if DEBUG
+                        print("OnboardingVM: demo backend auth failed — \(error.localizedDescription)")
+                        #endif
+                    }
+                }
+
                 AppState.shared.persistStatePublic()
                 isLoading = false
                 return

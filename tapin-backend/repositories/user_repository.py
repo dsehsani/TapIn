@@ -87,6 +87,7 @@ class UserRepository:
             "createdAt": now,
             "updatedAt": now,
             "gameStats": _default_game_stats(),
+            "wordleProgress": {},
             "savedArticles": [],
             "readArticles": [],
             "eventRSVPs": [],
@@ -191,6 +192,22 @@ class UserRepository:
             f"gameStats.{game_type}": stats,
             "updatedAt": _now_iso(),
         })
+
+    # --------------------------------------------------------------------------
+    # Wordle Progress (per-date game state)
+    # --------------------------------------------------------------------------
+
+    def update_wordle_progress(self, user_id: str, date_key: str, state: dict) -> None:
+        self._col().document(user_id).update({
+            f"wordleProgress.{date_key}": state,
+            "updatedAt": _now_iso(),
+        })
+
+    def get_wordle_progress(self, user_id: str) -> dict:
+        snap = self._col().document(user_id).get()
+        if not snap.exists:
+            return {}
+        return snap.to_dict().get("wordleProgress", {})
 
     # --------------------------------------------------------------------------
     # Saved Articles

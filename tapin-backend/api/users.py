@@ -425,6 +425,58 @@ def update_game_stats(game_type: str):
 
 
 # --------------------------------------------------------------------------
+# Protected: Wordle Progress (per-date game state)
+# --------------------------------------------------------------------------
+
+@users_bp.route("/me/wordle-progress", methods=["PATCH"])
+@require_auth
+def update_wordle_progress():
+    """
+    Save or update Wordle progress for a single date.
+
+    Request JSON: {
+        "dateKey": "2026-03-02",
+        "guesses": ["BRAIN", "SMART"],
+        "gameState": "playing"
+    }
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"success": False, "error": "Request body must be JSON"}), 400
+
+    date_key = data.get("dateKey", "").strip()
+    guesses = data.get("guesses")
+    game_state = data.get("gameState", "")
+
+    if not date_key or guesses is None or not game_state:
+        return jsonify({"success": False, "error": "dateKey, guesses, and gameState are required"}), 400
+
+    try:
+        state = {
+            "guesses": guesses,
+            "gameState": game_state,
+            "dateKey": date_key,
+        }
+        user_repository.update_wordle_progress(g.user_id, date_key, state)
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        logger.error(f"update_wordle_progress error: {e}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@users_bp.route("/me/wordle-progress", methods=["GET"])
+@require_auth
+def get_wordle_progress():
+    """Returns all Wordle progress entries for the current user."""
+    try:
+        progress = user_repository.get_wordle_progress(g.user_id)
+        return jsonify({"success": True, "wordleProgress": progress}), 200
+    except Exception as e:
+        logger.error(f"get_wordle_progress error: {e}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+# --------------------------------------------------------------------------
 # Protected: Saved Articles
 # --------------------------------------------------------------------------
 

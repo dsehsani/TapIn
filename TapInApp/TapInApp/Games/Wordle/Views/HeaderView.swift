@@ -69,55 +69,49 @@ struct HeaderView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Main header bar
-            HStack {
-                // Back button (left side)
-                if let onBack = onBack {
-                    Button(action: onBack) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(accentColor)
-                    }
-                    .padding(.trailing, 8)
-                }
-
-                // Archive button
-                Button(action: onArchiveTap) {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(accentColor)
-                }
-
-                // Leaderboard button
-                if let onLeaderboardTap {
-                    Button(action: onLeaderboardTap) {
-                        Image(systemName: "trophy.fill")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(Color.ucdGold)
-                    }
-                    .padding(.leading, 6)
-                }
-
-                Spacer()
-
-                // App title (center)
+            ZStack {
+                // Centered title
                 Text("DailyFive")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundColor(accentColor)
 
-                Spacer()
+                // Left-aligned buttons
+                HStack {
+                    if let onBack = onBack {
+                        Button(action: onBack) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(accentColor)
+                        }
+                        .padding(.trailing, 8)
+                    }
 
-                // Home button (right side) - only visible in archive mode
-                if isArchiveMode {
-                    Button(action: onBackToToday) {
-                        Image(systemName: "house.fill")
+                    Button(action: onArchiveTap) {
+                        Image(systemName: "calendar")
                             .font(.system(size: 20, weight: .medium))
                             .foregroundColor(accentColor)
                     }
-                } else {
-                    // Invisible placeholder for layout symmetry
-                    Image(systemName: "house.fill")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(.clear)
+
+                    Spacer()
+
+                    // Trophy button (right side)
+                    if let onLeaderboardTap {
+                        Button(action: onLeaderboardTap) {
+                            Image(systemName: "trophy.fill")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(Color.ucdGold)
+                        }
+                        .padding(.trailing, 6)
+                    }
+
+                    // Home button - only visible in archive mode
+                    if isArchiveMode {
+                        Button(action: onBackToToday) {
+                            Image(systemName: "house.fill")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(accentColor)
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 20)
