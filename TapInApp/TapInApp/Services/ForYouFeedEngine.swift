@@ -31,7 +31,10 @@ class ForYouFeedEngine {
         "Campus Life": ["Campus", "Features"],
         "Politics": ["Opinion", "Editorial", "City"],
         "Health & Wellness": ["Features", "Science & Tech"],
-        "Food & Dining": ["Features", "City"]
+        "Food & Dining": ["Features", "City"],
+        "Music & Concerts": ["Arts & Culture", "Features"],
+        "Outdoors & Recreation": ["Features", "Campus"],
+        "Career & Professional": ["Features", "Campus"]
     ]
 
     // Interest keywords for fuzzy event matching
@@ -42,7 +45,10 @@ class ForYouFeedEngine {
         "Campus Life": ["campus", "student", "club", "organization", "social", "meeting", "mixer", "orientation", "welcome", "community"],
         "Politics": ["politic", "government", "election", "vote", "debate", "policy", "senate", "council", "activist", "protest", "rally"],
         "Health & Wellness": ["health", "wellness", "mental", "meditation", "yoga", "counseling", "therapy", "nutrition", "fitness", "wellbeing", "self-care"],
-        "Food & Dining": ["food", "dining", "cook", "bake", "recipe", "restaurant", "cafe", "coffee", "pizza", "taco", "brunch", "lunch", "dinner", "potluck"]
+        "Food & Dining": ["food", "dining", "cook", "bake", "recipe", "restaurant", "cafe", "coffee", "pizza", "taco", "brunch", "lunch", "dinner", "potluck"],
+        "Music & Concerts": ["music", "concert", "band", "singer", "festival", "dj", "live", "performance", "album", "playlist"],
+        "Outdoors & Recreation": ["outdoor", "hike", "nature", "park", "garden", "arboretum", "bike", "kayak", "camping", "trail", "adventure"],
+        "Career & Professional": ["career", "job", "intern", "resume", "interview", "recruit", "hiring", "professional", "networking", "workshop", "linkedin"]
     ]
 
     // MARK: - Build Feed
@@ -56,12 +62,19 @@ class ForYouFeedEngine {
     ) -> ForYouFeedResult {
         let readTracker = ArticleReadTracker.shared
         let prefEngine = EventPreferenceEngine.shared
+        let tracker = NotInterestedTracker.shared
+
+        // Filter out dismissed content
+        let filteredArticles = articles.filter { !tracker.isArticleDismissed($0) }
+        let now = Date()
+        let upcomingEvents = events.filter { $0.date >= Calendar.current.startOfDay(for: now) }
+        let filteredEvents = upcomingEvents.filter { !tracker.isEventDismissed($0) }
 
         // Build saved-article category counts for affinity signal
         let savedCategoryCounts = buildSavedCategoryCounts(savedArticles)
 
         // Score and sort articles
-        let scoredArticles = articles.map { article -> (NewsArticle, Double) in
+        let scoredArticles = filteredArticles.map { article -> (NewsArticle, Double) in
             let score = scoreArticle(
                 article,
                 userInterests: userInterests,
@@ -73,9 +86,7 @@ class ForYouFeedEngine {
         .sorted { $0.1 > $1.1 }
 
         // Score and sort events, cap at 15
-        let now = Date()
-        let upcomingEvents = events.filter { $0.date >= Calendar.current.startOfDay(for: now) }
-        let scoredEvents = upcomingEvents.map { event -> (CampusEvent, Double) in
+        let scoredEvents = filteredEvents.map { event -> (CampusEvent, Double) in
             let score = scoreEvent(
                 event,
                 userInterests: userInterests,
@@ -188,15 +199,9 @@ class ForYouFeedEngine {
     ) -> Double {
         var score = 0.0
 
-        // Signal 1: EventPreferenceEngine (50%)
-        let prefScore = prefEngine.score(event: event)
-        score += prefScore * 0.50
-
-        // Signal 2: User interest keyword match (30%)
         let keywordScore = eventInterestKeywordScore(event: event, interests: userInterests)
-        score += keywordScore * 0.30
+        let prefScore = prefEngine.score(event: event)
 
-        // Signal 3: Urgency (20%)
         let urgencyScore: Double
         switch event.dateUrgency {
         case .today: urgencyScore = 1.0
@@ -204,7 +209,24 @@ class ForYouFeedEngine {
         case .thisWeek: urgencyScore = 0.4
         case .later: urgencyScore = 0.1
         }
-        score += urgencyScore * 0.20
+
+        if !userInterests.isEmpty {
+            // When user has interests, heavily weight keyword match so
+            // "For You" events look meaningfully different from "All Events".
+            score += keywordScore * 0.55
+            score += prefScore * 0.20
+            score += urgencyScore * 0.25
+
+            // Penalize events that match none of the user's interests
+            if keywordScore == 0 {
+                score *= 0.3
+            }
+        } else {
+            // No interests — fall back to preference engine + urgency
+            score += prefScore * 0.50
+            score += keywordScore * 0.30
+            score += urgencyScore * 0.20
+        }
 
         return min(score, 1.0)
     }

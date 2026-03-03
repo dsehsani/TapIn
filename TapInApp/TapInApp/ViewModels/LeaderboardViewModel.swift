@@ -18,6 +18,9 @@ class LeaderboardViewModel {
     var isLoading: Bool = false
     var errorMessage: String?
 
+    /// Tracks the current load task so we can cancel it on re-entry
+    private var loadTask: Task<Void, Never>?
+
     // MARK: - Date Helpers
 
     private let dateFormatter: DateFormatter = {
@@ -52,19 +55,30 @@ class LeaderboardViewModel {
 
     @MainActor
     func loadData() async {
-        isLoading = true
-        errorMessage = nil
+        // Cancel any in-flight load to avoid race conditions
+        loadTask?.cancel()
 
-        let dateKey = dateFormatter.string(from: selectedDate)
+        let task = Task { @MainActor in
+            isLoading = true
+            errorMessage = nil
 
-        do {
-            entries = try await LeaderboardService.shared.fetchLeaderboard(for: dateKey, limit: 10)
-        } catch {
-            errorMessage = "Unable to load leaderboard"
-            entries = []
+            let dateKey = dateFormatter.string(from: selectedDate)
+
+            do {
+                let result = try await LeaderboardService.shared.fetchLeaderboard(for: dateKey, limit: 10)
+                guard !Task.isCancelled else { return }
+                entries = result
+            } catch {
+                guard !Task.isCancelled else { return }
+                errorMessage = "Unable to load leaderboard"
+                entries = []
+            }
+
+            isLoading = false
         }
 
-        isLoading = false
+        loadTask = task
+        await task.value
     }
 
     // MARK: - Date Navigation

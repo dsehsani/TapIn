@@ -13,6 +13,7 @@ struct ForYouEventCard: View {
     let event: CampusEvent
     @ObservedObject var savedViewModel: SavedViewModel
     var onTap: () -> Void = {}
+    var onDismiss: () -> Void = {}
 
     @Environment(\.colorScheme) var colorScheme
 
@@ -117,6 +118,23 @@ struct ForYouEventCard: View {
                     Text(eventEmoji)
                         .font(.system(size: 44))
                         .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+
+                    // Dismiss button (top-right)
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Button(action: onDismiss) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 24, height: 24)
+                                    .background(.black.opacity(0.35), in: Circle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Spacer()
+                    }
+                    .padding(8)
 
                     // Urgency badge
                     if let label = urgencyLabel {

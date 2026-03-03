@@ -143,9 +143,9 @@ struct CategoryPill: View {
                         angle: .degrees(rotation + 90)
                     )
                 )
-                .blur(radius: 8)
+                .padding(-3)
+                .blur(radius: 5)
                 .opacity(glowOpacity)
-                .scaleEffect(1.08)
         }
     }
 

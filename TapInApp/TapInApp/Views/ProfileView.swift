@@ -16,6 +16,7 @@ struct ProfileView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var showEditProfile = false
     @State private var showDeleteConfirmation = false
+    @State private var showAbout = false
 
     // Load persisted profile image
     private var profileImage: UIImage? {
@@ -106,6 +107,10 @@ struct ProfileView: View {
             .sheet(isPresented: $showEditProfile) {
                 EditProfileView(viewModel: viewModel)
             }
+            .sheet(isPresented: $showAbout) {
+                AboutTapInView()
+                    .presentationDetents([.medium])
+            }
             .alert("Delete Account", isPresented: $showDeleteConfirmation) {
                 Button("Cancel", role: .cancel) { }
                 Button("Delete", role: .destructive) {
@@ -186,12 +191,6 @@ struct ProfileView: View {
                                 .stroke(.white, lineWidth: 2)
                         )
                 }
-                .pulsingHotspot(
-                    tip: .editProfile,
-                    message: "Don't be a stranger. Set your role & major.",
-                    arrowEdge: .bottom,
-                    condition: viewModel.user?.year == nil || (viewModel.user?.year ?? "").isEmpty
-                )
                 .padding(.top, 4)
             }
         }
@@ -233,14 +232,6 @@ struct ProfileView: View {
 
             Divider().padding(.leading, 56)
 
-            SettingsRow(icon: "moon.fill", title: "Dark Mode", colorScheme: colorScheme) {
-                Toggle("", isOn: $viewModel.darkModeEnabled)
-                    .labelsHidden()
-                    .tint(colorScheme == .dark ? Color.ucdGold : Color.accentCoral)
-            }
-
-            Divider().padding(.leading, 56)
-
             Link(destination: APIConfig.privacyURL) {
                 SettingsRow(icon: "hand.raised.fill", title: "Privacy Policy", colorScheme: colorScheme) {
                     Image(systemName: "chevron.right")
@@ -251,28 +242,24 @@ struct ProfileView: View {
 
             Divider().padding(.leading, 56)
 
-            Link(destination: APIConfig.termsURL) {
-                SettingsRow(icon: "doc.text.fill", title: "Terms of Service", colorScheme: colorScheme) {
+            Button(action: { showAbout = true }) {
+                SettingsRow(icon: "info.circle.fill", title: "About TapIn", colorScheme: colorScheme) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14))
                         .foregroundColor(.textSecondary)
                 }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
 
             Divider().padding(.leading, 56)
 
-            SettingsRow(icon: "info.circle.fill", title: "About TapIn", colorScheme: colorScheme) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14))
-                    .foregroundColor(.textSecondary)
-            }
-
-            Divider().padding(.leading, 56)
-
-            SettingsRow(icon: "questionmark.circle.fill", title: "Help & Support", colorScheme: colorScheme) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14))
-                    .foregroundColor(.textSecondary)
+            Link(destination: URL(string: "mailto:davistapin@gmail.com")!) {
+                SettingsRow(icon: "envelope.fill", title: "Help & Support", colorScheme: colorScheme) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14))
+                        .foregroundColor(.textSecondary)
+                }
             }
         }
         .background(colorScheme == .dark ? Color(hex: "#1a2033") : .white)

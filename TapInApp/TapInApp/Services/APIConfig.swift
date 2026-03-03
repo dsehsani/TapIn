@@ -123,11 +123,9 @@ enum APIConfig {
 
     // MARK: - Legal Pages
 
-    /// Privacy Policy web page
-    static var privacyURL: URL { URL(string: "\(baseURL)privacy")! }
+    /// Privacy Policy web page (GitHub Pages)
+    static var privacyURL: URL { URL(string: "https://dsehsani.github.io/TapIn/privacy_policy.html")! }
 
-    /// Terms of Service web page
-    static var termsURL: URL { URL(string: "\(baseURL)terms")! }
 
     // MARK: - Mock Mode
 

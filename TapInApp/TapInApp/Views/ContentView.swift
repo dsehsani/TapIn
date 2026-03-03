@@ -118,6 +118,32 @@ struct ContentView: View {
                 selectedTab: $selectedTab
             )
         }
+        .overlayPreferenceValue(OnboardingTipOverlayKey.self) { tipInfos in
+            if let activeTip = OnboardingManager.shared.activeTip,
+               let info = tipInfos[activeTip] {
+                Color.black.opacity(0.01)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        OnboardingManager.shared.dismissTip(activeTip)
+                    }
+
+                GeometryReader { proxy in
+                    let rect = proxy[info.anchor]
+
+                    OnboardingTipView(message: info.message, arrowEdge: info.arrowEdge)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 280)
+                        .position(
+                            x: proxy.size.width / 2,
+                            y: info.arrowEdge == .top
+                                ? rect.maxY + 24
+                                : rect.minY - 24
+                        )
+                        .transition(.scale(scale: 0.8).combined(with: .opacity))
+                }
+                .allowsHitTesting(false)
+            }
+        }
     }
 
     // MARK: - Legacy Tab View (iOS 17–25) — matches iOS 26+ design
@@ -185,6 +211,13 @@ struct ContentView: View {
         .overlayPreferenceValue(OnboardingTipOverlayKey.self) { tipInfos in
             if let activeTip = OnboardingManager.shared.activeTip,
                let info = tipInfos[activeTip] {
+                // Tap anywhere to dismiss
+                Color.black.opacity(0.01)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        OnboardingManager.shared.dismissTip(activeTip)
+                    }
+
                 GeometryReader { proxy in
                     let rect = proxy[info.anchor]
 
@@ -194,8 +227,8 @@ struct ContentView: View {
                         .position(
                             x: proxy.size.width / 2,
                             y: info.arrowEdge == .top
-                                ? rect.maxY + 44
-                                : rect.minY - 44
+                                ? rect.maxY + 24
+                                : rect.minY - 24
                         )
                         .transition(.scale(scale: 0.8).combined(with: .opacity))
                 }

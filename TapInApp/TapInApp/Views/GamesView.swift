@@ -42,12 +42,6 @@ struct GamesView: View {
                                         .shadow(color: .black.opacity(0.05), radius: 4)
                                 )
                         }
-                        .pulsingHotspot(
-                            tip: .leaderboard,
-                            message: "See how you stack up against other Aggies.",
-                            arrowEdge: .top,
-                            cornerRadius: 10
-                        )
 
                         // Streak Badge
                         VStack(spacing: 2) {
@@ -89,7 +83,7 @@ struct GamesView: View {
                             }
                             .pulsingHotspot(
                                 tip: .featuredGame,
-                                message: "Brain awake yet? \u{1F9E0} Keep your streak alive.",
+                                message: "Try today's daily challenge.",
                                 arrowEdge: .top
                             )
                             .padding(.horizontal, 16)

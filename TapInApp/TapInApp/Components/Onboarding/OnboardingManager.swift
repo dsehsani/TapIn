@@ -4,19 +4,14 @@
 //
 //  MARK: - Onboarding Tip Manager
 //  Singleton that controls which contextual tooltip is active.
-//  Tips show in a fixed sequence and are persisted so each tip only appears once.
+//  Each tip shows independently the first time its screen appears.
 //
 
 import SwiftUI
 
 enum OnboardingTip: String, CaseIterable {
-    case searchBar
     case categoryPills
-    case dailyBriefing
-    case navigationBar
     case featuredGame
-    case leaderboard
-    case editProfile
 
     var userDefaultsKey: String {
         "onboarding_tip_dismissed_\(rawValue)"
@@ -30,19 +25,15 @@ final class OnboardingManager {
     /// The currently visible tip (nil = nothing showing).
     var activeTip: OnboardingTip?
 
-    /// Fixed display order.
-    private let sequence: [OnboardingTip] = [.searchBar, .categoryPills, .dailyBriefing, .navigationBar, .featuredGame, .leaderboard, .editProfile]
-
     private init() {}
 
     // MARK: - Public API
 
-    /// A view calls this on appear. The tip is granted only if it's next in
-    /// the sequence AND hasn't been dismissed yet.
+    /// A view calls this on appear. The tip shows if no other tip is active
+    /// and this tip hasn't been dismissed yet.
     func requestTip(_ tip: OnboardingTip) {
         guard activeTip == nil,
-              !isDismissed(tip),
-              tip == nextTipInSequence()
+              !isDismissed(tip)
         else { return }
 
         withAnimation(.easeInOut(duration: 0.3)) {
@@ -60,7 +51,7 @@ final class OnboardingManager {
         }
     }
 
-    /// Auto-dismiss a tip when its precondition isn't met (e.g., year already set).
+    /// Auto-dismiss a tip when its precondition isn't met (e.g., role already set).
     func skipTipIfNeeded(_ tip: OnboardingTip) {
         guard !isDismissed(tip) else { return }
         UserDefaults.standard.set(true, forKey: tip.userDefaultsKey)
@@ -83,9 +74,5 @@ final class OnboardingManager {
 
     private func isDismissed(_ tip: OnboardingTip) -> Bool {
         UserDefaults.standard.bool(forKey: tip.userDefaultsKey)
-    }
-
-    private func nextTipInSequence() -> OnboardingTip? {
-        sequence.first { !isDismissed($0) }
     }
 }

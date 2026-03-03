@@ -18,6 +18,7 @@ struct NewsView: View {
     @State private var selectedArticle: NewsArticle? = nil
     @State private var selectedEvent: CampusEvent? = nil
     @State private var showBellSheet = false
+    @State private var coldStartInterests: Set<String> = []
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -49,7 +50,7 @@ struct NewsView: View {
                     )
                     .pulsingHotspot(
                         tip: .categoryPills,
-                        message: "Filter stories by what matters to you.",
+                        message: "Choose your focus.",
                         arrowEdge: .top,
                         cornerRadius: 20
                     )
@@ -74,6 +75,11 @@ struct NewsView: View {
                 }
             }
             .onChange(of: campusViewModel.allEvents.count) { _, _ in
+                if viewModel.isForYouSelected {
+                    rebuildForYouFeed()
+                }
+            }
+            .onChange(of: viewModel.categoryCacheVersion) { _, _ in
                 if viewModel.isForYouSelected {
                     rebuildForYouFeed()
                 }
@@ -122,13 +128,13 @@ struct NewsView: View {
         let hasInterests = !(AppState.shared.currentUser?.interests ?? []).isEmpty
         let hasReadHistory = ArticleReadTracker.shared.hasHistory
 
-        // Cold-start hint
+        // Inline interest picker for cold-start users
         if !hasInterests && !hasReadHistory {
-            coldStartHint
+            coldStartInterestPicker
         }
 
         // Featured Article — first thing you see
-        if let featured = viewModel.featuredArticle {
+        if let featured = viewModel.forYouFeaturedArticle {
             FeaturedArticleCard(
                 article: featured,
                 onTap: {
@@ -178,6 +184,14 @@ struct NewsView: View {
                             .stroke(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"), lineWidth: 1)
                     )
                     .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            NotInterestedTracker.shared.dismissArticle(article)
+                            viewModel.removeForYouArticle(article)
+                        } label: {
+                            Label("Not Interested", systemImage: "xmark.circle")
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 16)
@@ -203,7 +217,11 @@ struct NewsView: View {
                         ForYouEventCard(
                             event: event,
                             savedViewModel: savedViewModel,
-                            onTap: { selectedEvent = event }
+                            onTap: { selectedEvent = event },
+                            onDismiss: {
+                                NotInterestedTracker.shared.dismissEvent(event)
+                                viewModel.removeForYouEvent(event)
+                            }
                         )
                     }
                 }
@@ -213,29 +231,92 @@ struct NewsView: View {
         }
     }
 
-    private var coldStartHint: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "wand.and.stars")
-                .font(.system(size: 20))
-                .foregroundColor(Color.ucdGold)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Personalize your feed")
-                    .font(.system(size: 14, weight: .semibold))
+    private var coldStartInterestPicker: some View {
+        VStack(spacing: 14) {
+            // Header
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(Color.ucdGold)
+                Text("What are you into?")
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
-                Text("Set your interests in Profile to get tailored stories and events.")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                Spacer()
             }
 
-            Spacer()
+            Text("Pick 3+ topics to personalize your feed.")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Interest pills
+            InterestsFlowLayout(spacing: 8) {
+                ForEach(OnboardingViewModel.availableInterests, id: \.self) { interest in
+                    let isSelected = coldStartInterests.contains(interest)
+
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            if isSelected {
+                                coldStartInterests.remove(interest)
+                            } else {
+                                coldStartInterests.insert(interest)
+                            }
+                        }
+                    }) {
+                        Text(interest)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(
+                                isSelected
+                                    ? (colorScheme == .dark ? .white : Color.ucdBlue)
+                                    : (colorScheme == .dark ? .white.opacity(0.6) : Color(hex: "#64748b"))
+                            )
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(
+                                isSelected
+                                    ? (colorScheme == .dark ? Color.ucdGold.opacity(0.25) : Color.ucdBlue.opacity(0.1))
+                                    : (colorScheme == .dark ? Color.white.opacity(0.08) : Color(hex: "#f1f5f9")),
+                                in: Capsule()
+                            )
+                            .overlay(
+                                Capsule().stroke(
+                                    isSelected
+                                        ? (colorScheme == .dark ? Color.ucdGold.opacity(0.6) : Color.ucdBlue.opacity(0.4))
+                                        : (colorScheme == .dark ? Color.white.opacity(0.15) : Color(hex: "#e2e8f0")),
+                                    lineWidth: isSelected ? 1.5 : 1
+                                )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            // Done button
+            if coldStartInterests.count >= 3 {
+                Button(action: {
+                    AppState.shared.currentUser?.interests = Array(coldStartInterests)
+                    AppState.shared.persistStatePublic()
+                    rebuildForYouFeed()
+                }) {
+                    Text("Done")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(
+                            colorScheme == .dark ? Color.ucdGold : Color.ucdBlue,
+                            in: Capsule()
+                        )
+                }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
         }
-        .padding(14)
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f8fafc"))
+            RoundedRectangle(cornerRadius: 16)
+                .fill(colorScheme == .dark ? Color(hex: "#1e293b") : .white)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 16)
                         .stroke(Color.ucdGold.opacity(0.3), lineWidth: 1)
                 )
         )
@@ -372,7 +453,7 @@ struct ArticleRowCard: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .foregroundColor(.secondary)
+                .foregroundColor(colorScheme == .dark ? Color(hex: "#64748b") : Color(hex: "#94a3b8"))
                 .padding(.horizontal, 14)
                 .padding(.top, 10)
                 .padding(.bottom, 14)

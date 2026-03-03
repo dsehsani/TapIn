@@ -25,6 +25,7 @@ class NewsViewModel: ObservableObject {
     @Published var categories: [Category] = Category.allCategories
 
     // For You personalized feed
+    @Published var forYouFeaturedArticle: NewsArticle?
     @Published var forYouArticles: [NewsArticle] = []
     @Published var forYouEvents: [CampusEvent] = []
     @Published var isForYouSelected: Bool = true
@@ -38,6 +39,10 @@ class NewsViewModel: ObservableObject {
 
     /// In-memory cache of articles per category for instant tab switching
     private var categoryCache: [String: [NewsArticle]] = [:]
+
+    /// Incremented when categoryCache gains new data (triggers For You rebuild in view)
+    @Published var categoryCacheVersion: Int = 0
+
 
     init() {
         // One-time: wipe stale disk caches that were saved without imageURLs.
@@ -211,6 +216,8 @@ class NewsViewModel: ObservableObject {
         savedEvents: [CampusEvent],
         allEvents: [CampusEvent]
     ) {
+        let userInterests = AppState.shared.currentUser?.interests ?? []
+
         // Gather all articles from categoryCache, deduped by URL
         var seen = Set<String>()
         var allArticles: [NewsArticle] = []
@@ -224,8 +231,6 @@ class NewsViewModel: ObservableObject {
             }
         }
 
-        let userInterests = AppState.shared.currentUser?.interests ?? []
-
         let result = forYouEngine.buildFeed(
             articles: allArticles,
             events: allEvents,
@@ -234,10 +239,21 @@ class NewsViewModel: ObservableObject {
             savedEvents: savedEvents
         )
 
-        featuredArticle = result.featured
+        forYouFeaturedArticle = result.featured
         forYouArticles = result.articles
         forYouEvents = result.topEvents
-        latestArticles = result.articles
+    }
+
+    func removeForYouArticle(_ article: NewsArticle) {
+        withAnimation {
+            forYouArticles.removeAll { $0.id == article.id }
+        }
+    }
+
+    func removeForYouEvent(_ event: CampusEvent) {
+        withAnimation {
+            forYouEvents.removeAll { $0.id == event.id }
+        }
     }
 
     // MARK: - Background Prefetch
@@ -264,6 +280,7 @@ class NewsViewModel: ObservableObject {
                 }
             }
         }
+        categoryCacheVersion += 1
     }
 
     // MARK: - Private Helpers

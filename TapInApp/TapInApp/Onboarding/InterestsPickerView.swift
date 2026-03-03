@@ -149,7 +149,7 @@ struct InterestsPickerView: View {
 
 // MARK: - Flow Layout (wrapping HStack)
 
-private struct InterestsFlowLayout: Layout {
+struct InterestsFlowLayout: Layout {
     var spacing: CGFloat = 10
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
