@@ -52,6 +52,12 @@ struct TapInAppApp: App {
     @StateObject private var appState = AppState.shared
     @State private var isCheckingSession = true
 
+    // MARK: - Debug Flags
+    // Set to true to force onboarding screen on launch (keeps your account intact)
+    private let forceOnboarding = false
+    // Set to true to replay all onboarding tips on next launch
+    private let resetTips = false
+
     var body: some Scene {
         WindowGroup {
             Group {
@@ -61,7 +67,7 @@ struct TapInAppApp: App {
                         Color(.systemBackground).ignoresSafeArea()
                         ProgressView()
                     }
-                } else if appState.isAuthenticated {
+                } else if appState.isAuthenticated && !forceOnboarding {
                     ContentView()
                         .environmentObject(appState)
                 } else {
@@ -73,10 +79,10 @@ struct TapInAppApp: App {
                 GIDSignIn.sharedInstance.handle(url)
             }
             .task {
+                if resetTips { OnboardingManager.shared.resetAllTips() }
                 await appState.restoreSession()
                 isCheckingSession = false
             }
-            .preferredColorScheme(appState.darkModeEnabled ? .dark : nil)
             .alert(
                 appState.globalError?.title ?? "Error",
                 isPresented: $appState.showErrorAlert,

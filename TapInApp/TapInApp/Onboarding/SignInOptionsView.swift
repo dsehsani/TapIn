@@ -147,9 +147,6 @@ struct SignInOptionsView: View {
                 // Privacy footer
                 HStack(spacing: 4) {
                     Text("By continuing, you agree to our")
-                    Link("Terms", destination: APIConfig.termsURL)
-                        .underline()
-                    Text("&")
                     Link("Privacy Policy", destination: APIConfig.privacyURL)
                         .underline()
                 }

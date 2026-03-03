@@ -42,15 +42,7 @@ class ProfileViewModel: ObservableObject {
 
     var notificationsEnabled: Bool {
         get { AppState.shared.notificationsEnabled }
-        set { AppState.shared.notificationsEnabled = newValue }
-    }
-
-    var darkModeEnabled: Bool {
-        get { AppState.shared.darkModeEnabled }
-        set {
-            AppState.shared.darkModeEnabled = newValue
-            AppState.shared.persistStatePublic()
-        }
+        set { AppState.shared.toggleNotifications() }
     }
 
     // MARK: - Initialization

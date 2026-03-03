@@ -104,10 +104,10 @@ struct HeaderView: View {
                         .padding(.trailing, 6)
                     }
 
-                    // Home button - only visible in archive mode
+                    // Back-to-today button - only visible in archive mode
                     if isArchiveMode {
                         Button(action: onBackToToday) {
-                            Image(systemName: "house.fill")
+                            Image(systemName: "arrow.uturn.backward")
                                 .font(.system(size: 20, weight: .medium))
                                 .foregroundColor(accentColor)
                         }

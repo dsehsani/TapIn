@@ -38,7 +38,8 @@ class OnboardingViewModel: ObservableObject {
 
     static let availableInterests = [
         "Sports", "Arts & Entertainment", "Science & Tech",
-        "Campus Life", "Politics", "Health & Wellness", "Food & Dining"
+        "Campus Life", "Politics", "Health & Wellness", "Food & Dining",
+        "Music & Concerts", "Outdoors & Recreation", "Career & Professional"
     ]
 
     // MARK: - UI State
