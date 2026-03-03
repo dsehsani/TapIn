@@ -85,18 +85,34 @@ class ForYouFeedEngine {
         }
         .sorted { $0.1 > $1.1 }
 
-        // Score and sort events, cap at 15
-        let scoredEvents = filteredEvents.map { event -> (CampusEvent, Double) in
-            let score = scoreEvent(
-                event,
-                userInterests: userInterests,
-                prefEngine: prefEngine
-            )
-            return (event, score)
+        // Score and sort events
+        let scoredEvents: [CampusEvent]
+        if userInterests.count >= 3 {
+            // With 3+ interests, prioritize matching events and only backfill
+            // non-matching ones if there aren't enough matches to fill the carousel.
+            let allScored = filteredEvents.map { event -> (CampusEvent, Double, Bool) in
+                let kw = eventInterestKeywordScore(event: event, interests: userInterests)
+                let score = scoreEvent(event, userInterests: userInterests, prefEngine: prefEngine)
+                return (event, score, kw > 0)
+            }
+            let matching = allScored.filter { $0.2 }.sorted { $0.1 > $1.1 }.map { $0.0 }
+            let nonMatching = allScored.filter { !$0.2 }.sorted { $0.1 > $1.1 }.map { $0.0 }
+            let minCarouselSize = 15
+            if matching.count >= minCarouselSize {
+                scoredEvents = Array(matching.prefix(minCarouselSize))
+            } else {
+                let backfillCount = minCarouselSize - matching.count
+                scoredEvents = matching + Array(nonMatching.prefix(backfillCount))
+            }
+        } else {
+            scoredEvents = filteredEvents.map { event -> (CampusEvent, Double) in
+                let score = scoreEvent(event, userInterests: userInterests, prefEngine: prefEngine)
+                return (event, score)
+            }
+            .sorted { $0.1 > $1.1 }
+            .prefix(15)
+            .map { $0.0 }
         }
-        .sorted { $0.1 > $1.1 }
-        .prefix(15)
-        .map { $0.0 }
 
         // Extract featured article (highest scored)
         let featured: NewsArticle?
@@ -213,13 +229,16 @@ class ForYouFeedEngine {
         if !userInterests.isEmpty {
             // When user has interests, heavily weight keyword match so
             // "For You" events look meaningfully different from "All Events".
-            score += keywordScore * 0.55
-            score += prefScore * 0.20
-            score += urgencyScore * 0.25
+            score += keywordScore * 0.65
+            score += prefScore * 0.15
+            score += urgencyScore * 0.20
 
-            // Penalize events that match none of the user's interests
+            // Strongly penalize events that match none of the user's interests
             if keywordScore == 0 {
-                score *= 0.3
+                score *= 0.15
+            } else {
+                // Bonus for any interest match — widens the gap
+                score += 0.20
             }
         } else {
             // No interests — fall back to preference engine + urgency
