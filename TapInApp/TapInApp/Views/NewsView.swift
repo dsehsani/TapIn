@@ -397,66 +397,74 @@ struct ArticleRowCard: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
+                // Left accent bar — distinguishes articles from event cards
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+                    .frame(width: 4)
+                    .padding(.vertical, 12)
 
-                // Publisher row — top left, Apple News style
-                HStack(spacing: 5) {
-                    Image(systemName: "newspaper.fill")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
-                    Text("THE CALIFORNIA AGGIE")
-                        .font(.system(size: 10, weight: .bold))
-                        .tracking(0.4)
-                        .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
-                    Spacer()
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 14)
-                .padding(.bottom, 10)
+                VStack(alignment: .leading, spacing: 0) {
 
-                // Content row — title left, thumbnail right
-                HStack(alignment: .top, spacing: 12) {
-                    Text(article.title)
-                        .font(.system(size: 19, weight: .bold))
-                        .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(4)
-                        .fixedSize(horizontal: false, vertical: true)
+                    // Publisher row — top left, Apple News style
+                    HStack(spacing: 5) {
+                        Image(systemName: "newspaper.fill")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+                        Text("THE CALIFORNIA AGGIE")
+                            .font(.system(size: 10, weight: .bold))
+                            .tracking(0.4)
+                            .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 14)
+                    .padding(.bottom, 10)
 
-                    Spacer(minLength: 0)
+                    // Content row — title left, thumbnail right
+                    HStack(alignment: .top, spacing: 12) {
+                        Text(article.title)
+                            .font(.system(size: 19, weight: .bold))
+                            .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(4)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                    thumbnailView
-                        .frame(width: 90, height: 90)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                }
-                .padding(.horizontal, 14)
+                        Spacer(minLength: 0)
 
-                // Metadata row — category · time · read time + bookmark
-                HStack(spacing: 4) {
-                    Text(article.category)
-                        .font(.system(size: 11, weight: .medium))
-                    Text("·")
-                    Text(article.timestamp.timeAgoDisplay())
-                        .font(.system(size: 11))
-                    if let readTime = article.readTime {
+                        thumbnailView
+                            .frame(width: 90, height: 90)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .padding(.horizontal, 12)
+
+                    // Metadata row — category · time · read time + bookmark
+                    HStack(spacing: 4) {
+                        Text(article.category)
+                            .font(.system(size: 11, weight: .medium))
                         Text("·")
-                        Text("\(readTime) min read")
+                        Text(article.timestamp.timeAgoDisplay())
                             .font(.system(size: 11))
+                        if let readTime = article.readTime {
+                            Text("·")
+                            Text("\(readTime) min read")
+                                .font(.system(size: 11))
+                        }
+                        Spacer()
+                        Button(action: {
+                            onSave()
+                        }) {
+                            Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(isSaved ? (colorScheme == .dark ? Color.ucdGold : Color.ucdBlue) : .secondary)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    Spacer()
-                    Button(action: {
-                        onSave()
-                    }) {
-                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(isSaved ? (colorScheme == .dark ? Color.ucdGold : Color.ucdBlue) : .secondary)
-                    }
-                    .buttonStyle(.plain)
+                    .foregroundColor(colorScheme == .dark ? Color(hex: "#64748b") : Color(hex: "#94a3b8"))
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+                    .padding(.bottom, 14)
                 }
-                .foregroundColor(colorScheme == .dark ? Color(hex: "#64748b") : Color(hex: "#94a3b8"))
-                .padding(.horizontal, 14)
-                .padding(.top, 10)
-                .padding(.bottom, 14)
             }
         }
         .buttonStyle(PlainButtonStyle())
