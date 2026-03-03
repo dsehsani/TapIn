@@ -126,6 +126,7 @@ class AppState: ObservableObject {
             "authToken", "smsUserId", "backendToken",  // legacy cleanup
             "savedArticles", "savedEvents",
             "eventPreferenceProfile",
+            "articleReadHistory", "articleCategoryAffinity",
             "tutorial_seen_wordle", "tutorial_seen_pipes", "tutorial_seen_echo",
             "unseenNotificationEventIds"
         ]
@@ -156,6 +157,8 @@ class AppState: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "savedArticles")
         UserDefaults.standard.removeObject(forKey: "savedEvents")
         UserDefaults.standard.removeObject(forKey: "eventPreferenceProfile")
+        UserDefaults.standard.removeObject(forKey: "articleReadHistory")
+        UserDefaults.standard.removeObject(forKey: "articleCategoryAffinity")
         UserDefaults.standard.removeObject(forKey: "tutorial_seen_wordle")
         UserDefaults.standard.removeObject(forKey: "tutorial_seen_pipes")
         UserDefaults.standard.removeObject(forKey: "tutorial_seen_echo")

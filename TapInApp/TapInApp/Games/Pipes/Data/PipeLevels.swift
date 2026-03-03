@@ -19,6 +19,22 @@ extension PipePuzzle {
         PipeEndpointPair(color: color, start: pos(r1, c1), end: pos(r2, c2))
     }
 
+    /// Generates a deterministic 5-puzzle fallback set based on date string.
+    /// Picks 5 distinct puzzles using a date-derived offset into the template pool.
+    static func dailyFiveFallback(for dateKey: String) -> [PipePuzzle] {
+        let count = puzzles.count  // 7 templates
+        // Hash from date string to get a starting offset
+        let hash = dateKey.utf8.enumerated().reduce(0) { acc, pair in
+            acc &+ Int(pair.element) &* (pair.offset + 1)
+        }
+        let start = abs(hash) % count
+
+        // Pick 5 consecutive (wrapping) — guarantees all distinct since count >= 5
+        return (0..<5).map { i in
+            puzzles[(start + i) % count]
+        }
+    }
+
     /// Pool of daily puzzles — cycled via dayOfYear
     static let puzzles: [PipePuzzle] = [
 

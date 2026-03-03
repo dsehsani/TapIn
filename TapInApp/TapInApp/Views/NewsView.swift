@@ -15,7 +15,6 @@ struct NewsView: View {
     @Binding var selectedTab: TabItem
 
     @Environment(\.colorScheme) var colorScheme
-    @Environment(\.openURL) var openURL
     @State private var selectedArticle: NewsArticle? = nil
     @State private var selectedEvent: CampusEvent? = nil
     @State private var showBellSheet = false
@@ -37,34 +36,15 @@ struct NewsView: View {
                     )
                     .padding(.bottom, 12)
 
-                    // AI Daily Briefing
-                    DailyBriefingCard(
-                        briefing: viewModel.dailyBriefing,
-                        isLoading: viewModel.isBriefingLoading,
-                        hasError: viewModel.briefingError,
-                        onBulletTap: { bulletText in
-                            if let match = findMatchingArticle(for: bulletText) {
-                                selectedArticle = match
-                            }
-                        },
-                        onItemTap: { item in
-                            handleBriefingItemTap(item)
-                        }
-                    )
-                    .pulsingHotspot(
-                        tip: .dailyBriefing,
-                        message: "Get the tea \u{2615}\u{FE0F} Your daily AI breakdown of campus news.",
-                        arrowEdge: .top,
-                        highlightStyle: .none
-                    )
-                    .padding(.bottom, 24)
-
                     // Category Pills
                     CategoryPillsView(
                         selectedCategory: $viewModel.selectedCategory,
                         categories: viewModel.categories,
                         onCategoryTap: { category in
                             viewModel.selectCategory(category)
+                            if category == "For You" {
+                                rebuildForYouFeed()
+                            }
                         }
                     )
                     .pulsingHotspot(
@@ -75,58 +55,34 @@ struct NewsView: View {
                     )
                     .padding(.bottom, 16)
 
-                    // Featured Article
-                    if let featured = viewModel.featuredArticle {
-                        FeaturedArticleCard(
-                            article: featured,
-                            onTap: {
-                                selectedArticle = featured
-                            }
-                        )
-                        .padding(.bottom, 24)
-                    }
-
-                    // Top Stories Section
-                    VStack(spacing: 0) {
-                        // Section Header
-                        HStack {
-                            Text("Top Stories")
-                                .font(.system(size: 22, weight: .bold))
-                                .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
-
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 12)
-
-                        // Article List
-                        LazyVStack(spacing: 12) {
-                            ForEach(viewModel.latestArticles) { article in
-                                ArticleRowCard(
-                                    article: article,
-                                    colorScheme: colorScheme,
-                                    isSaved: savedViewModel.isArticleSaved(article),
-                                    onTap: { selectedArticle = article },
-                                    onSave: { savedViewModel.toggleArticleSaved(article) }
-                                )
-                                .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .stroke(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"), lineWidth: 1)
-                                )
-                                .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
-                            }
-                        }
-                        .padding(.horizontal, 16)
+                    if viewModel.isForYouSelected {
+                        forYouFeedContent
+                    } else {
+                        standardFeedContent
                     }
 
                     Spacer(minLength: 0)
                         .frame(height: 8)
                 }
             }
+            .onAppear {
+                rebuildForYouFeed()
+            }
+            .onChange(of: viewModel.articles.count) { _, _ in
+                if viewModel.isForYouSelected {
+                    rebuildForYouFeed()
+                }
+            }
+            .onChange(of: campusViewModel.allEvents.count) { _, _ in
+                if viewModel.isForYouSelected {
+                    rebuildForYouFeed()
+                }
+            }
             .refreshable {
                 await viewModel.refreshArticles()
+                if viewModel.isForYouSelected {
+                    rebuildForYouFeed()
+                }
             }
             .sheet(item: $selectedArticle) { article in
                 ArticleDetailView(article: article, savedViewModel: savedViewModel)
@@ -159,92 +115,193 @@ struct NewsView: View {
         }
     }
 
-    // MARK: - Briefing Item Tap Handler
+    // MARK: - For You Feed
 
-    private func handleBriefingItemTap(_ item: BriefingItem) {
-        // For articles, try to match to a loaded NewsArticle for the detail view
-        if item.type == "article" {
-            if let match = viewModel.articles.first(where: {
-                $0.title == item.title || $0.articleURL == (item.linkURL ?? "")
-            }) {
-                selectedArticle = match
-                return
-            }
+    @ViewBuilder
+    private var forYouFeedContent: some View {
+        let hasInterests = !(AppState.shared.currentUser?.interests ?? []).isEmpty
+        let hasReadHistory = ArticleReadTracker.shared.hasHistory
+
+        // Cold-start hint
+        if !hasInterests && !hasReadHistory {
+            coldStartHint
         }
 
-        // For events, match to a loaded CampusEvent and open the detail sheet
-        if item.type == "event" {
-            let itemTitle = item.title.lowercased()
-            let itemLink = item.linkURL?.lowercased() ?? ""
-            if let match = campusViewModel.allEvents.first(where: { event in
-                let eventTitle = event.title.lowercased()
-                let eventURL = (event.eventURL ?? "").lowercased()
-                // Match by URL first (most reliable), then by title
-                if !itemLink.isEmpty && !eventURL.isEmpty && (eventURL.contains(itemLink) || itemLink.contains(eventURL)) {
-                    return true
+        // Featured Article — first thing you see
+        if let featured = viewModel.featuredArticle {
+            FeaturedArticleCard(
+                article: featured,
+                onTap: {
+                    ArticleReadTracker.shared.trackRead(article: featured)
+                    selectedArticle = featured
                 }
-                return eventTitle == itemTitle
-                    || eventTitle.contains(itemTitle)
-                    || itemTitle.contains(eventTitle)
-            }) {
-                selectedEvent = match
-                return
-            }
+            )
+            .padding(.bottom, 20)
         }
 
-        // Fallback: open the link URL in Safari
-        if let linkStr = item.linkURL, let url = URL(string: linkStr) {
-            openURL(url)
+        // Events carousel — right below the featured article
+        if !viewModel.forYouEvents.isEmpty {
+            eventsCarousel
+                .padding(.bottom, 24)
+        }
+
+        // "Picked For You" articles
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(Color.ucdGold)
+                Text("Picked For You")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+
+            LazyVStack(spacing: 12) {
+                ForEach(viewModel.forYouArticles) { article in
+                    ArticleRowCard(
+                        article: article,
+                        colorScheme: colorScheme,
+                        isSaved: savedViewModel.isArticleSaved(article),
+                        onTap: {
+                            ArticleReadTracker.shared.trackRead(article: article)
+                            selectedArticle = article
+                        },
+                        onSave: { savedViewModel.toggleArticleSaved(article) }
+                    )
+                    .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
+                }
+            }
+            .padding(.horizontal, 16)
         }
     }
 
-    // MARK: - Bullet Point → Article Matching
-
-    private static let stopWords: Set<String> = [
-        "the", "and", "for", "that", "this", "with", "from", "are", "was",
-        "were", "been", "has", "have", "had", "its", "but", "not", "you",
-        "all", "can", "her", "his", "one", "our", "out", "new", "now"
-    ]
-
-    private func findMatchingArticle(for bulletText: String) -> NewsArticle? {
-        // Strip emoji — keep only letters, numbers, and whitespace
-        let cleaned = bulletText.unicodeScalars
-            .filter { CharacterSet.alphanumerics.union(.whitespaces).contains($0) }
-            .map { String($0) }
-            .joined()
-
-        // Tokenize into words, filter out very short words and common stop words
-        let keywords = cleaned
-            .components(separatedBy: .whitespaces)
-            .map { $0.lowercased() }
-            .filter { $0.count >= 3 && !Self.stopWords.contains($0) }
-
-        guard !keywords.isEmpty else { return nil }
-
-        // Score each article: title matches worth 2, excerpt matches worth 1
-        var bestMatch: NewsArticle?
-        var bestScore = 0
-
-        for article in viewModel.articles {
-            let titleLower = article.title.lowercased()
-            let excerptLower = article.excerpt.lowercased()
-
-            var score = 0
-            for keyword in keywords {
-                if titleLower.contains(keyword) {
-                    score += 2
-                } else if excerptLower.contains(keyword) {
-                    score += 1
-                }
+    private var eventsCarousel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "calendar.badge.clock")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color.ucdGold)
+                Text("Events For You")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
+                Spacer()
             }
+            .padding(.horizontal, 16)
 
-            if score > bestScore {
-                bestScore = score
-                bestMatch = article
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(viewModel.forYouEvents) { event in
+                        ForYouEventCard(
+                            event: event,
+                            onTap: { selectedEvent = event }
+                        )
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 2)
             }
         }
+    }
 
-        return bestMatch
+    private var coldStartHint: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "wand.and.stars")
+                .font(.system(size: 20))
+                .foregroundColor(Color.ucdGold)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Personalize your feed")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
+                Text("Set your interests in Profile to get tailored stories and events.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f8fafc"))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.ucdGold.opacity(0.3), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
+    }
+
+    // MARK: - Standard Feed (non-For You categories)
+
+    @ViewBuilder
+    private var standardFeedContent: some View {
+        // Featured Article
+        if let featured = viewModel.featuredArticle {
+            FeaturedArticleCard(
+                article: featured,
+                onTap: {
+                    ArticleReadTracker.shared.trackRead(article: featured)
+                    selectedArticle = featured
+                }
+            )
+            .padding(.bottom, 24)
+        }
+
+        // Top Stories Section
+        VStack(spacing: 0) {
+            HStack {
+                Text("Top Stories")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+
+            LazyVStack(spacing: 12) {
+                ForEach(viewModel.latestArticles) { article in
+                    ArticleRowCard(
+                        article: article,
+                        colorScheme: colorScheme,
+                        isSaved: savedViewModel.isArticleSaved(article),
+                        onTap: {
+                            ArticleReadTracker.shared.trackRead(article: article)
+                            selectedArticle = article
+                        },
+                        onSave: { savedViewModel.toggleArticleSaved(article) }
+                    )
+                    .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func rebuildForYouFeed() {
+        viewModel.buildForYouFeed(
+            savedArticles: savedViewModel.savedArticles,
+            savedEvents: savedViewModel.savedEvents,
+            allEvents: campusViewModel.allEvents
+        )
     }
 }
 

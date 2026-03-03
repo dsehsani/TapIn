@@ -91,7 +91,8 @@ struct WordleGameView: View {
                     },
                     onBack: {
                         // Warn if leaving an in-progress game with guesses (one-shot)
-                        if viewModel.gameState == .playing && viewModel.currentRow > 0 && !hasShownExitDialog {
+                        // Skip warning if user already exited before (score already discounted)
+                        if viewModel.gameState == .playing && viewModel.currentRow > 0 && !hasShownExitDialog && !viewModel.didExitGame {
                             showExitDialog = true
                         } else {
                             onDismiss()

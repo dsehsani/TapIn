@@ -58,6 +58,9 @@ enum APIConfig {
     /// GET - Daily pipes puzzle (AI-generated or fallback)
     static var pipesDailyURL: String { "\(baseURL)api/pipes/daily" }
 
+    /// GET - Daily 5-puzzle set with escalating difficulty
+    static var pipesDailyFiveURL: String { "\(baseURL)api/pipes/daily-five" }
+
     // MARK: - Claude Endpoints
 
     /// POST - Summarize an event description

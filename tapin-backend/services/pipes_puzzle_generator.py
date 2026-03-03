@@ -124,20 +124,59 @@ The solution paths must:
         # Fall back to a deterministic puzzle for reliability
         return self._generate_deterministic_puzzle(difficulty, grid_size)
 
-    def _generate_deterministic_puzzle(self, difficulty: str, grid_size: int) -> dict:
+    def generate_puzzle_set(self, difficulties: list, grid_size: int = 5) -> list:
         """
-        Generate a puzzle algorithmically without AI.
-        This serves as a reliable fallback.
+        Generate multiple puzzles for a daily-five set.
+        Guarantees all 5 puzzles are distinct templates.
+
+        Uses deterministic template selection (seeded by date) to guarantee
+        distinct puzzles. AI generation is used for the single /daily endpoint.
+
+        Args:
+            difficulties: List of difficulty strings, e.g. ["easy", "easy", "medium", "medium", "hard"]
+            grid_size: Size of the grid (default 5x5)
+
+        Returns:
+            List of puzzle dicts (without solutions)
         """
-        # Use date as seed for deterministic daily puzzles
+        return self._generate_deterministic_set(difficulties, grid_size)
+
+    def _generate_deterministic_set(self, difficulties: list, grid_size: int = 5) -> list:
+        """
+        Pick 5 distinct templates deterministically based on today's date.
+        Shuffles the template pool with a date-based seed, then picks sequentially.
+        """
         today = date.today()
         seed = today.year * 10000 + today.month * 100 + today.day
+        rng = random.Random(seed)
+
+        templates = self._get_puzzle_templates()
+        indices = list(range(len(templates)))
+        rng.shuffle(indices)
+
+        puzzles = []
+        for i, difficulty in enumerate(difficulties):
+            # Wrap around if we have more puzzles than templates
+            template_idx = indices[i % len(indices)]
+            template = templates[template_idx]
+            puzzles.append({
+                "index": i,
+                "size": template["size"],
+                "pairs": template["pairs"],
+                "difficulty": difficulty,
+            })
+        return puzzles
+
+    def _generate_deterministic_puzzle(self, difficulty: str, grid_size: int, seed_offset: int = 0) -> dict:
+        """
+        Generate a single puzzle algorithmically without AI.
+        This serves as a reliable fallback for the legacy /daily endpoint.
+        """
+        today = date.today()
+        seed = today.year * 10000 + today.month * 100 + today.day + seed_offset * 97
         random.seed(seed)
 
-        # Pre-designed puzzle templates that are guaranteed solvable
         templates = self._get_puzzle_templates()
-
-        # Select template based on date
         template_idx = seed % len(templates)
         template = templates[template_idx]
 

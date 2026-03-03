@@ -132,7 +132,8 @@ struct GamesView: View {
         }
         .fullScreenCover(isPresented: $viewModel.showingPipes) {
             PipesGameView(
-                onDismiss: { viewModel.dismissGame() }
+                onDismiss: { viewModel.dismissGame() },
+                onGameComplete: { won in viewModel.updateStats(won: won) }
             )
         }
         .onAppear {

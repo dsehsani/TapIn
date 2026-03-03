@@ -20,20 +20,20 @@ class NewsViewModel: ObservableObject {
     @Published var latestArticles: [NewsArticle] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
-    @Published var selectedCategory: String = "All News"
+    @Published var selectedCategory: String = "For You"
     @Published var searchText: String = ""
     @Published var categories: [Category] = Category.allCategories
 
-    // Daily AI Briefing
-    @Published var dailyBriefing: DailyBriefing?
-    @Published var isBriefingLoading: Bool = false
-    @Published var briefingError: Bool = false
+    // For You personalized feed
+    @Published var forYouArticles: [NewsArticle] = []
+    @Published var forYouEvents: [CampusEvent] = []
+    @Published var isForYouSelected: Bool = true
 
     /// True when the user has typed something in the search bar
     var isSearchActive: Bool { !searchText.isEmpty }
 
     private let newsService = NewsService()
-    private let briefingService = DailyBriefingService.shared
+    private let forYouEngine = ForYouFeedEngine()
     private var allFetchedArticles: [NewsArticle] = []
 
     /// In-memory cache of articles per category for instant tab switching
@@ -52,10 +52,8 @@ class NewsViewModel: ObservableObject {
         loadCachedArticlesImmediately()
 
         Task {
-            // Fetch fresh articles (bypassing disk cache) and briefing in parallel
-            async let articlesTask: () = fetchArticles(forceRefresh: true)
-            async let briefingTask: () = fetchDailyBriefing()
-            _ = await (articlesTask, briefingTask)
+            // Fetch fresh articles (bypassing disk cache)
+            await fetchArticles(forceRefresh: true)
             // Prefetch all other categories in the background so filter switches are instant
             await prefetchAllCategories()
         }
@@ -111,8 +109,14 @@ class NewsViewModel: ObservableObject {
         clearSearch()
 
         selectedCategory = category
+        isForYouSelected = (category == "For You")
         categories = categories.map { cat in
             Category(id: cat.id, name: cat.name, icon: cat.icon, isSelected: cat.name == category)
+        }
+
+        // "For You" doesn't fetch a specific category — it uses the engine
+        if category == "For You" {
+            return
         }
 
         // Show cached articles instantly — in-memory first, then disk
@@ -196,22 +200,44 @@ class NewsViewModel: ObservableObject {
     }
 
     func refreshArticles() async {
-        async let articlesTask: () = fetchArticles(forceRefresh: true)
-        async let briefingTask: () = fetchDailyBriefing()
-        _ = await (articlesTask, briefingTask)
+        await fetchArticles(forceRefresh: true)
     }
 
-    // MARK: - Daily Briefing
+    // MARK: - For You Feed
 
-    func fetchDailyBriefing() async {
-        isBriefingLoading = true
-        briefingError = false
+    /// Builds the personalized "For You" feed from all cached articles and events.
+    func buildForYouFeed(
+        savedArticles: [NewsArticle],
+        savedEvents: [CampusEvent],
+        allEvents: [CampusEvent]
+    ) {
+        // Gather all articles from categoryCache, deduped by URL
+        var seen = Set<String>()
+        var allArticles: [NewsArticle] = []
+        for (_, cached) in categoryCache {
+            for article in cached {
+                let key = article.articleURL ?? article.title
+                if !seen.contains(key) {
+                    seen.insert(key)
+                    allArticles.append(article)
+                }
+            }
+        }
 
-        let interests = AppState.shared.currentUser?.interests ?? []
-        let result = await briefingService.fetchBriefing(interests: interests)
-        dailyBriefing = result
-        briefingError = (result == nil)
-        isBriefingLoading = false
+        let userInterests = AppState.shared.currentUser?.interests ?? []
+
+        let result = forYouEngine.buildFeed(
+            articles: allArticles,
+            events: allEvents,
+            userInterests: userInterests,
+            savedArticles: savedArticles,
+            savedEvents: savedEvents
+        )
+
+        featuredArticle = result.featured
+        forYouArticles = result.articles
+        forYouEvents = result.topEvents
+        latestArticles = result.articles
     }
 
     // MARK: - Background Prefetch
