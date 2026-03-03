@@ -202,6 +202,7 @@ struct NewsView: View {
                     ForEach(viewModel.forYouEvents) { event in
                         ForYouEventCard(
                             event: event,
+                            savedViewModel: savedViewModel,
                             onTap: { selectedEvent = event }
                         )
                     }

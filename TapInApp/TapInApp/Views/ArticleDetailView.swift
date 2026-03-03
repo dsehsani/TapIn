@@ -38,6 +38,18 @@ struct ArticleDetailView: View {
             await viewModel.load(article: article)
         }
         .navigationBarHidden(true)
+        .overlay(alignment: .top) {
+            if let svm = savedViewModel, svm.showToast {
+                SavedToast(
+                    message: svm.toastMessage,
+                    icon: svm.toastIcon,
+                    isSaved: svm.toastIsSaved
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.top, 8)
+                .zIndex(100)
+            }
+        }
     }
 }
 

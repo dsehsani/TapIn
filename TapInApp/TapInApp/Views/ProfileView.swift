@@ -188,7 +188,7 @@ struct ProfileView: View {
                 }
                 .pulsingHotspot(
                     tip: .editProfile,
-                    message: "Don't be a stranger. Set your year & major.",
+                    message: "Don't be a stranger. Set your role & major.",
                     arrowEdge: .bottom,
                     condition: viewModel.user?.year == nil || (viewModel.user?.year ?? "").isEmpty
                 )

@@ -11,6 +11,7 @@ import SwiftUI
 
 struct ForYouEventCard: View {
     let event: CampusEvent
+    @ObservedObject var savedViewModel: SavedViewModel
     var onTap: () -> Void = {}
 
     @Environment(\.colorScheme) var colorScheme
@@ -172,16 +173,33 @@ struct ForYouEventCard: View {
                     .foregroundColor(.secondary)
                     .lineLimit(1)
 
-                    // Location
-                    if !event.location.isEmpty && event.location != "TBD" {
-                        HStack(spacing: 4) {
-                            Image(systemName: "mappin")
-                                .font(.system(size: 10))
-                            Text(event.location)
-                                .font(.system(size: 11))
+                    // Location + Save
+                    HStack(alignment: .bottom) {
+                        if !event.location.isEmpty && event.location != "TBD" {
+                            HStack(spacing: 4) {
+                                Image(systemName: "mappin")
+                                    .font(.system(size: 10))
+                                Text(event.location)
+                                    .font(.system(size: 11))
+                            }
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
                         }
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+
+                        Spacer()
+
+                        // Save Toggle
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                savedViewModel.toggleEventSaved(event)
+                            }
+                        }) {
+                            Image(systemName: savedViewModel.isEventSaved(event) ? "bookmark.fill" : "bookmark")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(savedViewModel.isEventSaved(event) ? (colorScheme == .dark ? Color.ucdGold : Color.ucdBlue) : .secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .sensoryFeedback(.impact(weight: .medium), trigger: savedViewModel.isEventSaved(event))
                     }
                 }
                 .padding(12)

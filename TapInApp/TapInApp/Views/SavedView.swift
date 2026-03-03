@@ -35,8 +35,8 @@ struct SavedView: View {
 
                 // Segment Picker
                 HStack(spacing: 0) {
-                    segmentButton(title: "Articles", index: 0)
-                    segmentButton(title: "Events", index: 1)
+                    segmentButton(title: "Events", index: 0)
+                    segmentButton(title: "Articles", index: 1)
                 }
                 .padding(3)
                 .background(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"))
@@ -46,9 +46,9 @@ struct SavedView: View {
                 .padding(.bottom, 8)
 
                 if selectedSegment == 0 {
-                    articlesContent
-                } else {
                     eventsContent
+                } else {
+                    articlesContent
                 }
             }
         }
@@ -94,16 +94,26 @@ struct SavedView: View {
                     action: { selectedTab = .news }
                 )
             } else {
+                let sortedArticles = viewModel.savedArticles.sorted { a, b in
+                    let aRecent = viewModel.isRecentlySaved(articleKey: a.articleURL ?? a.id.uuidString)
+                    let bRecent = viewModel.isRecentlySaved(articleKey: b.articleURL ?? b.id.uuidString)
+                    if aRecent != bRecent { return aRecent }
+                    return false
+                }
                 List {
-                    ForEach(viewModel.savedArticles) { article in
-                        SavedArticleRow(article: article, colorScheme: colorScheme)
+                    ForEach(sortedArticles) { article in
+                        SavedArticleRow(
+                            article: article,
+                            colorScheme: colorScheme,
+                            isRecentlySaved: viewModel.isRecentlySaved(articleKey: article.articleURL ?? article.id.uuidString)
+                        )
                             .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                             .onTapGesture { selectedArticle = article }
                     }
                     .onDelete { offsets in
-                        let articles = offsets.map { viewModel.savedArticles[$0] }
+                        let articles = offsets.map { sortedArticles[$0] }
                         articles.forEach { viewModel.removeArticle($0) }
                     }
                 }
@@ -173,16 +183,26 @@ struct SavedView: View {
                     EmptyStateView(icon: emptyIcon, title: emptyTitle, message: emptyMessage)
                 }
             } else {
+                let sortedEvents = events.sorted { a, b in
+                    let aRecent = viewModel.isRecentlySavedEvent(title: a.title, date: a.date)
+                    let bRecent = viewModel.isRecentlySavedEvent(title: b.title, date: b.date)
+                    if aRecent != bRecent { return aRecent }
+                    return false
+                }
                 List {
-                    ForEach(events) { event in
-                        SavedEventRow(event: event, colorScheme: colorScheme)
+                    ForEach(sortedEvents) { event in
+                        SavedEventRow(
+                            event: event,
+                            colorScheme: colorScheme,
+                            isRecentlySaved: viewModel.isRecentlySavedEvent(title: event.title, date: event.date)
+                        )
                             .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                             .onTapGesture { selectedEvent = event }
                     }
                     .onDelete { offsets in
-                        let toRemove = offsets.map { events[$0] }
+                        let toRemove = offsets.map { sortedEvents[$0] }
                         toRemove.forEach { viewModel.removeEvent($0) }
                     }
                 }
@@ -198,6 +218,7 @@ struct SavedView: View {
 struct SavedArticleRow: View {
     let article: NewsArticle
     let colorScheme: ColorScheme
+    var isRecentlySaved: Bool = false
 
     var body: some View {
         HStack(spacing: 14) {
@@ -237,10 +258,22 @@ struct SavedArticleRow: View {
 
             Spacer(minLength: 0)
 
-            // Bookmark indicator
-            Image(systemName: "bookmark.fill")
-                .font(.system(size: 16))
-                .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+            VStack(spacing: 6) {
+                // Bookmark indicator
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 16))
+                    .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+
+                if isRecentlySaved {
+                    Text("New")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color(hex: "#3b82f6"))
+                        .clipShape(Capsule())
+                }
+            }
         }
         .padding(12)
         .background(colorScheme == .dark ? Color(hex: "#1a2033") : .white)
@@ -267,6 +300,7 @@ struct SavedArticleRow: View {
 struct SavedEventRow: View {
     let event: CampusEvent
     let colorScheme: ColorScheme
+    var isRecentlySaved: Bool = false
 
     private var isPast: Bool {
         event.date < Calendar.current.startOfDay(for: Date())
@@ -342,7 +376,15 @@ struct SavedEventRow: View {
 
                 Spacer()
 
-                if isPast {
+                if isRecentlySaved {
+                    Text("New")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(hex: "#3b82f6"))
+                        .clipShape(Capsule())
+                } else if isPast {
                     Text("Attended")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(Color(hex: "#10b981"))
