@@ -268,6 +268,18 @@ struct EventDetailView: View {
             // Floating nav buttons (matches ArticleDetailView pattern)
             floatingButtons
         }
+        .overlay(alignment: .top) {
+            if savedViewModel.showToast {
+                SavedToast(
+                    message: savedViewModel.toastMessage,
+                    icon: savedViewModel.toastIcon,
+                    isSaved: savedViewModel.toastIsSaved
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.top, 8)
+                .zIndex(100)
+            }
+        }
     }
 
     // MARK: - Floating Buttons

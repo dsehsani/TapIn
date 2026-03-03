@@ -19,6 +19,20 @@ class SavedViewModel: ObservableObject {
     @Published var savedArticles: [NewsArticle] = []
     @Published var savedEvents: [CampusEvent] = []
 
+    // MARK: - Toast State
+    @Published var toastMessage: String = ""
+    @Published var toastIcon: String = "bookmark.fill"
+    @Published var toastIsSaved: Bool = true
+    @Published var showToast: Bool = false
+    private var toastTask: Task<Void, Never>?
+
+    // MARK: - Recently Saved Tracking
+    /// Maps stable item keys to save timestamps for "Recently Saved" pills
+    @Published var recentlySavedKeys: Set<String> = []
+    private var recentTimers: [String: Task<Void, Never>] = [:]
+    /// How long the "Just saved" pill stays visible (seconds)
+    private let recentDuration: TimeInterval = 120
+
     private let savedEventsKey = "savedEvents"
     private let savedArticlesKey = "savedArticles"
 
@@ -55,6 +69,8 @@ class SavedViewModel: ObservableObject {
             savedArticles.append(article)
             persistContent()
             Task { await syncSaveArticle(article) }
+            let key = article.articleURL ?? article.id.uuidString
+            markAsRecentlySaved(key: "article_\(key)")
         }
     }
 
@@ -69,10 +85,54 @@ class SavedViewModel: ObservableObject {
     }
 
     func toggleArticleSaved(_ article: NewsArticle) {
-        if isArticleSaved(article) {
+        let wasSaved = isArticleSaved(article)
+        if wasSaved {
             removeArticle(article)
         } else {
             saveArticle(article)
+        }
+        showSavedToast(
+            itemType: "Article",
+            saved: !wasSaved
+        )
+    }
+
+    // MARK: - Recently Saved Helpers
+
+    func isRecentlySaved(articleKey: String) -> Bool {
+        recentlySavedKeys.contains("article_\(articleKey)")
+    }
+
+    func isRecentlySavedEvent(title: String, date: Date) -> Bool {
+        recentlySavedKeys.contains("event_\(title)_\(date.timeIntervalSince1970)")
+    }
+
+    private func markAsRecentlySaved(key: String) {
+        recentlySavedKeys.insert(key)
+        recentTimers[key]?.cancel()
+        recentTimers[key] = Task {
+            try? await Task.sleep(for: .seconds(recentDuration))
+            guard !Task.isCancelled else { return }
+            recentlySavedKeys.remove(key)
+        }
+    }
+
+    // MARK: - Toast Helper
+
+    private func showSavedToast(itemType: String, saved: Bool) {
+        toastTask?.cancel()
+        toastMessage = saved ? "\(itemType) saved to Saved tab" : "\(itemType) removed from Saved"
+        toastIcon = saved ? "bookmark.fill" : "bookmark.slash"
+        toastIsSaved = saved
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            showToast = true
+        }
+        toastTask = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.3)) {
+                showToast = false
+            }
         }
     }
 
@@ -93,6 +153,7 @@ class SavedViewModel: ObservableObject {
             Task { await syncSaveEvent(event) }
             Task { await NotificationService.shared.scheduleReminders(for: event) }
             onEventSaved?(event)
+            markAsRecentlySaved(key: "event_\(event.title)_\(event.date.timeIntervalSince1970)")
         }
     }
 
@@ -109,11 +170,16 @@ class SavedViewModel: ObservableObject {
     }
 
     func toggleEventSaved(_ event: CampusEvent) {
-        if isEventSaved(event) {
+        let wasSaved = isEventSaved(event)
+        if wasSaved {
             removeEvent(event)
         } else {
             saveEvent(event)
         }
+        showSavedToast(
+            itemType: "Event",
+            saved: !wasSaved
+        )
     }
 
     private func matchesEvent(_ a: CampusEvent, _ b: CampusEvent) -> Bool {

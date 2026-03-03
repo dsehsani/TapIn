@@ -32,7 +32,7 @@ class OnboardingViewModel: ObservableObject {
     // MARK: - Profile State
     @Published var displayName: String = ""
     @Published var email: String = ""
-    @Published var year: String = "Freshman"
+    @Published var year: String = ""
     @Published var profileImageData: Data? = nil
     @Published var selectedInterests: Set<String> = []
 

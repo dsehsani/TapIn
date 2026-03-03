@@ -38,6 +38,18 @@ struct ContentView: View {
             }
         }
         .ignoresSafeArea(.keyboard)
+        .overlay(alignment: .top) {
+            if savedViewModel.showToast {
+                SavedToast(
+                    message: savedViewModel.toastMessage,
+                    icon: savedViewModel.toastIcon,
+                    isSaved: savedViewModel.toastIsSaved
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.top, 8)
+                .zIndex(100)
+            }
+        }
         .task {
             // Wire notification callbacks
             savedViewModel.onEventSaved = { [weak notificationsViewModel] event in

@@ -2,7 +2,7 @@
 //  EditProfileView.swift
 //  TapInApp
 //
-//  Edit profile sheet — photo, name, email, year picker.
+//  Edit profile sheet — photo, name, email, role picker.
 //  Reuses the visual style from ProfileSetupView (onboarding).
 //
 
@@ -29,7 +29,7 @@ struct EditProfileView: View {
 
     private enum Field { case name, email }
 
-    private let years = ["Freshman", "Sophomore", "Junior", "Senior", "Grad"]
+    private let roles = ["Freshman", "Sophomore", "Junior", "Senior", "Graduate Student", "Professor", "Staff", "Faculty", "Alumni"]
 
     private let darkGradient = LinearGradient(
         colors: [Color(hex: "#0d1b4b"), Color(hex: "#1a1060"), Color(hex: "#2d0e52")],
@@ -61,7 +61,7 @@ struct EditProfileView: View {
                         .padding(.bottom, 32)
                     formSection
                         .padding(.horizontal, 24)
-                    yearSection
+                    roleSection
                         .padding(.horizontal, 24)
                         .padding(.top, 24)
                     interestsSection
@@ -247,38 +247,38 @@ struct EditProfileView: View {
         }
     }
 
-    // MARK: - Year Picker
+    // MARK: - Role Picker
 
-    private var yearSection: some View {
+    private var roleSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Year")
+            Text("Role")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.white.opacity(0.7))
                 .padding(.leading, 4)
 
             EditProfileFlowLayout(spacing: 8) {
-                ForEach(years, id: \.self) { yr in
+                ForEach(roles, id: \.self) { role in
                     Button(action: {
-                        year = (year == yr) ? "" : yr
+                        year = (year == role) ? "" : role
                     }) {
-                        Text(yr)
+                        Text(role)
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white.opacity(year == yr ? 1 : 0.6))
+                            .foregroundColor(.white.opacity(year == role ? 1 : 0.6))
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)
                             .background(
-                                .white.opacity(year == yr ? 0.25 : 0.10),
+                                .white.opacity(year == role ? 0.25 : 0.10),
                                 in: Capsule()
                             )
                             .overlay(
                                 Capsule().stroke(
-                                    .white.opacity(year == yr ? 0.6 : 0.2),
-                                    lineWidth: year == yr ? 1.5 : 1
+                                    .white.opacity(year == role ? 0.6 : 0.2),
+                                    lineWidth: year == role ? 1.5 : 1
                                 )
                             )
                     }
                     .buttonStyle(.plain)
-                    .animation(.easeInOut(duration: 0.15), value: year == yr)
+                    .animation(.easeInOut(duration: 0.15), value: year == role)
                 }
             }
         }
