@@ -29,7 +29,8 @@ struct Category: Identifiable, Hashable {
 // MARK: - The Aggie News Categories
 extension Category {
     static let allCategories: [Category] = [
-        Category(name: "All News", icon: "newspaper.fill", isSelected: true),
+        Category(name: "For You", icon: "sparkles", isSelected: true),
+        Category(name: "All News", icon: "newspaper.fill"),
         Category(name: "Campus", icon: "building.2.fill"),
         Category(name: "City", icon: "building.fill"),
         Category(name: "Opinion", icon: "text.bubble.fill"),
@@ -44,6 +45,7 @@ extension Category {
     /// Maps category display name to NewsService.NewsCategory
     var newsCategory: NewsService.NewsCategory {
         switch name {
+        case "For You": return .all
         case "All News": return .all
         case "Campus": return .campus
         case "City": return .city

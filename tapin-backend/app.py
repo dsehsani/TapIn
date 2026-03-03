@@ -148,6 +148,7 @@ def create_app() -> Flask:
                 "user_profile": "GET /api/users/me",
                 "users_health": "GET /api/users/health",
                 "pipes_daily": "GET /api/pipes/daily",
+                "pipes_daily_five": "GET /api/pipes/daily-five?date=YYYY-MM-DD",
                 "pipes_health": "GET /api/pipes/health",
             }
         })
@@ -217,6 +218,7 @@ if __name__ == "__main__":
     print("  GET  /api/users/health          - Users health check")
     print("")
     print("  GET  /api/pipes/daily           - Daily pipes puzzle")
+    print("  GET  /api/pipes/daily-five      - Daily 5-puzzle set")
     print("  GET  /api/pipes/health          - Pipes health check")
     print("")
     print("Press Ctrl+C to stop the server")
