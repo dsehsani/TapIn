@@ -60,6 +60,11 @@ struct PipesGameView: View {
                 completionOverlay
             }
 
+            // Loading overlay (when fetching puzzle from backend)
+            if viewModel.isLoadingPuzzle {
+                loadingOverlay
+            }
+
             // Start screen / tutorial overlay
             if showStartScreen && viewModel.gameState == .playing {
                 GameTutorialOverlay(
@@ -215,6 +220,31 @@ struct PipesGameView: View {
                     .fill(Color(hex: "#0f172a"))
             )
             .padding(.horizontal, 40)
+        }
+        .transition(.opacity)
+    }
+
+    // MARK: - Loading Overlay
+
+    private var loadingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .tint(Color.ucdGold)
+
+                Text("Loading today's puzzle...")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.white)
+            }
+            .padding(32)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(hex: "#0f172a").opacity(0.9))
+            )
         }
         .transition(.opacity)
     }

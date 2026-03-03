@@ -19,6 +19,19 @@ class PipesGameViewModel {
     var gameStartTime: Date? = nil
     var gameDurationSeconds: Int = 0
 
+    // MARK: - Live Drawing State (Flowing Animation)
+
+    /// Current finger position for live preview line (in view coordinates)
+    var liveDrawPosition: CGPoint? = nil
+
+    /// Track which cells were recently filled for snap animation
+    var recentlyFilledCells: Set<PipePosition> = []
+
+    // MARK: - Loading State (Backend Integration)
+
+    var isLoadingPuzzle: Bool = false
+    var loadError: String? = nil
+
     private(set) var currentPuzzle: PipePuzzle
     private var endpointMap: [PipePosition: PipeColor] = [:]
     private var lastDragCell: PipePosition? = nil
@@ -36,6 +49,11 @@ class PipesGameViewModel {
     init() {
         currentPuzzle = PipesPuzzleProvider.shared.puzzleForDate()
         loadDailyPuzzle()
+
+        // Attempt to fetch from backend asynchronously
+        Task {
+            await loadDailyPuzzleAsync()
+        }
     }
 
     // MARK: - Timer
@@ -105,6 +123,7 @@ class PipesGameViewModel {
         activeColor = nil
         lastDragCell = nil
         dragLocked = false
+        liveDrawPosition = nil
     }
 
     private func startDrag(at pos: PipePosition) {
@@ -137,7 +156,9 @@ class PipesGameViewModel {
         // Backtracking
         if path.count >= 2 && path[path.count - 2] == pos {
             paths[color]?.removeLast()
-            rebuildGrid()
+            withAnimation(.spring(response: 0.15, dampingFraction: 0.8)) {
+                rebuildGrid()
+            }
             return
         }
 
@@ -155,7 +176,18 @@ class PipesGameViewModel {
         }
 
         paths[color]?.append(pos)
-        rebuildGrid()
+
+        // Mark cell as recently filled for snap animation
+        recentlyFilledCells.insert(pos)
+
+        // Clear animation state after a short delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.recentlyFilledCells.remove(pos)
+        }
+
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+            rebuildGrid()
+        }
 
         // If we reached the matching endpoint, lock the path
         let pair = currentPuzzle.pairs.first { $0.color == color }!
@@ -226,5 +258,41 @@ class PipesGameViewModel {
         let dr = abs(a.row - b.row)
         let dc = abs(a.col - b.col)
         return (dr == 1 && dc == 0) || (dr == 0 && dc == 1)
+    }
+
+    // MARK: - Async Puzzle Loading (Backend Integration)
+
+    @MainActor
+    func loadDailyPuzzleAsync() async {
+        isLoadingPuzzle = true
+        loadError = nil
+
+        let puzzle = await PipesPuzzleProvider.shared.fetchDailyPuzzle()
+
+        // Only update if puzzle is different (from backend)
+        if puzzle.size != currentPuzzle.size || puzzle.pairs.count != currentPuzzle.pairs.count {
+            currentPuzzle = puzzle
+            gridSize = puzzle.size
+            gameState = .playing
+            moves = 0
+            gameStartTime = nil
+            gameDurationSeconds = 0
+            paths = [:]
+            activeColor = nil
+            lastDragCell = nil
+            dragLocked = false
+            liveDrawPosition = nil
+            recentlyFilledCells = []
+
+            endpointMap = [:]
+            for pair in currentPuzzle.pairs {
+                endpointMap[pair.start] = pair.color
+                endpointMap[pair.end] = pair.color
+            }
+
+            rebuildGrid()
+        }
+
+        isLoadingPuzzle = false
     }
 }

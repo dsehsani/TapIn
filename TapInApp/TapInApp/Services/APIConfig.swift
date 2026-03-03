@@ -53,6 +53,11 @@ enum APIConfig {
     /// GET /api/articles/daily-briefing — Today's AI news summary
     static var dailyBriefingURL: String { "\(baseURL)api/articles/daily-briefing" }
 
+    // MARK: - Pipes Game Endpoint
+
+    /// GET - Daily pipes puzzle (AI-generated or fallback)
+    static var pipesDailyURL: String { "\(baseURL)api/pipes/daily" }
+
     // MARK: - Claude Endpoints
 
     /// POST - Summarize an event description

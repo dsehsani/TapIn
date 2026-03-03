@@ -30,6 +30,7 @@ from api.claude import claude_bp
 from api.events import events_bp
 from api.articles import articles_bp
 from api.users import users_bp
+from api.pipes import pipes_bp
 
 # Load environment variables from .env file (for local development)
 load_dotenv()
@@ -97,6 +98,10 @@ def create_app() -> Flask:
     # All user endpoints will be prefixed with /api/users
     app.register_blueprint(users_bp)
 
+    # Register the Pipes blueprint
+    # All pipes game endpoints will be prefixed with /api/pipes
+    app.register_blueprint(pipes_bp)
+
     # --------------------------------------------------------------------------
     # MARK: - Root Endpoint
     # --------------------------------------------------------------------------
@@ -142,6 +147,8 @@ def create_app() -> Flask:
                 "login": "POST /api/users/login",
                 "user_profile": "GET /api/users/me",
                 "users_health": "GET /api/users/health",
+                "pipes_daily": "GET /api/pipes/daily",
+                "pipes_health": "GET /api/pipes/health",
             }
         })
 
@@ -208,6 +215,9 @@ if __name__ == "__main__":
     print("  POST /api/users/login           - Email login")
     print("  GET  /api/users/me              - User profile")
     print("  GET  /api/users/health          - Users health check")
+    print("")
+    print("  GET  /api/pipes/daily           - Daily pipes puzzle")
+    print("  GET  /api/pipes/health          - Pipes health check")
     print("")
     print("Press Ctrl+C to stop the server")
     print("=" * 60)
