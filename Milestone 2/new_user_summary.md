@@ -1,13 +1,16 @@
 ## TapIn - Milestone 2 - Summary of Interviews:
 
 App is primarily perceived as a news app (often first impression).
+
 Events are important, but not always prioritized in navigation.
 
 Brief confusion between Saved News vs. Saved Events.
+
 Confusion around Save vs. Attend (does saving RSVP? does it notify?).
 
 AI summaries are:
 Helpful and compact.
+
 Trusted moderately to highly.
 Mostly scanned only in the first 1–2 lines.
 Sometimes ignored or “tuned out.”
