@@ -39,8 +39,8 @@ struct ForYouEventCard: View {
         }
     }
 
-    /// Big themed emoji based on event keywords
-    private var eventEmoji: String {
+    /// SF Symbol icon based on event keywords
+    private var eventIcon: String {
         let text = [
             event.title,
             event.eventType ?? "",
@@ -48,40 +48,73 @@ struct ForYouEventCard: View {
             event.tags.joined(separator: " ")
         ].joined(separator: " ").lowercased()
 
-        if text.contains("sport") || text.contains("athletic") || text.contains("basketball") || text.contains("football") || text.contains("soccer") { return "🏆" }
-        if text.contains("music") || text.contains("concert") || text.contains("band") { return "🎵" }
-        if text.contains("art") || text.contains("exhibit") || text.contains("gallery") || text.contains("painting") { return "🎨" }
-        if text.contains("dance") || text.contains("ballet") { return "💃" }
-        if text.contains("theater") || text.contains("theatre") || text.contains("drama") || text.contains("comedy") { return "🎭" }
-        if text.contains("film") || text.contains("movie") || text.contains("screen") { return "🎬" }
-        if text.contains("food") || text.contains("dining") || text.contains("cook") || text.contains("potluck") || text.contains("taco") { return "🍽️" }
-        if text.contains("coffee") || text.contains("cafe") || text.contains("tea") { return "☕" }
-        if text.contains("lecture") || text.contains("seminar") || text.contains("talk") || text.contains("panel") { return "🎤" }
-        if text.contains("workshop") || text.contains("hack") || text.contains("coding") || text.contains("tech") { return "💻" }
-        if text.contains("science") || text.contains("research") || text.contains("lab") { return "🔬" }
-        if text.contains("yoga") || text.contains("meditation") || text.contains("wellness") || text.contains("health") { return "🧘" }
-        if text.contains("volunteer") || text.contains("community") || text.contains("service") { return "🤝" }
-        if text.contains("career") || text.contains("job") || text.contains("intern") || text.contains("recruit") { return "💼" }
-        if text.contains("club") || text.contains("meeting") || text.contains("org") { return "👥" }
-        if text.contains("party") || text.contains("social") || text.contains("mixer") { return "🎉" }
-        if text.contains("study") || text.contains("tutor") || text.contains("exam") { return "📚" }
-        if text.contains("outdoor") || text.contains("hike") || text.contains("nature") || text.contains("garden") { return "🌿" }
-        if text.contains("game") || text.contains("trivia") || text.contains("board") { return "🎲" }
-        return "📅"
+        if text.contains("sport") || text.contains("athletic") || text.contains("basketball") || text.contains("football") || text.contains("soccer") { return "sportscourt.fill" }
+        if text.contains("music") || text.contains("concert") || text.contains("band") { return "music.note.list" }
+        if text.contains("art") || text.contains("exhibit") || text.contains("gallery") || text.contains("painting") { return "paintpalette.fill" }
+        if text.contains("dance") || text.contains("ballet") { return "figure.dance" }
+        if text.contains("theater") || text.contains("theatre") || text.contains("drama") || text.contains("comedy") { return "theatermasks.fill" }
+        if text.contains("film") || text.contains("movie") || text.contains("screen") { return "film.fill" }
+        if text.contains("food") || text.contains("dining") || text.contains("cook") || text.contains("potluck") || text.contains("taco") { return "fork.knife" }
+        if text.contains("coffee") || text.contains("cafe") || text.contains("tea") { return "cup.and.saucer.fill" }
+        if text.contains("lecture") || text.contains("seminar") || text.contains("talk") || text.contains("panel") { return "mic.fill" }
+        if text.contains("workshop") || text.contains("hack") || text.contains("coding") || text.contains("tech") { return "laptopcomputer" }
+        if text.contains("science") || text.contains("research") || text.contains("lab") { return "atom" }
+        if text.contains("yoga") || text.contains("meditation") || text.contains("wellness") || text.contains("health") { return "heart.fill" }
+        if text.contains("volunteer") || text.contains("community") || text.contains("service") { return "hands.sparkles.fill" }
+        if text.contains("career") || text.contains("job") || text.contains("intern") || text.contains("recruit") { return "briefcase.fill" }
+        if text.contains("club") || text.contains("meeting") || text.contains("org") { return "person.3.fill" }
+        if text.contains("party") || text.contains("social") || text.contains("mixer") { return "party.popper.fill" }
+        if text.contains("study") || text.contains("tutor") || text.contains("exam") { return "book.fill" }
+        if text.contains("outdoor") || text.contains("hike") || text.contains("nature") || text.contains("garden") { return "leaf.fill" }
+        if text.contains("game") || text.contains("trivia") || text.contains("board") { return "gamecontroller.fill" }
+        return "calendar"
     }
 
-    /// Small accent emojis scattered in the background
-    private var accentEmojis: [String] {
-        let text = [event.title, event.eventType ?? "", event.tags.joined(separator: " ")].joined(separator: " ").lowercased()
+    /// Formatted time string like "5:00 PM"
+    private var eventTimeString: String {
+        event.date.formatted(date: .omitted, time: .shortened)
+    }
 
-        if text.contains("sport") || text.contains("athletic") { return ["⚡", "🔥", "💪"] }
-        if text.contains("music") || text.contains("concert") { return ["🎶", "✨", "🎧"] }
-        if text.contains("art") || text.contains("exhibit") { return ["✨", "🖌️", "💫"] }
-        if text.contains("food") || text.contains("dining") || text.contains("cook") { return ["🔥", "✨", "😋"] }
-        if text.contains("tech") || text.contains("hack") || text.contains("coding") { return ["⚡", "🚀", "✨"] }
-        if text.contains("party") || text.contains("social") || text.contains("mixer") { return ["✨", "💫", "🎊"] }
-        if text.contains("career") || text.contains("job") { return ["🌟", "📈", "✨"] }
-        return ["✨", "💫", "⭐"]
+    /// True only when location has real, useful data
+    private var hasRealLocation: Bool {
+        let loc = event.location
+        return !loc.isEmpty && loc != "TBD" && loc != "N/A"
+    }
+
+    /// Extracts just the building/hall + room from a full address.
+    /// e.g. "123 Shields Library, Room 360, Davis, CA" → "Shields Library, Rm 360"
+    /// e.g. "Hunt Hall Room 100, Shields Ave, Davis, CA" → "Hunt Hall Rm 100"
+    private var shortenedLocation: String {
+        let loc = event.location
+
+        // Split by comma and keep relevant parts (building, room)
+        let parts = loc.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+
+        var result: [String] = []
+        for part in parts {
+            let lower = part.lowercased()
+            // Skip city, state, zip, country
+            if lower.contains("davis") || lower.contains(", ca") || lower.contains("california") { continue }
+            if lower.count <= 3 && lower.allSatisfy(\.isUppercase) { continue } // "CA"
+            // Strip leading street number (e.g. "123 Shields Library" → "Shields Library")
+            let cleaned = part.replacingOccurrences(of: "^\\d+\\s+", with: "", options: .regularExpression)
+            if cleaned.isEmpty { continue }
+
+            if result.isEmpty {
+                // Always keep the first relevant part (building name)
+                result.append(cleaned)
+            } else if lower.contains("room") || lower.contains("rm") || lower.contains("suite") || lower.contains("ste") {
+                // Only keep a 2nd part if it's a room/suite number
+                result.append(cleaned)
+                break
+            } else {
+                break
+            }
+        }
+
+        // Shorten "Room" → "Rm" to save space
+        let joined = result.isEmpty ? loc : result.joined(separator: ", ")
+        return joined.replacingOccurrences(of: "Room ", with: "Rm ")
     }
 
     var body: some View {
@@ -95,34 +128,26 @@ struct ForYouEventCard: View {
                         endPoint: .bottomTrailing
                     )
 
-                    // Scattered accent emojis
-                    let accents = accentEmojis
-                    Text(accents[0])
-                        .font(.system(size: 16))
-                        .opacity(0.4)
-                        .offset(x: -55, y: -30)
-
-                    Text(accents[1])
-                        .font(.system(size: 14))
-                        .opacity(0.35)
-                        .offset(x: 50, y: -38)
-
-                    if accents.count > 2 {
-                        Text(accents[2])
-                            .font(.system(size: 12))
-                            .opacity(0.3)
-                            .offset(x: -40, y: 32)
-                    }
-
-                    // Big center emoji
-                    Text(eventEmoji)
-                        .font(.system(size: 44))
+                    // Center icon
+                    Image(systemName: eventIcon)
+                        .font(.system(size: 32, weight: .medium))
+                        .foregroundColor(.white.opacity(0.9))
                         .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
 
-                    // Dismiss button (top-right)
+                    // Top row: date pill (left) + dismiss (right)
                     VStack {
                         HStack {
+                            Text(event.friendlyDateLabel)
+                                .font(.system(size: 10, weight: .heavy))
+                                .tracking(0.3)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Capsule().fill(.black.opacity(0.35)))
+                                .lineLimit(1)
+
                             Spacer()
+
                             Button(action: onDismiss) {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 10, weight: .bold))
@@ -136,26 +161,6 @@ struct ForYouEventCard: View {
                     }
                     .padding(8)
 
-                    // Urgency badge
-                    if let label = urgencyLabel {
-                        VStack {
-                            HStack {
-                                Text(label)
-                                    .font(.system(size: 9, weight: .heavy))
-                                    .tracking(0.5)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(
-                                        Capsule()
-                                            .fill(.black.opacity(0.35))
-                                    )
-                                Spacer()
-                            }
-                            Spacer()
-                        }
-                        .padding(10)
-                    }
                 }
                 .frame(height: 120)
                 .clipped()
@@ -181,32 +186,31 @@ struct ForYouEventCard: View {
 
                     Spacer(minLength: 0)
 
-                    // Date + time
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .font(.system(size: 10))
-                        Text(event.friendlyDateLabel)
-                            .font(.system(size: 11))
+                    // Location — only if real data, above time
+                    if hasRealLocation {
+                        HStack(spacing: 4) {
+                            Image(systemName: "mappin")
+                                .font(.system(size: 11))
+                            Text(shortenedLocation)
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
+                        .lineLimit(1)
                     }
-                    .foregroundColor(.secondary)
+
+                    // Time
+                    HStack(spacing: 5) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 12))
+                        Text(eventTimeString)
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
                     .lineLimit(1)
 
-                    // Location + Save
-                    HStack(alignment: .bottom) {
-                        if !event.location.isEmpty && event.location != "TBD" {
-                            HStack(spacing: 4) {
-                                Image(systemName: "mappin")
-                                    .font(.system(size: 10))
-                                Text(event.location)
-                                    .font(.system(size: 11))
-                            }
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                        }
-
+                    // Save row
+                    HStack {
                         Spacer()
-
-                        // Save Toggle
                         Button(action: {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                                 savedViewModel.toggleEventSaved(event)
