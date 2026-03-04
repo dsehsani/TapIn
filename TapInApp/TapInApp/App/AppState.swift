@@ -127,7 +127,8 @@ class AppState: ObservableObject {
             "eventPreferenceProfile",
             "articleReadHistory", "articleCategoryAffinity",
             "tutorial_seen_wordle", "tutorial_seen_pipes", "tutorial_seen_echo",
-            "unseenNotificationEventIds"
+            "unseenNotificationEventIds",
+            "dau_tracked_actions"
         ]
         for key in keysToRemove {
             UserDefaults.standard.removeObject(forKey: key)
@@ -162,6 +163,7 @@ class AppState: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "tutorial_seen_pipes")
         UserDefaults.standard.removeObject(forKey: "tutorial_seen_echo")
         UserDefaults.standard.removeObject(forKey: "unseenNotificationEventIds")
+        UserDefaults.standard.removeObject(forKey: "dau_tracked_actions")
         persistState()
     }
 

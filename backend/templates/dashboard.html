@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TapIn DAU Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 24px;
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .subtitle {
+            color: #94a3b8;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+        .big-number {
+            font-size: 72px;
+            font-weight: 800;
+            color: #FFBF00;
+            line-height: 1;
+        }
+        .big-label {
+            font-size: 16px;
+            color: #94a3b8;
+            margin-bottom: 32px;
+        }
+        .charts {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+            margin-top: 24px;
+        }
+        .card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .card h2 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #cbd5e1;
+        }
+        canvas { max-height: 320px; }
+        .refresh-note {
+            text-align: center;
+            color: #475569;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+        @media (max-width: 768px) {
+            .charts { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <h1>TapIn DAU Dashboard</h1>
+    <p class="subtitle">Daily Active Users &mdash; UC Davis</p>
+
+    <div class="big-number" id="todayDAU">--</div>
+    <div class="big-label">users today</div>
+
+    <div class="charts">
+        <div class="card">
+            <h2>DAU (Last 30 Days)</h2>
+            <canvas id="lineChart"></canvas>
+        </div>
+        <div class="card">
+            <h2>Action Breakdown (Today)</h2>
+            <canvas id="pieChart"></canvas>
+        </div>
+    </div>
+
+    <p class="refresh-note">Auto-refreshes every 60 seconds</p>
+
+    <script>
+        const START = "{{ start_date }}";
+        const END   = "{{ end_date }}";
+        const TOKEN = new URLSearchParams(window.location.search).get("token") || "";
+
+        const ACTION_LABELS = {
+            article_read:  "Articles Read",
+            event_viewed:  "Events Viewed",
+            wordle_played: "Wordle Played",
+            echo_played:   "Echo Played",
+            pipes_played:  "Pipes Played"
+        };
+
+        const ACTION_COLORS = {
+            article_read:  "#3b82f6",
+            event_viewed:  "#10b981",
+            wordle_played: "#FFBF00",
+            echo_played:   "#8b5cf6",
+            pipes_played:  "#f97316"
+        };
+
+        let lineChart, pieChart;
+
+        async function fetchData() {
+            try {
+                const resp = await fetch(`/api/analytics/dau?start=${START}&end=${END}`);
+                const json = await resp.json();
+                if (!json.success) return;
+
+                const days = json.data;
+                const labels = days.map(d => d.date.slice(5)); // MM-DD
+                const values = days.map(d => d.unique_users);
+
+                // Today's numbers
+                const today = days[days.length - 1] || { unique_users: 0, actions: {} };
+                document.getElementById("todayDAU").textContent = today.unique_users;
+
+                // Line chart
+                if (lineChart) lineChart.destroy();
+                lineChart = new Chart(document.getElementById("lineChart"), {
+                    type: "line",
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: "Unique Users",
+                            data: values,
+                            borderColor: "#FFBF00",
+                            backgroundColor: "rgba(255,191,0,0.1)",
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { ticks: { color: "#64748b" }, grid: { color: "#1e293b" } },
+                            y: { beginAtZero: true, ticks: { color: "#64748b" }, grid: { color: "#1e293b" } }
+                        }
+                    }
+                });
+
+                // Pie chart
+                const actions = today.actions || {};
+                const pieLabels = Object.keys(actions).map(k => ACTION_LABELS[k] || k);
+                const pieValues = Object.values(actions);
+                const pieColors = Object.keys(actions).map(k => ACTION_COLORS[k] || "#64748b");
+
+                if (pieChart) pieChart.destroy();
+                pieChart = new Chart(document.getElementById("pieChart"), {
+                    type: "doughnut",
+                    data: {
+                        labels: pieLabels,
+                        datasets: [{
+                            data: pieValues,
+                            backgroundColor: pieColors,
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: "bottom",
+                                labels: { color: "#94a3b8", padding: 12, font: { size: 12 } }
+                            }
+                        }
+                    }
+                });
+            } catch (err) {
+                console.error("Dashboard fetch error:", err);
+            }
+        }
+
+        fetchData();
+        setInterval(fetchData, 60000);
+    </script>
+</body>
+</html>

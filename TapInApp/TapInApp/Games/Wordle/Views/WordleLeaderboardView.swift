@@ -31,7 +31,7 @@ struct WordleLeaderboardView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 bg.ignoresSafeArea()
 

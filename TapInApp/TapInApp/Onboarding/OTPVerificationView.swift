@@ -14,10 +14,8 @@ struct OTPVerificationView: View {
     @Environment(\.colorScheme) var colorScheme
     @FocusState private var isFieldFocused: Bool
 
-    @State private var countdown: Int = 30
-    @State private var canResend: Bool = false
+    @State private var localCode: String = ""
     @State private var shakeOffset: CGFloat = 0
-    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private let darkGradient = LinearGradient(
         colors: [Color(hex: "#0d1b4b"), Color(hex: "#1a1060"), Color(hex: "#2d0e52")],
@@ -36,7 +34,7 @@ struct OTPVerificationView: View {
         return "+1 (\(area)) ••• \(last4)"
     }
 
-    private var isComplete: Bool { viewModel.otpCode.count == 6 }
+    private var isComplete: Bool { localCode.count == 6 }
 
     var body: some View {
         ZStack {
@@ -54,6 +52,7 @@ struct OTPVerificationView: View {
 
                 // Back button
                 Button(action: {
+                    localCode = ""
                     viewModel.otpCode = ""
                     viewModel.goBack()
                 }) {
@@ -83,43 +82,52 @@ struct OTPVerificationView: View {
 
                 // OTP digit boxes with native SwiftUI TextField for autofill
                 ZStack {
-                    // Digit boxes (visual layer)
-                    HStack(spacing: 10) {
-                        ForEach(0..<6, id: \.self) { index in
-                            OTPDigitBox(
-                                digit: digit(at: index),
-                                isActive: index == viewModel.otpCode.count,
-                                isFilled: index < viewModel.otpCode.count
-                            )
-                        }
-                    }
-                    .offset(x: shakeOffset)
-
-                    // Native SwiftUI TextField — autofill works reliably
-                    TextField("", text: $viewModel.otpCode)
+                    // Real TextField (bottom layer) — visible to iOS autofill
+                    TextField("", text: $localCode)
                         .keyboardType(.numberPad)
                         .textContentType(.oneTimeCode)
+                        .focused($isFieldFocused)
                         .foregroundColor(.clear)
                         .tint(.clear)
                         .accentColor(.clear)
-                        .focused($isFieldFocused)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 70)
                         .background(Color.clear)
                         .autocorrectionDisabled()
-                        .onChange(of: viewModel.otpCode) { _, newValue in
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 70)
+                        .onChange(of: localCode) { _, newValue in
                             let filtered = String(newValue.filter(\.isNumber).prefix(6))
                             if filtered != newValue {
-                                viewModel.otpCode = filtered
+                                localCode = filtered
+                                return
                             }
+                            viewModel.otpCode = filtered
                             if viewModel.errorMessage != nil {
                                 viewModel.errorMessage = nil
                             }
                             if filtered.count == 6 {
-                                Task { await viewModel.verifyOTP() }
+                                // Small delay so user sees the filled boxes before verify
+                                Task {
+                                    try? await Task.sleep(for: .milliseconds(300))
+                                    await viewModel.verifyOTP()
+                                }
                             }
                         }
+
+                    // Digit boxes (visual overlay — taps pass through to TextField)
+                    HStack(spacing: 10) {
+                        ForEach(0..<6, id: \.self) { index in
+                            OTPDigitBox(
+                                digit: digit(at: index),
+                                isActive: index == localCode.count,
+                                isFilled: index < localCode.count
+                            )
+                        }
+                    }
+                    .allowsHitTesting(false)
+                    .offset(x: shakeOffset)
                 }
+                .contentShape(Rectangle())
+                .onTapGesture { isFieldFocused = true }
                 .frame(maxWidth: .infinity)
                 .frame(height: 70)
                 .padding(.horizontal, 24)
@@ -136,26 +144,12 @@ struct OTPVerificationView: View {
                         .transition(.opacity.animation(.easeInOut))
                 }
 
-                // Resend section
-                VStack(spacing: 10) {
-                    if canResend {
-                        Button(action: {
-                            viewModel.otpCode = ""
-                            countdown = 30
-                            canResend = false
-                            Task { await viewModel.sendOTP() }
-                        }) {
-                            Text("Resend SMS")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                    } else {
-                        Text("Resend code in \(Text("0:\(String(format: "%02d", countdown))").foregroundColor(.white).fontWeight(.semibold))")
-                            .foregroundColor(.white.opacity(0.5))
-                    }
-                }
-                .font(.system(size: 14))
-                .frame(maxWidth: .infinity, alignment: .center)
+                // Resend section (isolated so timer doesn't re-render the TextField)
+                ResendCountdownView(onResend: {
+                    localCode = ""
+                    viewModel.otpCode = ""
+                    Task { await viewModel.sendOTP() }
+                })
                 .padding(.top, viewModel.errorMessage == nil ? 24 : 12)
 
                 Spacer()
@@ -188,19 +182,18 @@ struct OTPVerificationView: View {
                 .padding(.bottom, 48)
             }
         }
-        .onAppear { isFieldFocused = true }
-        .onReceive(timer) { _ in
-            if countdown > 0 {
-                countdown -= 1
-            } else {
-                canResend = true
+        .onAppear {
+            // Delayed focus — gives the view hierarchy time to settle
+            // so iOS reliably attaches autofill to the TextField
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                isFieldFocused = true
             }
         }
     }
 
     private func digit(at index: Int) -> String {
-        guard index < viewModel.otpCode.count else { return "" }
-        return String(viewModel.otpCode[viewModel.otpCode.index(viewModel.otpCode.startIndex, offsetBy: index)])
+        guard index < localCode.count else { return "" }
+        return String(localCode[localCode.index(localCode.startIndex, offsetBy: index)])
     }
 
     private func shake() {
@@ -246,6 +239,44 @@ private struct OTPDigitBox: View {
         .aspectRatio(1, contentMode: .fit)
         .animation(.easeInOut(duration: 0.15), value: isFilled)
         .animation(.easeInOut(duration: 0.15), value: isActive)
+    }
+}
+
+// MARK: - Resend Countdown (isolated to avoid re-rendering the TextField)
+
+private struct ResendCountdownView: View {
+    let onResend: () -> Void
+
+    @State private var countdown: Int = 30
+    @State private var canResend: Bool = false
+    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        VStack(spacing: 10) {
+            if canResend {
+                Button(action: {
+                    countdown = 30
+                    canResend = false
+                    onResend()
+                }) {
+                    Text("Resend SMS")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+            } else {
+                Text("Resend code in \(Text("0:\(String(format: "%02d", countdown))").foregroundColor(.white).fontWeight(.semibold))")
+                    .foregroundColor(.white.opacity(0.5))
+            }
+        }
+        .font(.system(size: 14))
+        .frame(maxWidth: .infinity, alignment: .center)
+        .onReceive(timer) { _ in
+            if countdown > 0 {
+                countdown -= 1
+            } else {
+                canResend = true
+            }
+        }
     }
 }
 

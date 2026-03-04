@@ -61,6 +61,11 @@ enum APIConfig {
     /// GET - Daily 5-puzzle set with escalating difficulty
     static var pipesDailyFiveURL: String { "\(baseURL)api/pipes/daily-five" }
 
+    // MARK: - Analytics Endpoint
+
+    /// POST - Track a DAU event (fire-and-forget from client)
+    static var analyticsTrackURL: String { "\(baseURL)api/analytics/track" }
+
     // MARK: - Claude Endpoints
 
     /// POST - Summarize an event description
@@ -123,8 +128,11 @@ enum APIConfig {
 
     // MARK: - Legal Pages
 
-    /// Privacy Policy web page (GitHub Pages)
-    static var privacyURL: URL { URL(string: "https://dsehsani.github.io/TapIn/privacy_policy.html")! }
+    /// Privacy Policy web page
+    static var privacyURL: URL { URL(string: "https://tapin-backend-516122189377.us-west2.run.app/privacy")! }
+
+    /// Terms of Service web page
+    static var termsURL: URL { URL(string: "https://tapin-backend-516122189377.us-west2.run.app/terms")! }
 
 
     // MARK: - Mock Mode

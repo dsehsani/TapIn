@@ -122,7 +122,8 @@ class UserAPIService {
 
     /// Fetches the current user's profile using the backend JWT.
     func fetchProfile(token: String) async throws -> BackendUser {
-        var request = URLRequest(url: URL(string: APIConfig.meURL)!)
+        guard let url = URL(string: APIConfig.meURL) else { throw UserAPIError.invalidResponse }
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 15
@@ -169,7 +170,8 @@ class UserAPIService {
 
     /// Fetches game stats from the backend user profile.
     func fetchGameStats(token: String) async throws -> [String: Any]? {
-        var request = URLRequest(url: URL(string: APIConfig.meURL)!)
+        guard let url = URL(string: APIConfig.meURL) else { throw UserAPIError.invalidResponse }
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 15
