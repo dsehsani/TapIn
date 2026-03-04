@@ -263,7 +263,10 @@ struct EventDetailView: View {
                 .padding(.bottom, 20)
             }
             .background(Color.adaptiveBackground(colorScheme))
-            .task { await geocodeLocation() }
+            .task {
+                AnalyticsTracker.shared.track(.eventViewed)
+                await geocodeLocation()
+            }
 
             // Floating nav buttons (matches ArticleDetailView pattern)
             floatingButtons

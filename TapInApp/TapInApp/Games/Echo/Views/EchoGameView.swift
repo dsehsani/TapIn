@@ -80,6 +80,7 @@ struct EchoGameView: View {
                             showTutorial = false
                         }
                         viewModel.startGame()
+                        AnalyticsTracker.shared.track(.echoPlayed)
                     },
                     onExit: onDismiss,
                     showRulesInitially: !hasSeenTutorial

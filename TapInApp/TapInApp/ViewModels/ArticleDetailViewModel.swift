@@ -27,6 +27,7 @@ final class ArticleDetailViewModel: ObservableObject {
         do {
             let content = try await newsService.fetchArticleContent(for: article)
             loadState = .loaded(content)
+            AnalyticsTracker.shared.track(.articleRead)
         } catch AggieParserError.contentNotFound {
             loadState = .failed("Article content could not be found.")
         } catch AggieParserError.invalidURL {

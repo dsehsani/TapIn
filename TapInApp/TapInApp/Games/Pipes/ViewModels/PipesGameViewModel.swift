@@ -352,8 +352,8 @@ class PipesGameViewModel {
             rebuildGrid()
         }
 
-        let pair = currentPuzzle.pairs.first { $0.color == color }!
-        let pathStart = paths[color]!.first!
+        guard let pair = currentPuzzle.pairs.first(where: { $0.color == color }),
+              let pathStart = paths[color]?.first else { return }
         let isComplete =
             (pathStart == pair.start && pos == pair.end) ||
             (pathStart == pair.end && pos == pair.start)

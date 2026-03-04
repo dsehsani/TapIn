@@ -22,7 +22,8 @@
 #  - Deploy to Google App Engine: gcloud app deploy
 #
 
-from flask import Flask, jsonify
+import os
+from flask import Flask, jsonify, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
 from api.leaderboard import leaderboard_bp
@@ -31,6 +32,7 @@ from api.events import events_bp
 from api.articles import articles_bp
 from api.users import users_bp
 from api.pipes import pipes_bp
+from api.analytics import analytics_bp
 
 # Load environment variables from .env file (for local development)
 load_dotenv()
@@ -102,6 +104,10 @@ def create_app() -> Flask:
     # All pipes game endpoints will be prefixed with /api/pipes
     app.register_blueprint(pipes_bp)
 
+    # Register the Analytics blueprint
+    # DAU tracking and dashboard at /api/analytics
+    app.register_blueprint(analytics_bp)
+
     # --------------------------------------------------------------------------
     # MARK: - Root Endpoint
     # --------------------------------------------------------------------------
@@ -150,8 +156,30 @@ def create_app() -> Flask:
                 "pipes_daily": "GET /api/pipes/daily",
                 "pipes_daily_five": "GET /api/pipes/daily-five?date=YYYY-MM-DD",
                 "pipes_health": "GET /api/pipes/health",
+                "track_dau_event": "POST /api/analytics/track",
+                "query_dau": "GET /api/analytics/dau",
+                "analytics_health": "GET /api/analytics/health",
+                "dau_dashboard": "GET /api/analytics/dashboard",
+                "privacy_policy": "GET /privacy",
+                "terms_of_service": "GET /terms",
             }
         })
+
+    # --------------------------------------------------------------------------
+    # MARK: - Legal Pages
+    # --------------------------------------------------------------------------
+
+    @app.route("/privacy")
+    def privacy_policy():
+        """Serve the Privacy Policy HTML page."""
+        docs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs")
+        return send_file(os.path.join(docs_dir, "privacy_policy.html"))
+
+    @app.route("/terms")
+    def terms_of_service():
+        """Serve the Terms of Service HTML page."""
+        docs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs")
+        return send_file(os.path.join(docs_dir, "terms_of_service.html"))
 
     # --------------------------------------------------------------------------
     # MARK: - Error Handlers

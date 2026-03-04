@@ -144,11 +144,16 @@ struct SignInOptionsView: View {
 
                 Spacer()
 
-                // Privacy footer
-                HStack(spacing: 4) {
+                // Legal footer
+                VStack(spacing: 2) {
                     Text("By continuing, you agree to our")
-                    Link("Privacy Policy", destination: APIConfig.privacyURL)
-                        .underline()
+                    HStack(spacing: 4) {
+                        Link("Terms of Service", destination: APIConfig.termsURL)
+                            .underline()
+                        Text("and")
+                        Link("Privacy Policy", destination: APIConfig.privacyURL)
+                            .underline()
+                    }
                 }
                 .font(.system(size: 12))
                 .foregroundColor(.white.opacity(0.5))

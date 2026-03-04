@@ -33,14 +33,12 @@ struct SavedView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
 
-                // Segment Picker
-                HStack(spacing: 0) {
-                    segmentButton(title: "Events", index: 0)
-                    segmentButton(title: "Articles", index: 1)
+                // Segment Picker (native segmented control — liquid glass on iOS 26+)
+                Picker("", selection: $selectedSegment) {
+                    Text("Events").tag(0)
+                    Text("Articles").tag(1)
                 }
-                .padding(3)
-                .background(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .pickerStyle(.segmented)
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
                 .padding(.bottom, 8)
@@ -58,27 +56,6 @@ struct SavedView: View {
         .sheet(item: $selectedArticle) { article in
             ArticleDetailView(article: article, savedViewModel: viewModel)
         }
-    }
-
-    // MARK: - Segment Button
-
-    private func segmentButton(title: String, index: Int) -> some View {
-        Button(action: {
-            withAnimation(.easeInOut(duration: 0.2)) { selectedSegment = index }
-        }) {
-            Text(title)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(selectedSegment == index
-                    ? (colorScheme == .dark ? .white : Color(hex: "#0f172a"))
-                    : .secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(selectedSegment == index
-                    ? (colorScheme == .dark ? Color(hex: "#2a2a3e") : .white)
-                    : .clear)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Articles Content
@@ -127,14 +104,12 @@ struct SavedView: View {
 
     private var eventsContent: some View {
         VStack(spacing: 0) {
-            // Sub-tabs: Attending / Attended
-            HStack(spacing: 0) {
-                eventSubTab(title: "Attending", index: 0)
-                eventSubTab(title: "Attended", index: 1)
+            // Sub-tabs: Attending / Attended (native segmented control — liquid glass on iOS 26+)
+            Picker("", selection: $selectedEventSegment) {
+                Text("Attending").tag(0)
+                Text("Attended").tag(1)
             }
-            .padding(3)
-            .background(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"))
-            .clipShape(Capsule())
+            .pickerStyle(.segmented)
             .padding(.horizontal, 16)
             .padding(.top, 16)
             .padding(.bottom, 8)
@@ -157,21 +132,6 @@ struct SavedView: View {
                 )
             }
         }
-    }
-
-    private func eventSubTab(title: String, index: Int) -> some View {
-        Button(action: {
-            withAnimation(.easeInOut(duration: 0.2)) { selectedEventSegment = index }
-        }) {
-            Text(title)
-                .font(.system(size: 14, weight: selectedEventSegment == index ? .semibold : .medium))
-                .foregroundColor(selectedEventSegment == index ? .white : (colorScheme == .dark ? .white : Color(hex: "#334155")))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(selectedEventSegment == index ? Color.adaptiveAccent(colorScheme) : Color.clear)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
     }
 
     private func eventsList(events: [CampusEvent], emptyIcon: String, emptyTitle: String, emptyMessage: String, actionTitle: String? = nil, action: (() -> Void)? = nil) -> some View {

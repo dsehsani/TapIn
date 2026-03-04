@@ -42,68 +42,57 @@ struct CategoryPill: View {
     private var isForYou: Bool { category.name == "For You" }
     private var showGeminiGlow: Bool { isForYou && isSelected }
 
-    // Gemini-style rotating gradient (matches AISummaryBadge)
+    // Gemini glow animation state (For You pill only)
     @State private var rotation: Double = 0
     @State private var glowOpacity: Double = 0.4
 
     private let geminiColors: [Color] = [
-        Color(hex: "#3b82f6"),  // Blue
-        Color(hex: "#8b5cf6"),  // Purple
-        Color(hex: "#FFBF00"),  // UC Davis Gold
-        Color(hex: "#ec4899"),  // Pink
-        Color(hex: "#3b82f6")   // Blue (loop)
+        Color(hex: "#3b82f6"),
+        Color(hex: "#8b5cf6"),
+        Color(hex: "#FFBF00"),
+        Color(hex: "#ec4899"),
+        Color(hex: "#3b82f6")
     ]
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 6) {
-                if !category.icon.isEmpty {
-                    Image(systemName: category.icon)
-                        .font(.system(size: 14))
-                        .symbolEffect(.pulse, options: .repeating, isActive: showGeminiGlow)
-                }
-
-                Text(category.name)
-                    .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
-            }
-            .padding(.horizontal, isSelected ? 20 : 16)
-            .frame(height: 36)
-            .foregroundColor(pillForeground)
-            .background(Capsule().fill(pillBackground))
-            .clipShape(Capsule())
-            .overlay(pillBorder)
-        }
-        .buttonStyle(PlainButtonStyle())
-        // Gemini glow sits behind the button so it's not clipped
-        .background(geminiGlowBackground)
-        .shadow(color: pillShadowColor, radius: showGeminiGlow ? 6 : 4, x: 0, y: 2)
-        .onAppear {
-            guard isForYou else { return }
-            withAnimation(.linear(duration: 6).repeatForever(autoreverses: false)) {
-                rotation = 360
-            }
-            withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) {
-                glowOpacity = 0.15
-            }
-        }
-    }
-
-    // MARK: - Extracted sub-views to help the compiler
-
-    private var pillBackground: some ShapeStyle {
         if showGeminiGlow {
-            return AnyShapeStyle(colorScheme == .dark ? Color(hex: "#1a1a2e").opacity(0.9) : Color(hex: "#faf5ff").opacity(0.95))
-        } else if isSelected {
-            return AnyShapeStyle(colorScheme == .dark ? Color(hex: "#1a1060") : Color.accentCoral)
+            geminiPill
         } else {
-            return AnyShapeStyle(colorScheme == .dark ? Color(hex: "#1a2033") : Color.white)
+            simplePill
         }
     }
 
-    private var pillForeground: Color {
-        if showGeminiGlow {
-            return colorScheme == .dark ? .white.opacity(0.95) : Color(hex: "#6d28d9")
-        } else if isSelected {
+    // MARK: - Simple Pill (all categories except selected "For You")
+
+    private var simplePill: some View {
+        HStack(spacing: 6) {
+            if !category.icon.isEmpty {
+                Image(systemName: category.icon)
+                    .font(.system(size: 14))
+            }
+            Text(category.name)
+                .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
+        }
+        .padding(.horizontal, isSelected ? 20 : 16)
+        .frame(height: 36)
+        .foregroundStyle(simpleForeground)
+        .background(simpleFillColor, in: Capsule())
+        .overlay(simpleBorder)
+        .contentShape(Capsule())
+        .onTapGesture(perform: onTap)
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private var simpleFillColor: Color {
+        if isSelected {
+            return colorScheme == .dark ? Color(hex: "#1a1060") : Color.accentCoral
+        } else {
+            return colorScheme == .dark ? Color(hex: "#1a2033") : Color.white
+        }
+    }
+
+    private var simpleForeground: Color {
+        if isSelected {
             return .white
         } else {
             return colorScheme == .dark ? Color(hex: "#cbd5e1") : Color(hex: "#334155")
@@ -111,19 +100,8 @@ struct CategoryPill: View {
     }
 
     @ViewBuilder
-    private var pillBorder: some View {
-        if showGeminiGlow {
-            // Rotating rainbow gradient border
-            Capsule()
-                .stroke(
-                    AngularGradient(
-                        colors: geminiColors,
-                        center: .center,
-                        angle: .degrees(rotation)
-                    ),
-                    lineWidth: 1.8
-                )
-        } else if !isSelected {
+    private var simpleBorder: some View {
+        if !isSelected {
             Capsule()
                 .stroke(
                     colorScheme == .dark ? Color(hex: "#334155") : Color(hex: "#e2e8f0"),
@@ -132,30 +110,50 @@ struct CategoryPill: View {
         }
     }
 
-    @ViewBuilder
-    private var geminiGlowBackground: some View {
-        if showGeminiGlow {
-            Capsule()
-                .fill(
-                    AngularGradient(
-                        colors: geminiColors,
-                        center: .center,
-                        angle: .degrees(rotation + 90)
+    // MARK: - Gemini Pill (selected "For You" only)
+
+    private var geminiPill: some View {
+        Button(action: onTap) {
+            HStack(spacing: 6) {
+                if !category.icon.isEmpty {
+                    Image(systemName: category.icon)
+                        .font(.system(size: 14))
+                        .symbolEffect(.pulse, options: .repeating, isActive: true)
+                }
+                Text(category.name)
+                    .font(.system(size: 14, weight: .semibold))
+            }
+            .padding(.horizontal, 20)
+            .frame(height: 36)
+            .foregroundStyle(colorScheme == .dark ? .white.opacity(0.95) : Color(hex: "#6d28d9"))
+            .background(
+                colorScheme == .dark ? Color(hex: "#1a1a2e").opacity(0.9) : Color(hex: "#faf5ff").opacity(0.95),
+                in: Capsule()
+            )
+            .overlay(
+                Capsule()
+                    .stroke(
+                        AngularGradient(colors: geminiColors, center: .center, angle: .degrees(rotation)),
+                        lineWidth: 1.8
                     )
-                )
+            )
+        }
+        .buttonStyle(.plain)
+        .background(
+            Capsule()
+                .fill(AngularGradient(colors: geminiColors, center: .center, angle: .degrees(rotation + 90)))
                 .padding(-3)
                 .blur(radius: 5)
                 .opacity(glowOpacity)
-        }
-    }
-
-    private var pillShadowColor: Color {
-        if showGeminiGlow {
-            return Color(hex: "#8b5cf6").opacity(0.3)
-        } else if isSelected {
-            return colorScheme == .dark ? Color(hex: "#1a1060").opacity(0.4) : Color.accentCoral.opacity(0.25)
-        } else {
-            return .clear
+        )
+        .shadow(color: Color(hex: "#8b5cf6").opacity(0.3), radius: 6, x: 0, y: 2)
+        .onAppear {
+            withAnimation(.linear(duration: 6).repeatForever(autoreverses: false)) {
+                rotation = 360
+            }
+            withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) {
+                glowOpacity = 0.15
+            }
         }
     }
 }

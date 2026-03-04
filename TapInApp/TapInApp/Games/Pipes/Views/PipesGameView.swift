@@ -95,6 +95,7 @@ struct PipesGameView: View {
                             showStartScreen = false
                         }
                         viewModel.startTimer()
+                        AnalyticsTracker.shared.track(.pipesPlayed)
                     },
                     onExit: onDismiss,
                     subtitle: viewModel.isArchiveMode ? viewModel.currentDateKey : "Daily Five",

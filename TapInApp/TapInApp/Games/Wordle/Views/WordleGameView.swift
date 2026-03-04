@@ -197,6 +197,7 @@ struct WordleGameView: View {
                             showStartScreen = false
                         }
                         viewModel.startTimer()
+                        AnalyticsTracker.shared.track(.wordlePlayed)
                     },
                     onExit: onDismiss,
                     subtitle: viewModel.formattedCurrentDate,
