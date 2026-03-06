@@ -14,8 +14,8 @@ enum LeaderboardGame: String, CaseIterable {
 
     var hasLeaderboard: Bool {
         switch self {
-        case .dailyFive: return true
-        case .echo, .pipes: return false
+        case .dailyFive, .pipes: return true
+        case .echo: return false
         }
     }
 
@@ -32,7 +32,6 @@ struct LeaderboardView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @State private var viewModel = LeaderboardViewModel()
-    @State private var selectedGame: LeaderboardGame = .dailyFive
 
     var body: some View {
         NavigationStack {
@@ -46,7 +45,7 @@ struct LeaderboardView: View {
                         .padding(.top, 4)
                         .padding(.bottom, 12)
 
-                    if selectedGame.hasLeaderboard {
+                    if viewModel.selectedGame.hasLeaderboard {
                         // Date Navigator
                         dateNavigator
                             .padding(.horizontal, 16)
@@ -60,6 +59,12 @@ struct LeaderboardView: View {
                                 loadingView
                             } else if let error = viewModel.errorMessage {
                                 errorView(error)
+                            } else if viewModel.selectedGame == .pipes {
+                                if viewModel.hasPipesEntries {
+                                    pipesRankingsList
+                                } else {
+                                    pipesEmptyView
+                                }
                             } else if viewModel.hasEntries {
                                 rankingsList
                             } else {
@@ -149,11 +154,11 @@ struct LeaderboardView: View {
     private var gamePicker: some View {
         HStack(spacing: 8) {
             ForEach(LeaderboardGame.allCases, id: \.self) { game in
-                let isSelected = selectedGame == game
+                let isSelected = viewModel.selectedGame == game
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        selectedGame = game
+                        viewModel.switchGame(to: game)
                     }
                 } label: {
                     HStack(spacing: 5) {
@@ -339,7 +344,7 @@ struct LeaderboardView: View {
             Text("No scores yet")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(colorScheme == .dark ? .white : .primary)
-            Text("Be the first to complete today's Wordle!")
+            Text("Be the first to complete today's DailyFive!")
                 .font(.system(size: 14))
                 .foregroundColor(.textSecondary)
         }
@@ -370,6 +375,175 @@ struct LeaderboardView: View {
         .padding(.top, 80)
     }
 
+    // MARK: - Pipes Rankings List
+
+    private var pipesRankingsList: some View {
+        VStack(spacing: 16) {
+            let top3 = viewModel.pipesEntries.filter { $0.rank <= 3 }
+            if !top3.isEmpty {
+                pipesPodiumView(top3: top3)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+            }
+
+            let remaining = viewModel.pipesEntries.filter { $0.rank > 3 }
+            if !remaining.isEmpty {
+                LazyVStack(spacing: 8) {
+                    ForEach(remaining) { entry in
+                        pipesRowView(entry: entry)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+    }
+
+    // MARK: - Pipes Podium
+
+    private func pipesPodiumView(top3: [PipesLeaderboardEntryResponse]) -> some View {
+        let first = top3.first(where: { $0.rank == 1 })
+        let second = top3.first(where: { $0.rank == 2 })
+        let third = top3.first(where: { $0.rank == 3 })
+
+        return HStack(alignment: .bottom, spacing: 10) {
+            if let entry = second {
+                pipesPodiumSlot(entry: entry, height: 64, medalEmoji: "🥈")
+            } else {
+                Spacer().frame(maxWidth: .infinity)
+            }
+
+            if let entry = first {
+                pipesPodiumSlot(entry: entry, height: 88, medalEmoji: "🥇")
+            } else {
+                Spacer().frame(maxWidth: .infinity)
+            }
+
+            if let entry = third {
+                pipesPodiumSlot(entry: entry, height: 48, medalEmoji: "🥉")
+            } else {
+                Spacer().frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func pipesPodiumSlot(entry: PipesLeaderboardEntryResponse, height: CGFloat, medalEmoji: String) -> some View {
+        let isMe = viewModel.isCurrentUserPipesEntry(entry)
+        let podiumColor: Color = {
+            switch entry.rank {
+            case 1: return Color.ucdGold
+            case 2: return Color(hex: "#94a3b8")
+            case 3: return Color(hex: "#b45309")
+            default: return Color.gray
+            }
+        }()
+
+        return VStack(spacing: 0) {
+            Text(medalEmoji)
+                .font(.system(size: 26))
+                .padding(.bottom, 4)
+
+            Text(entry.username)
+                .font(.system(size: 13, weight: isMe ? .bold : .semibold))
+                .foregroundColor(isMe ? Color.ucdGold : (colorScheme == .dark ? .white : .primary))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.bottom, 2)
+
+            Text("\(entry.totalMoves) moves · \(formatTime(entry.totalTimeSeconds))")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.textSecondary)
+                .padding(.bottom, 8)
+
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(podiumColor.opacity(colorScheme == .dark ? 0.25 : 0.15))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(podiumColor.opacity(0.3), lineWidth: 1)
+                )
+                .frame(height: height)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Pipes Row
+
+    private func pipesRowView(entry: PipesLeaderboardEntryResponse) -> some View {
+        let isMe = viewModel.isCurrentUserPipesEntry(entry)
+
+        return HStack(spacing: 12) {
+            // Rank Badge
+            ZStack {
+                Circle()
+                    .fill(Color(hex: "#6B7280"))
+                    .frame(width: 32, height: 32)
+                Text("\(entry.rank)")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(entry.username)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(colorScheme == .dark ? .white : .primary)
+                        .lineLimit(1)
+
+                    if isMe {
+                        Text("YOU")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.ucdGold))
+                    }
+                }
+
+                Text("\(entry.puzzlesCompleted)/5 · \(entry.totalMoves) moves")
+                    .font(.system(size: 12))
+                    .foregroundColor(.textSecondary)
+            }
+
+            Spacer()
+
+            Text(formatTime(entry.totalTimeSeconds))
+                .font(.system(size: 14, weight: .medium).monospacedDigit())
+                .foregroundColor(.textSecondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(isMe
+                      ? (colorScheme == .dark ? Color.ucdGold.opacity(0.15) : Color.ucdGold.opacity(0.1))
+                      : (colorScheme == .dark ? Color(hex: "#1a2033") : .white))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isMe
+                        ? Color.ucdGold.opacity(0.4)
+                        : (colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9")),
+                        lineWidth: 1)
+        )
+    }
+
+    // MARK: - Pipes Empty View
+
+    private var pipesEmptyView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "trophy")
+                .font(.system(size: 40))
+                .foregroundColor(.textSecondary.opacity(0.5))
+            Text("No scores yet")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(colorScheme == .dark ? .white : .primary)
+            Text("Be the first to complete today's Pipes puzzles!")
+                .font(.system(size: 14))
+                .foregroundColor(.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 80)
+    }
+
     // MARK: - Coming Soon View
 
     private var comingSoonView: some View {
@@ -381,7 +555,7 @@ struct LeaderboardView: View {
                     .fill(colorScheme == .dark ? Color(hex: "#1a2033") : Color(hex: "#f1f5f9"))
                     .frame(width: 90, height: 90)
 
-                Image(systemName: selectedGame.icon)
+                Image(systemName: viewModel.selectedGame.icon)
                     .font(.system(size: 36))
                     .foregroundColor(colorScheme == .dark ? Color(hex: "#cbd5e1") : Color(hex: "#94a3b8"))
             }
@@ -390,7 +564,7 @@ struct LeaderboardView: View {
                 .font(.system(size: 22, weight: .bold))
                 .foregroundColor(colorScheme == .dark ? .white : .primary)
 
-            Text("\(selectedGame.rawValue) leaderboards are on the way!")
+            Text("\(viewModel.selectedGame.rawValue) leaderboards are on the way!")
                 .font(.system(size: 15))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

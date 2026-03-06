@@ -15,8 +15,10 @@ class LeaderboardViewModel {
     var selectedDate: Date = Date()
     var showingDatePicker: Bool = false
     var entries: [LeaderboardEntryResponse] = []
+    var pipesEntries: [PipesLeaderboardEntryResponse] = []
     var isLoading: Bool = false
     var errorMessage: String?
+    var selectedGame: LeaderboardGame = .dailyFive
 
     /// Tracks the current load task so we can cancel it on re-entry
     private var loadTask: Task<Void, Never>?
@@ -53,6 +55,10 @@ class LeaderboardViewModel {
 
     // MARK: - Data Loading
 
+    var hasPipesEntries: Bool {
+        !pipesEntries.isEmpty
+    }
+
     @MainActor
     func loadData() async {
         // Cancel any in-flight load to avoid race conditions
@@ -65,13 +71,26 @@ class LeaderboardViewModel {
             let dateKey = dateFormatter.string(from: selectedDate)
 
             do {
-                let result = try await LeaderboardService.shared.fetchLeaderboard(for: dateKey, limit: 10)
-                guard !Task.isCancelled else { return }
-                entries = result
+                switch selectedGame {
+                case .dailyFive:
+                    let result = try await LeaderboardService.shared.fetchLeaderboard(for: dateKey, limit: 10)
+                    guard !Task.isCancelled else { return }
+                    entries = result
+                    pipesEntries = []
+                case .pipes:
+                    let result = try await LeaderboardService.shared.fetchPipesLeaderboard(for: dateKey, limit: 10)
+                    guard !Task.isCancelled else { return }
+                    pipesEntries = result
+                    entries = []
+                case .echo:
+                    entries = []
+                    pipesEntries = []
+                }
             } catch {
                 guard !Task.isCancelled else { return }
                 errorMessage = "Unable to load leaderboard"
                 entries = []
+                pipesEntries = []
             }
 
             isLoading = false
@@ -107,9 +126,27 @@ class LeaderboardViewModel {
         Task { await loadData() }
     }
 
+    // MARK: - Game Switching
+
+    func switchGame(to game: LeaderboardGame) {
+        selectedGame = game
+        entries = []
+        pipesEntries = []
+        errorMessage = nil
+        if game.hasLeaderboard {
+            Task { await loadData() }
+        }
+    }
+
     // MARK: - Current User Check
 
     func isCurrentUserEntry(_ entry: LeaderboardEntryResponse) -> Bool {
+        let name = AppState.shared.userName
+        guard name != "Guest" else { return false }
+        return entry.username == name
+    }
+
+    func isCurrentUserPipesEntry(_ entry: PipesLeaderboardEntryResponse) -> Bool {
         let name = AppState.shared.userName
         guard name != "Guest" else { return false }
         return entry.username == name

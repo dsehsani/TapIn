@@ -386,6 +386,19 @@ struct PipesGameView: View {
                     .font(.system(size: 16))
                     .foregroundColor(.white.opacity(0.8))
 
+                let totalTime = viewModel.totalTimeForDay
+                let totalMoves = viewModel.totalMovesForDay
+                let mins = totalTime / 60
+                let secs = totalTime % 60
+                VStack(spacing: 4) {
+                    Text("\(totalMoves) total moves")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Color.ucdGold)
+                    Text("Total time: \(String(format: "%d:%02d", mins, secs))")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white.opacity(0.7))
+                }
+
                 Button(action: {
                     onGameComplete?(true)
                     onDismiss()
