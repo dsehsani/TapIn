@@ -18,6 +18,8 @@ class PipesGameViewModel {
     var moves: Int = 0
     var gameStartTime: Date? = nil
     var gameDurationSeconds: Int = 0
+    /// Set once when the session begins — never reset between puzzles. Used for cumulative timer display and leaderboard.
+    var sessionStartTime: Date? = nil
 
     // MARK: - Live Drawing State (Flowing Animation)
 
@@ -51,6 +53,12 @@ class PipesGameViewModel {
     /// Leaderboard state
     var scoreSubmitted: Bool = false
     var assignedUsername: String? = nil
+    var didExitGame: Bool = false
+
+    func markAsExited() {
+        didExitGame = true
+        UserDefaults.standard.set(true, forKey: "pipes_did_exit_\(currentDateKey)")
+    }
 
     let difficultyLabels = ["Easy", "Easy", "Medium", "Medium", "Hard"]
 
@@ -70,8 +78,24 @@ class PipesGameViewModel {
     // MARK: - Timer
 
     func startTimer() {
+        if sessionStartTime == nil {
+            sessionStartTime = Date()  // Only set once for the whole session
+        }
         gameStartTime = Date()
         gameDurationSeconds = 0
+    }
+
+    /// Called when resuming an existing session — reconstructs sessionStartTime
+    /// from already-saved puzzle times so the cumulative timer is accurate.
+    func resumeSession() {
+        guard sessionStartTime == nil else { return }
+        if let start = gameStartTime {
+            let candidate = start.addingTimeInterval(-Double(totalTimeForDay))
+            // Fix 6: guard against corrupted saved data producing a future sessionStartTime
+            sessionStartTime = candidate <= Date() ? candidate : Date()
+        } else {
+            sessionStartTime = Date()
+        }
     }
 
     // MARK: - Daily Five Loading
@@ -86,6 +110,19 @@ class PipesGameViewModel {
         justSolvedPuzzle = false
         justCompletedAll = false
         alreadyCompletedToday = false
+        didExitGame = UserDefaults.standard.bool(forKey: "pipes_did_exit_\(key)")
+
+        // Fix 5: prune exit keys older than 7 days to prevent UserDefaults bloat
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        let cutoff = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+        let allKeys = UserDefaults.standard.dictionaryRepresentation().keys
+        for k in allKeys where k.hasPrefix("pipes_did_exit_") {
+            let dateStr = String(k.dropFirst("pipes_did_exit_".count))
+            if let d = df.date(from: dateStr), d < cutoff {
+                UserDefaults.standard.removeObject(forKey: k)
+            }
+        }
 
         // 1. Check local puzzle cache first (persisted from a previous backend fetch)
         if let cachedPuzzles = PipesGameStorage.shared.getCachedPuzzles(for: key) {
@@ -255,7 +292,6 @@ class PipesGameViewModel {
         lastDragCell = nil
         dragLocked = false
         moves = 0
-        gameStartTime = nil
         gameDurationSeconds = 0
         gameState = .playing
         justSolvedPuzzle = false
@@ -264,6 +300,12 @@ class PipesGameViewModel {
         if puzzleStatuses[currentPuzzleIndex] != .locked {
             puzzleStatuses[currentPuzzleIndex] = .available
         }
+
+        // Fix 1: recalculate so UI count stays accurate after reset
+        dailyCompletedCount = puzzleStatuses.filter { $0 == .completed }.count
+
+        // Fix 2: restart per-puzzle timer so completion time is tracked correctly
+        gameStartTime = Date()
 
         rebuildGrid()
         saveCurrentPuzzleProgress()
@@ -451,22 +493,24 @@ class PipesGameViewModel {
     func submitScoreToLeaderboard() {
         guard !isArchiveMode else { return }
         guard !scoreSubmitted else { return }
+        guard !didExitGame else { return }
 
         let dateKey = currentDateKey
 
         // Gather stats from all completed puzzles
         var totalMoves = 0
-        var totalTime = 0
         var completed = 0
 
         for i in 0..<dailyPuzzles.count {
             if let saved = PipesGameStorage.shared.loadPuzzleState(for: dateKey, puzzleIndex: i),
                saved.status == .completed {
                 totalMoves += saved.moves
-                totalTime += saved.timeSeconds
                 completed += 1
             }
         }
+
+        // Use wall-clock session time for accuracy (not sum of per-puzzle times)
+        let totalTime = sessionStartTime.map { Int(Date().timeIntervalSince($0)) } ?? totalTimeForDay
 
         guard completed > 0 else { return }
 
@@ -526,7 +570,9 @@ class PipesGameViewModel {
         if nextIndex < dailyPuzzles.count {
             selectPuzzle(at: nextIndex)
             gameState = .playing
-            startTimer()
+            // Reset per-puzzle timer but keep sessionStartTime running
+            gameStartTime = Date()
+            gameDurationSeconds = 0
         }
     }
 }

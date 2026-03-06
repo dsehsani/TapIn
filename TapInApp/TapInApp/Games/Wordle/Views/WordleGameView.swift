@@ -91,10 +91,18 @@ struct WordleGameView: View {
                     },
                     onBack: {
                         // Warn if leaving an in-progress game with guesses (one-shot)
-                        // Skip warning if user already exited before (score already discounted)
-                        if viewModel.gameState == .playing && viewModel.currentRow > 0 && !hasShownExitDialog && !viewModel.didExitGame {
+                        // Archive games never count toward leaderboard so no warning needed
+                        if viewModel.gameState == .playing && viewModel.currentRow > 0
+                            && !hasShownExitDialog && !viewModel.didExitGame
+                            && !viewModel.isArchiveMode {
                             showExitDialog = true
                         } else {
+                            // If the warning was already shown once and user is still mid-game,
+                            // mark as exited now so future sessions don't show the dialog again
+                            if hasShownExitDialog && viewModel.gameState == .playing
+                                && viewModel.currentRow > 0 && !viewModel.isArchiveMode {
+                                viewModel.markAsExited()
+                            }
                             onDismiss()
                         }
                     },
@@ -119,6 +127,21 @@ struct WordleGameView: View {
                         .font(.system(size: 18, weight: .medium, design: .monospaced))
                         .foregroundColor(.secondary)
                         .padding(.top, 8)
+                }
+
+                // Leaderboard ineligibility indicator
+                if viewModel.didExitGame && !viewModel.isArchiveMode {
+                    HStack(spacing: 5) {
+                        Image(systemName: "trophy.slash.fill")
+                            .font(.system(size: 11))
+                        Text("Not eligible for leaderboard")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Color.orange.opacity(0.85)))
+                    .padding(.top, 4)
                 }
 
                 // Game grid - centered in available space

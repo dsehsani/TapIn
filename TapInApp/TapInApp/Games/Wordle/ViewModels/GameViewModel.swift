@@ -190,9 +190,11 @@ class GameViewModel {
             didExitGame = GameStorage.shared.loadGameState(for: date)?.didExitGame ?? false
             if currentRow > 0 {
                 gameStartTime = gameStartTime ?? Date()
-            } else {
-                gameStartTime = nil
+            } else if gameStartTime == nil {
+                // Fresh game not yet started — leave as nil until startTimer() is called
             }
+            // If gameStartTime is already set (user pressed Start before sync finished),
+            // preserve it to avoid a race condition with performSync() in the view's .task
         }
     }
 

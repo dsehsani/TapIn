@@ -9,8 +9,8 @@ import SwiftUI
 
 enum LeaderboardGame: String, CaseIterable {
     case dailyFive = "DailyFive"
-    case echo = "Echo"
     case pipes = "Pipes"
+    case echo = "Echo"
 
     var hasLeaderboard: Bool {
         switch self {
@@ -40,43 +40,29 @@ struct LeaderboardView: View {
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // Game Picker Pills
-                    gamePicker
-                        .padding(.top, 4)
-                        .padding(.bottom, 12)
-
-                    if viewModel.selectedGame.hasLeaderboard {
-                        // Date Navigator
-                        dateNavigator
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 12)
-
-                        Divider()
-
-                        // Content
-                        ScrollView {
-                            if viewModel.isLoading {
-                                loadingView
-                            } else if let error = viewModel.errorMessage {
-                                errorView(error)
-                            } else if viewModel.selectedGame == .pipes {
-                                if viewModel.hasPipesEntries {
-                                    pipesRankingsList
-                                } else {
-                                    pipesEmptyView
-                                }
-                            } else if viewModel.hasEntries {
-                                rankingsList
-                            } else {
-                                emptyView
-                            }
+                    // Swipeable game pages
+                    TabView(selection: Binding(
+                        get: { viewModel.selectedGame },
+                        set: { viewModel.switchGame(to: $0) }
+                    )) {
+                        ForEach(LeaderboardGame.allCases, id: \.self) { game in
+                            gamePageView(for: game)
+                                .tag(game)
                         }
-                        .refreshable {
-                            await viewModel.refresh()
-                        }
-                    } else {
-                        comingSoonView
                     }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .animation(.easeInOut(duration: 0.25), value: viewModel.selectedGame)
+
+                    // Page indicator dots
+                    HStack(spacing: 6) {
+                        ForEach(LeaderboardGame.allCases, id: \.self) { game in
+                            Circle()
+                                .fill(viewModel.selectedGame == game ? Color.ucdGold : Color.secondary.opacity(0.35))
+                                .frame(width: viewModel.selectedGame == game ? 8 : 6, height: viewModel.selectedGame == game ? 8 : 6)
+                                .animation(.easeInOut(duration: 0.2), value: viewModel.selectedGame)
+                        }
+                    }
+                    .padding(.bottom, 8)
                 }
             }
             .navigationTitle("Leaderboard")
@@ -103,6 +89,61 @@ struct LeaderboardView: View {
             .task {
                 viewModel.selectedDate = Date()
                 await viewModel.loadData()
+            }
+        }
+    }
+
+    // MARK: - Game Page View
+
+    @ViewBuilder
+    private func gamePageView(for game: LeaderboardGame) -> some View {
+        VStack(spacing: 0) {
+            // Game title header
+            HStack {
+                Image(systemName: game.icon)
+                    .font(.system(size: 14, weight: .semibold))
+                Text(game.rawValue)
+                    .font(.system(size: 17, weight: .bold))
+                if !game.hasLeaderboard {
+                    Text("Coming Soon")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.secondary.opacity(0.5)))
+                }
+            }
+            .foregroundColor(colorScheme == .dark ? .white : .primary)
+            .padding(.top, 8)
+            .padding(.bottom, 12)
+
+            if game.hasLeaderboard {
+                dateNavigator
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+
+                Divider()
+
+                ScrollView {
+                    if viewModel.isLoading && viewModel.selectedGame == game {
+                        loadingView
+                    } else if let error = viewModel.errorMessage, viewModel.selectedGame == game {
+                        errorView(error)
+                    } else if game == .pipes {
+                        if viewModel.hasPipesEntries {
+                            pipesRankingsList
+                        } else {
+                            pipesEmptyView
+                        }
+                    } else if viewModel.hasEntries {
+                        rankingsList
+                    } else {
+                        emptyView
+                    }
+                }
+                .refreshable { await viewModel.refresh() }
+            } else {
+                comingSoonView
             }
         }
     }
@@ -147,72 +188,6 @@ struct LeaderboardView: View {
                     .background(Capsule().fill(Color.ucdGold))
             }
         }
-    }
-
-    // MARK: - Game Picker
-
-    private var gamePicker: some View {
-        HStack(spacing: 8) {
-            ForEach(LeaderboardGame.allCases, id: \.self) { game in
-                let isSelected = viewModel.selectedGame == game
-
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        viewModel.switchGame(to: game)
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Text(game.rawValue)
-                            .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
-
-                        if !game.hasLeaderboard {
-                            Text("Soon")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .background(
-                                    Capsule().fill(
-                                        isSelected
-                                            ? Color.white.opacity(0.2)
-                                            : (colorScheme == .dark ? Color(hex: "#334155") : Color(hex: "#e2e8f0"))
-                                    )
-                                )
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .frame(height: 34)
-                    .background(
-                        isSelected
-                            ? (colorScheme == .dark ? Color(hex: "#1a1060") : Color.accentCoral)
-                            : (colorScheme == .dark ? Color(hex: "#1a2033") : Color.white)
-                    )
-                    .foregroundColor(
-                        isSelected
-                            ? .white
-                            : (colorScheme == .dark ? Color(hex: "#cbd5e1") : Color(hex: "#334155"))
-                    )
-                    .clipShape(Capsule())
-                    .overlay(
-                        Capsule()
-                            .stroke(
-                                isSelected
-                                    ? Color.clear
-                                    : (colorScheme == .dark ? Color(hex: "#334155") : Color(hex: "#e2e8f0")),
-                                lineWidth: 1
-                            )
-                    )
-                    .shadow(
-                        color: isSelected
-                            ? (colorScheme == .dark ? Color(hex: "#1a1060").opacity(0.4) : Color.accentCoral.opacity(0.25))
-                            : .clear,
-                        radius: 4, x: 0, y: 2
-                    )
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-        }
-        .padding(.horizontal, 16)
     }
 
     // MARK: - Rankings List
