@@ -12,6 +12,7 @@ from datetime import date, datetime
 from flask import Blueprint, jsonify, request
 
 from services.pipes_puzzle_generator import pipes_puzzle_generator
+from services.pipes_leaderboard_service import pipes_leaderboard_service
 from services.firestore_client import get_firestore_client, is_firestore_connected
 
 logger = logging.getLogger(__name__)
@@ -213,6 +214,122 @@ def get_daily_five():
             "puzzles": fallback_puzzles,
             "fallback": True,
         })
+
+
+# ------------------------------------------------------------------------------
+# MARK: - Leaderboard: Submit Score
+# ------------------------------------------------------------------------------
+
+@pipes_bp.route("/leaderboard/score", methods=["POST"])
+def submit_pipes_score():
+    """
+    Submit a Pipes daily-five score to the leaderboard.
+
+    Request Body (JSON):
+        {
+            "puzzles_completed": int,    # 1-5, required
+            "total_moves": int,          # Total moves across all puzzles, required
+            "total_time_seconds": int,   # Total solve time in seconds, required
+            "puzzle_date": str,          # YYYY-MM-DD, required
+            "username": str              # Optional, uses account name if provided
+        }
+
+    Response (201):
+        { "success": true, "score": { ... } }
+    """
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"success": False, "error": "Request body must be JSON"}), 400
+
+        required_fields = ["puzzles_completed", "total_moves", "total_time_seconds", "puzzle_date"]
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({"success": False, "error": f"Missing required fields: {', '.join(missing)}"}), 400
+
+        puzzles_completed = data["puzzles_completed"]
+        total_moves = data["total_moves"]
+        total_time_seconds = data["total_time_seconds"]
+        puzzle_date = data["puzzle_date"]
+        username = data.get("username")
+
+        if not isinstance(puzzles_completed, int) or not 1 <= puzzles_completed <= 5:
+            return jsonify({"success": False, "error": "puzzles_completed must be an integer between 1 and 5"}), 400
+
+        if not isinstance(total_moves, int) or total_moves < 0:
+            return jsonify({"success": False, "error": "total_moves must be a non-negative integer"}), 400
+
+        if not isinstance(total_time_seconds, int) or total_time_seconds < 0:
+            return jsonify({"success": False, "error": "total_time_seconds must be a non-negative integer"}), 400
+
+        if not isinstance(puzzle_date, str) or len(puzzle_date) != 10:
+            return jsonify({"success": False, "error": "puzzle_date must be in YYYY-MM-DD format"}), 400
+
+        score = pipes_leaderboard_service.submit_score(
+            puzzles_completed=puzzles_completed,
+            total_moves=total_moves,
+            total_time_seconds=total_time_seconds,
+            puzzle_date=puzzle_date,
+            username=username
+        )
+
+        return jsonify({"success": True, "score": score.to_dict()}), 201
+
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Internal server error: {str(e)}"}), 500
+
+
+# ------------------------------------------------------------------------------
+# MARK: - Leaderboard: Get Rankings
+# ------------------------------------------------------------------------------
+
+@pipes_bp.route("/leaderboard/<puzzle_date>", methods=["GET"])
+def get_pipes_leaderboard(puzzle_date: str):
+    """
+    Get the Pipes leaderboard for a specific date.
+
+    URL Parameters:
+        puzzle_date: YYYY-MM-DD
+
+    Query Parameters:
+        limit: Optional, max entries (default: 5, max: 10)
+
+    Response (200):
+        {
+            "success": true,
+            "puzzle_date": "2026-03-05",
+            "leaderboard": [
+                {
+                    "rank": 1,
+                    "username": "SwiftFalcon",
+                    "puzzles_completed": 5,
+                    "total_moves": 42,
+                    "total_time_seconds": 180
+                }
+            ]
+        }
+    """
+    try:
+        if len(puzzle_date) != 10 or puzzle_date[4] != "-" or puzzle_date[7] != "-":
+            return jsonify({"success": False, "error": "Invalid date format. Use YYYY-MM-DD"}), 400
+
+        limit = request.args.get("limit", default=5, type=int)
+        limit = min(max(1, limit), 10)
+
+        entries = pipes_leaderboard_service.get_leaderboard(puzzle_date, limit=limit)
+        leaderboard_data = [entry.to_dict() for entry in entries]
+
+        return jsonify({
+            "success": True,
+            "puzzle_date": puzzle_date,
+            "leaderboard": leaderboard_data
+        }), 200
+
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Internal server error: {str(e)}"}), 500
 
 
 # ------------------------------------------------------------------------------

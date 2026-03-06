@@ -61,6 +61,12 @@ enum APIConfig {
     /// GET - Daily 5-puzzle set with escalating difficulty
     static var pipesDailyFiveURL: String { "\(baseURL)api/pipes/daily-five" }
 
+    /// POST - Submit a Pipes leaderboard score
+    static var pipesLeaderboardScoreURL: String { "\(baseURL)api/pipes/leaderboard/score" }
+
+    /// GET - Get Pipes leaderboard for a date
+    static func pipesLeaderboardURL(date: String) -> String { "\(baseURL)api/pipes/leaderboard/\(date)" }
+
     // MARK: - Analytics Endpoint
 
     /// POST - Track a DAU event (fire-and-forget from client)
