@@ -218,6 +218,7 @@ struct EventDetailView: View {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                             savedViewModel.toggleEventSaved(event)
                         }
+                        AnalyticsTracker.shared.track(.eventViewed)
                     }) {
                         HStack {
                             Spacer()
@@ -242,7 +243,10 @@ struct EventDetailView: View {
 
                     // MARK: - RSVP Button
                     if let urlString = event.eventURL, let url = URL(string: urlString) {
-                        Link(destination: url) {
+                        Button(action: {
+                            AnalyticsTracker.shared.track(.eventViewed)
+                            UIApplication.shared.open(url)
+                        }) {
                             HStack {
                                 Spacer()
                                 Text("View on Aggie Life")
@@ -256,6 +260,7 @@ struct EventDetailView: View {
                             .background(Color.ucdBlue)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
+                        .buttonStyle(.plain)
                         .padding(.top, 8)
                     }
                 }
@@ -264,7 +269,6 @@ struct EventDetailView: View {
             }
             .background(Color.adaptiveBackground(colorScheme))
             .task {
-                AnalyticsTracker.shared.track(.eventViewed)
                 await geocodeLocation()
             }
 

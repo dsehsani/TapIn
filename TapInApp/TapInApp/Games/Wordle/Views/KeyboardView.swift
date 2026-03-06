@@ -22,8 +22,8 @@ import SwiftUI
 ///
 /// Layout:
 /// - Three rows in standard QWERTY arrangement
-/// - ENTER key on the left of bottom row
-/// - DELETE key on the right of bottom row
+/// - DEL key on the right of the middle row (above ENTER, like Apple keyboard)
+/// - ENTER key on the left of the bottom row
 /// - Keys resize to fit screen width
 ///
 /// Visual feedback:
@@ -60,15 +60,15 @@ struct KeyboardView: View {
     /// QWERTY keyboard layout with special keys
     private let rows: [[String]] = [
         ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
-        ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
-        ["DEL", "Z", "X", "C", "V", "B", "N", "M", "ENTER"]
+        ["A", "S", "D", "F", "G", "H", "J", "K", "L", "DEL"],
+        ["Z", "X", "C", "V", "B", "N", "M", "ENTER"]
     ]
 
     // MARK: - Body
 
     var body: some View {
         VStack(spacing: 6) {
-            ForEach(rows, id: \.self) { row in
+            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
                 HStack(spacing: 5) {
                     ForEach(row, id: \.self) { key in
                         KeyView(
@@ -82,6 +82,10 @@ struct KeyboardView: View {
                         )
                     }
                 }
+                // Row 3: add leading offset so ENTER's right edge aligns with DEL above it
+                // Row 2 total = 10 * 32 + 9 * 5 = 365px
+                // Row 3 total = 7 * 32 + 64 (ENTER) + 7 * 5 = 323px → offset = 42px
+                .padding(.leading, index == 2 ? 42 : 0)
             }
         }
         // Dim keyboard when disabled
@@ -138,8 +142,8 @@ struct KeyView: View {
     /// Width of the key based on type
     private var keyWidth: CGFloat {
         switch key {
-        case "ENTER": return 56
-        case "DEL": return 50
+        case "ENTER": return 64
+        case "DEL": return 32
         default: return 32
         }
     }

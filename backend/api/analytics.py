@@ -15,7 +15,12 @@
 import os
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, render_template
-from services.analytics_service import track_event, get_dau, get_dau_range
+from services.analytics_service import (
+    track_event, get_dau, get_dau_range,
+    get_peak_dau, get_wau_mau, get_churn_risk,
+    get_app_streak, get_weekly_cohorts, get_live_users, today_pacific,
+)
+from repositories.user_repository import user_repository
 
 analytics_bp = Blueprint("analytics", __name__, url_prefix="/api/analytics")
 
@@ -85,6 +90,89 @@ def dau():
 
 
 # ------------------------------------------------------------------------------
+# MARK: - Peak DAU
+# ------------------------------------------------------------------------------
+
+@analytics_bp.route("/peak", methods=["GET"])
+def peak():
+    """Return the all-time peak DAU date and count."""
+    token = request.args.get("token", "")
+    if not DASHBOARD_TOKEN or token != DASHBOARD_TOKEN:
+        return jsonify({"error": "Unauthorized"}), 401
+    result = get_peak_dau()
+    return jsonify({"success": True, "data": result}), 200
+
+
+# ------------------------------------------------------------------------------
+# MARK: - WAU / MAU
+# ------------------------------------------------------------------------------
+
+@analytics_bp.route("/wau-mau", methods=["GET"])
+def wau_mau():
+    """Return WAU, MAU, and DAU/MAU ratio."""
+    token = request.args.get("token", "")
+    if not DASHBOARD_TOKEN or token != DASHBOARD_TOKEN:
+        return jsonify({"error": "Unauthorized"}), 401
+    result = get_wau_mau()
+    return jsonify({"success": True, "data": result}), 200
+
+
+# ------------------------------------------------------------------------------
+# MARK: - Live Users  (analytical only — no DAU impact)
+# ------------------------------------------------------------------------------
+
+@analytics_bp.route("/live", methods=["GET"])
+def live():
+    """Users active in the last 15 minutes based on event timestamps."""
+    token = request.args.get("token", "")
+    if not DASHBOARD_TOKEN or token != DASHBOARD_TOKEN:
+        return jsonify({"error": "Unauthorized"}), 401
+    return jsonify({"success": True, "data": get_live_users(window_minutes=15)}), 200
+
+
+# ------------------------------------------------------------------------------
+# MARK: - Churn / Streak / Cohorts  (analytical only — no DAU impact)
+# ------------------------------------------------------------------------------
+
+@analytics_bp.route("/churn", methods=["GET"])
+def churn():
+    token = request.args.get("token", "")
+    if not DASHBOARD_TOKEN or token != DASHBOARD_TOKEN:
+        return jsonify({"error": "Unauthorized"}), 401
+    return jsonify({"success": True, "data": get_churn_risk()}), 200
+
+
+@analytics_bp.route("/streak", methods=["GET"])
+def streak():
+    token = request.args.get("token", "")
+    if not DASHBOARD_TOKEN or token != DASHBOARD_TOKEN:
+        return jsonify({"error": "Unauthorized"}), 401
+    return jsonify({"success": True, "data": get_app_streak()}), 200
+
+
+@analytics_bp.route("/cohorts", methods=["GET"])
+def cohorts():
+    token = request.args.get("token", "")
+    if not DASHBOARD_TOKEN or token != DASHBOARD_TOKEN:
+        return jsonify({"error": "Unauthorized"}), 401
+    return jsonify({"success": True, "data": get_weekly_cohorts()}), 200
+
+
+# ------------------------------------------------------------------------------
+# MARK: - Registered Users
+# ------------------------------------------------------------------------------
+
+@analytics_bp.route("/users", methods=["GET"])
+def users():
+    """Return all registered users for the dashboard user list."""
+    token = request.args.get("token", "")
+    if not DASHBOARD_TOKEN or token != DASHBOARD_TOKEN:
+        return jsonify({"error": "Unauthorized"}), 401
+    all_users = user_repository.get_all_users()
+    return jsonify({"success": True, "data": all_users, "total": len(all_users)}), 200
+
+
+# ------------------------------------------------------------------------------
 # MARK: - Health Check
 # ------------------------------------------------------------------------------
 
@@ -107,8 +195,9 @@ def dashboard():
     if not DASHBOARD_TOKEN or token != DASHBOARD_TOKEN:
         return jsonify({"error": "Unauthorized"}), 401
 
-    # Prepare 30-day range for the chart
-    today = datetime.utcnow().date()
+    # Prepare 30-day range using Pacific time (matches iOS client date tracking)
+    today_str = today_pacific()
+    today = datetime.strptime(today_str, "%Y-%m-%d").date()
     start = today - timedelta(days=29)
 
     return render_template(

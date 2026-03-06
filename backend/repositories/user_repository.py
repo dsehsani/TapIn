@@ -148,6 +148,19 @@ class UserRepository:
             logger.error(f"get_user_by_phone failed: {e}")
             return None
 
+    def get_all_users(self) -> list:
+        """Return all users, stripping sensitive fields."""
+        try:
+            docs = self._col().order_by("createdAt").stream()
+            safe_fields = {"id", "username", "email", "authProvider", "phoneNumber", "createdAt"}
+            return [
+                {k: v for k, v in doc.to_dict().items() if k in safe_fields}
+                for doc in docs
+            ]
+        except Exception as e:
+            logger.error(f"get_all_users failed: {e}")
+            return []
+
     # --------------------------------------------------------------------------
     # Update Profile
     # --------------------------------------------------------------------------
