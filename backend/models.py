@@ -133,3 +133,81 @@ class LeaderboardEntry:
             "guesses_display": self.guesses_display,
             "time_seconds": self.time_seconds
         }
+
+
+# ------------------------------------------------------------------------------
+# MARK: - Pipes Score Model
+# ------------------------------------------------------------------------------
+
+@dataclass
+class PipesScore:
+    """
+    Represents a player's score for a Pipes daily-five session.
+
+    Attributes:
+        id: Unique identifier for this score entry
+        username: Player's display name
+        puzzles_completed: Number of puzzles solved (out of 5)
+        total_moves: Sum of moves across all completed puzzles
+        total_time_seconds: Sum of solve times across all completed puzzles
+        puzzle_date: The date of the daily-five set (YYYY-MM-DD)
+    """
+    username: str
+    puzzles_completed: int
+    total_moves: int
+    total_time_seconds: int
+    puzzle_date: str
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "username": self.username,
+            "puzzles_completed": self.puzzles_completed,
+            "total_moves": self.total_moves,
+            "total_time_seconds": self.total_time_seconds,
+            "puzzle_date": self.puzzle_date
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "PipesScore":
+        return cls(
+            id=data.get("id", str(uuid.uuid4())),
+            username=data["username"],
+            puzzles_completed=data["puzzles_completed"],
+            total_moves=data["total_moves"],
+            total_time_seconds=data["total_time_seconds"],
+            puzzle_date=data["puzzle_date"]
+        )
+
+
+# ------------------------------------------------------------------------------
+# MARK: - Pipes Leaderboard Entry Model
+# ------------------------------------------------------------------------------
+
+@dataclass
+class PipesLeaderboardEntry:
+    """
+    Formatted leaderboard entry for Pipes display.
+
+    Attributes:
+        rank: Player's position on the leaderboard
+        username: Player's display name
+        puzzles_completed: Number of puzzles solved (out of 5)
+        total_moves: Sum of moves across completed puzzles
+        total_time_seconds: Total solve time in seconds
+    """
+    rank: int
+    username: str
+    puzzles_completed: int
+    total_moves: int
+    total_time_seconds: int
+
+    def to_dict(self) -> dict:
+        return {
+            "rank": self.rank,
+            "username": self.username,
+            "puzzles_completed": self.puzzles_completed,
+            "total_moves": self.total_moves,
+            "total_time_seconds": self.total_time_seconds
+        }
