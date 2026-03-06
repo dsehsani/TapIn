@@ -111,14 +111,16 @@ class PipesGameViewModel {
         justCompletedAll = false
         alreadyCompletedToday = false
         didExitGame = UserDefaults.standard.bool(forKey: "pipes_did_exit_\(key)")
+        scoreSubmitted = UserDefaults.standard.bool(forKey: "pipes_score_submitted_\(key)")
 
         // Fix 5: prune exit keys older than 7 days to prevent UserDefaults bloat
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
         let cutoff = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
         let allKeys = UserDefaults.standard.dictionaryRepresentation().keys
-        for k in allKeys where k.hasPrefix("pipes_did_exit_") {
-            let dateStr = String(k.dropFirst("pipes_did_exit_".count))
+        for k in allKeys where k.hasPrefix("pipes_did_exit_") || k.hasPrefix("pipes_score_submitted_") {
+            let prefix = k.hasPrefix("pipes_did_exit_") ? "pipes_did_exit_" : "pipes_score_submitted_"
+            let dateStr = String(k.dropFirst(prefix.count))
             if let d = df.date(from: dateStr), d < cutoff {
                 UserDefaults.standard.removeObject(forKey: k)
             }
@@ -527,6 +529,8 @@ class PipesGameViewModel {
                 await MainActor.run {
                     self.assignedUsername = response.score.username
                     self.scoreSubmitted = true
+                    // Persist so re-entry after app restart doesn't re-submit
+                    UserDefaults.standard.set(true, forKey: "pipes_score_submitted_\(dateKey)")
                 }
 
                 #if DEBUG

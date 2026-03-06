@@ -74,14 +74,17 @@ class PipesLeaderboardService:
 
         try:
             db = get_firestore_client()
+            # Use username as the document ID so each user has exactly one entry
+            # per puzzle date. doc_ref.set() upserts, overwriting any prior score
+            # for the same user on the same day.
             doc_ref = (
                 db.collection(SCORES_COLLECTION)
                   .document(puzzle_date)
                   .collection("scores")
-                  .document(score.id)
+                  .document(username)
             )
             doc_ref.set(score.to_dict())
-            logger.info(f"Pipes score saved: {score.id} for {puzzle_date}")
+            logger.info(f"Pipes score upserted for user '{username}' on {puzzle_date}")
         except Exception as e:
             logger.error(f"Failed to save pipes score to Firestore: {e}")
 
