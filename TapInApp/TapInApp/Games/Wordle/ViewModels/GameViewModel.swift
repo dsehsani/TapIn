@@ -509,7 +509,7 @@ class GameViewModel {
         Task {
             do {
                 let response = try await LeaderboardService.shared.submitScore(
-                    guesses: currentRow,
+                    guesses: currentRow + 1,
                     timeSeconds: duration,
                     puzzleDate: puzzleDate,
                     username: AppState.shared.userName
