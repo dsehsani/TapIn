@@ -83,11 +83,14 @@ struct OTPVerificationView: View {
                 // OTP digit boxes with native SwiftUI TextField for autofill
                 ZStack {
                     // Real TextField (bottom layer) — visible to iOS autofill
+                    // opacity(0.011) keeps the field "visible" to the autofill system
+                    // while being imperceptible to the user. Using .foregroundColor(.clear)
+                    // alone can cause iOS to skip autofill on some versions.
                     TextField("", text: $localCode)
                         .keyboardType(.numberPad)
                         .textContentType(.oneTimeCode)
                         .focused($isFieldFocused)
-                        .foregroundColor(.clear)
+                        .foregroundColor(.white.opacity(0.011))
                         .tint(.clear)
                         .accentColor(.clear)
                         .background(Color.clear)
