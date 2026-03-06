@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TapIn DAU Dashboard</title>
+    <title>TapIn Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -13,71 +13,304 @@
             color: #e2e8f0;
             padding: 24px;
         }
-        h1 {
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-        .subtitle {
-            color: #94a3b8;
+        .header { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
+        .header img { width: 48px; height: 48px; border-radius: 12px; }
+        h1 { font-size: 24px; font-weight: 700; }
+        .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 20px; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 28px; border-bottom: 1px solid #1e293b; padding-bottom: 0; }
+        .tab-btn {
+            padding: 10px 20px;
             font-size: 14px;
-            margin-bottom: 24px;
-        }
-        .big-number {
-            font-size: 72px;
-            font-weight: 800;
-            color: #FFBF00;
-            line-height: 1;
-        }
-        .big-label {
-            font-size: 16px;
-            color: #94a3b8;
-            margin-bottom: 32px;
-        }
-        .charts {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 24px;
-            margin-top: 24px;
-        }
-        .card {
-            background: #1e293b;
-            border-radius: 12px;
-            padding: 20px;
-        }
-        .card h2 {
-            font-size: 16px;
             font-weight: 600;
-            margin-bottom: 16px;
-            color: #cbd5e1;
+            color: #64748b;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            margin-bottom: -1px;
+            transition: color 0.15s, border-color 0.15s;
         }
+        .tab-btn.active { color: #FFBF00; border-bottom-color: #FFBF00; }
+        .tab-btn:hover:not(.active) { color: #94a3b8; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* Analytics Tab */
+        .big-number { font-size: 72px; font-weight: 800; color: #FFBF00; line-height: 1; }
+        .big-label { font-size: 16px; color: #94a3b8; margin-bottom: 28px; }
+        .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+        .stat-row-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: #1e293b; border-radius: 12px; padding: 16px 20px; }
+        .stat-value { font-size: 36px; font-weight: 700; color: #e2e8f0; line-height: 1.1; }
+        .stat-label { font-size: 13px; color: #64748b; margin-top: 4px; }
+        .stat-sub { font-size: 12px; color: #475569; margin-top: 2px; }
+        .charts { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 24px; }
+        .card { background: #1e293b; border-radius: 12px; padding: 20px; }
+        .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #cbd5e1; }
         canvas { max-height: 320px; }
-        .refresh-note {
-            text-align: center;
-            color: #475569;
-            font-size: 12px;
-            margin-top: 20px;
+
+        /* Cohort table */
+        .cohort-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .cohort-table th { text-align: left; padding: 8px 12px; color: #475569; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #0f172a; }
+        .cohort-table td { padding: 10px 12px; border-bottom: 1px solid #0f172a; color: #94a3b8; }
+        .cohort-table tr:last-child td { border-bottom: none; }
+        .cohort-cell { display: inline-block; min-width: 56px; padding: 4px 8px; border-radius: 6px; text-align: center; font-weight: 600; }
+        .export-btn {
+            float: right; margin-top: -4px;
+            padding: 6px 14px; font-size: 12px; font-weight: 600;
+            background: #1e293b; color: #94a3b8; border: 1px solid #334155;
+            border-radius: 8px; cursor: pointer;
         }
+        .export-btn:hover { color: #e2e8f0; border-color: #475569; }
+
+        /* Methodology */
+        .section-title { font-size: 18px; font-weight: 700; color: #cbd5e1; margin: 28px 0 14px; }
+        .methodology { background: #1e293b; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; }
+        .methodology p { font-size: 14px; color: #94a3b8; margin-bottom: 10px; line-height: 1.6; }
+        .methodology p:last-child { margin-bottom: 0; }
+        .method-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-top: 14px; }
+        .method-item { background: #0f172a; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #94a3b8; }
+        .method-item strong { color: #e2e8f0; display: block; margin-bottom: 4px; }
+
+        /* Users Tab */
+        .users-top-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+        .user-list { background: #1e293b; border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
+        .user-list-header {
+            display: grid; grid-template-columns: 40px 1fr 1fr 100px 120px;
+            gap: 12px; padding: 10px 16px;
+            font-size: 11px; font-weight: 600; color: #475569;
+            text-transform: uppercase; letter-spacing: 0.05em;
+            border-bottom: 1px solid #0f172a;
+        }
+        .user-row {
+            display: grid; grid-template-columns: 40px 1fr 1fr 100px 120px;
+            gap: 12px; padding: 12px 16px; align-items: center;
+            border-bottom: 1px solid #0f172a; font-size: 13px;
+        }
+        .user-row:last-child { border-bottom: none; }
+        .avatar {
+            width: 36px; height: 36px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0;
+        }
+        .user-name { color: #e2e8f0; font-weight: 500; }
+        .user-email { color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .provider-badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; display: inline-block; }
+        .provider-apple  { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; }
+        .provider-google { background: #1e3a5f; color: #60a5fa; }
+        .provider-phone  { background: #14532d; color: #4ade80; }
+        .provider-email  { background: #3b1f6b; color: #c084fc; }
+        .user-date { color: #475569; font-size: 12px; }
+
+        /* Live indicator */
+        .live-bar {
+            display: flex; align-items: center; gap: 10px;
+            background: #1e293b; border-radius: 10px;
+            padding: 10px 16px; margin-bottom: 24px;
+            width: fit-content;
+        }
+        .live-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #ef4444;
+            box-shadow: 0 0 0 0 rgba(239,68,68,0.6);
+            animation: pulse 1.5s infinite;
+            flex-shrink: 0;
+        }
+        @keyframes pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(239,68,68,0.6); }
+            70%  { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+            100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+        }
+        .live-text { font-size: 14px; color: #94a3b8; }
+        .live-text strong { color: #e2e8f0; font-size: 18px; }
+        .live-window { font-size: 12px; color: #475569; margin-left: 4px; }
+
+        .refresh-note { text-align: center; color: #475569; font-size: 12px; margin-top: 20px; }
+
         @media (max-width: 768px) {
-            .charts { grid-template-columns: 1fr; }
+            .charts, .users-top-row { grid-template-columns: 1fr; }
+            .stat-row, .stat-row-3 { grid-template-columns: 1fr 1fr; }
+            .user-list-header, .user-row { grid-template-columns: 40px 1fr 80px; }
+            .user-email, .user-date { display: none; }
         }
     </style>
 </head>
 <body>
-    <h1>TapIn DAU Dashboard</h1>
-    <p class="subtitle">Daily Active Users &mdash; UC Davis</p>
+    <div class="header">
+        <img src="/static/app_icon.png" alt="TapIn">
+        <h1>TapIn Dashboard</h1>
+    </div>
+    <p class="subtitle">UC Davis &mdash; Admin Analytics</p>
 
-    <div class="big-number" id="todayDAU">--</div>
-    <div class="big-label">users today</div>
+    <!-- Tab Navigation -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('analytics')">📊 Analytics</button>
+        <button class="tab-btn" onclick="switchTab('users')">👥 Users</button>
+    </div>
 
-    <div class="charts">
-        <div class="card">
-            <h2>DAU (Last 30 Days)</h2>
-            <canvas id="lineChart"></canvas>
+    <!-- ═══════════════ ANALYTICS TAB ═══════════════ -->
+    <div class="tab-panel active" id="tab-analytics">
+
+        <div class="live-bar">
+            <div class="live-dot"></div>
+            <div class="live-text"><strong id="liveCount">--</strong> users on the app right now<span class="live-window">(last 15 min)</span></div>
         </div>
-        <div class="card">
-            <h2>Action Breakdown (Today)</h2>
-            <canvas id="pieChart"></canvas>
+
+        <div class="big-number" id="todayDAU">--</div>
+        <div class="big-label">daily active users today</div>
+
+        <!-- Row 1: Today's stats + Peak -->
+        <div class="stat-row">
+            <div class="stat-card">
+                <div class="stat-value" id="statEvents">--</div>
+                <div class="stat-label">Total Events Today</div>
+                <div class="stat-sub">actions logged across all features</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statAvg">--</div>
+                <div class="stat-label">Avg Actions / User</div>
+                <div class="stat-sub">engagement depth today</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statReturning">--</div>
+                <div class="stat-label">Returning Users</div>
+                <div class="stat-sub" id="statReturningPct"></div>
+            </div>
+            <div class="stat-card" style="border: 1px solid #FFBF00;">
+                <div class="stat-value" style="color:#FFBF00;" id="statPeakDAU">--</div>
+                <div class="stat-label">All-Time Peak DAU</div>
+                <div class="stat-sub" id="statPeakDate">loading…</div>
+            </div>
+        </div>
+
+        <!-- Row 2: WAU / MAU / DAU:MAU -->
+        <div class="stat-row-3">
+            <div class="stat-card">
+                <div class="stat-value" id="statWAU">--</div>
+                <div class="stat-label">WAU — Weekly Active Users</div>
+                <div class="stat-sub">unique users in the last 7 days</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statMAU">--</div>
+                <div class="stat-label">MAU — Monthly Active Users</div>
+                <div class="stat-sub">unique users in the last 30 days</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statDAUMAU">--%</div>
+                <div class="stat-label">DAU / MAU Ratio</div>
+                <div class="stat-sub">engagement stickiness · target ≥ 20%</div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts">
+            <div class="card">
+                <h2>DAU (Last 30 Days)</h2>
+                <canvas id="lineChart"></canvas>
+            </div>
+            <div class="card">
+                <h2>Action Breakdown (Today)</h2>
+                <canvas id="pieChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Churn + Streak -->
+        <div class="stat-row-3" style="margin-top:8px;">
+            <div class="stat-card" style="border:1px solid #ef4444;">
+                <div class="stat-value" style="color:#ef4444;" id="statChurn">--</div>
+                <div class="stat-label">At-Risk Users</div>
+                <div class="stat-sub">active 8–30 days ago, silent last 7 days</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statStreak">--</div>
+                <div class="stat-label">🔥 App Active Streak</div>
+                <div class="stat-sub" id="statStreakSince">consecutive days with ≥1 DAU</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statChurnPct">--%</div>
+                <div class="stat-label">Churn Rate (30-day)</div>
+                <div class="stat-sub">% of monthly users gone quiet</div>
+            </div>
+        </div>
+
+        <!-- Retention Cohorts -->
+        <div class="section-title">4-Week Retention Cohorts</div>
+        <div class="card" style="margin-bottom:24px;overflow-x:auto;">
+            <div id="cohortTable" style="color:#475569;text-align:center;padding:16px;">Loading cohorts…</div>
+        </div>
+
+        <!-- Methodology -->
+        <div class="section-title">What counts as a DAU?</div>
+        <div class="methodology">
+            <p>A user is counted as a <strong>Daily Active User (DAU)</strong> once per day when they perform at least one meaningful engagement action. Each action is deduplicated per user per day — a user active 10 times still counts as 1 DAU.</p>
+            <div class="method-grid">
+                <div class="method-item">
+                    <strong>📰 Article Read</strong>
+                    User opens an article and spends at least <strong>30 seconds</strong> reading. Tapping in alone does not count.
+                </div>
+                <div class="method-item">
+                    <strong>📅 Event Engaged</strong>
+                    User <strong>saves an event</strong> or taps <strong>"View on Aggie Life"</strong> — clear signals of genuine interest.
+                </div>
+                <div class="method-item">
+                    <strong>🟩 Wordle Played</strong>
+                    User starts a Wordle game session for the day.
+                </div>
+                <div class="method-item">
+                    <strong>🔊 Echo Played</strong>
+                    User starts an Echo memory game session.
+                </div>
+                <div class="method-item">
+                    <strong>🔧 Pipes Played</strong>
+                    User starts a Pipes puzzle session.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ USERS TAB ═══════════════ -->
+    <div class="tab-panel" id="tab-users">
+
+        <div class="users-top-row">
+            <div class="stat-card">
+                <div class="stat-value" id="statTotalUsers">--</div>
+                <div class="stat-label">Total Registered Users</div>
+                <div class="stat-sub">all-time signups</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statNewToday">--</div>
+                <div class="stat-label">New Today</div>
+                <div class="stat-sub">registered in the last 24 hrs (PT)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statNewWeek">--</div>
+                <div class="stat-label">New This Week</div>
+                <div class="stat-sub">registered in the last 7 days</div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom:24px;">
+            <h2>New Signups (Last 30 Days)</h2>
+            <canvas id="signupChart"></canvas>
+        </div>
+
+        <div class="section-title">
+            Registered Users
+            <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+        </div>
+        <div class="user-list">
+            <div class="user-list-header">
+                <div></div>
+                <div>Name</div>
+                <div>Email / Phone</div>
+                <div>Auth</div>
+                <div>Joined</div>
+            </div>
+            <div id="userRows">
+                <div style="padding:24px;text-align:center;color:#475569;">Loading users…</div>
+            </div>
         </div>
     </div>
 
@@ -88,57 +321,71 @@
         const END   = "{{ end_date }}";
         const TOKEN = new URLSearchParams(window.location.search).get("token") || "";
 
+        // ── Tab switching ──────────────────────────────────────────────────────
+        function switchTab(name) {
+            document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+            document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+            document.getElementById("tab-" + name).classList.add("active");
+            event.target.classList.add("active");
+        }
+
+        // ── Chart.js helpers ──────────────────────────────────────────────────
         const ACTION_LABELS = {
-            article_read:  "Articles Read",
-            event_viewed:  "Events Viewed",
-            wordle_played: "Wordle Played",
-            echo_played:   "Echo Played",
-            pipes_played:  "Pipes Played"
+            article_read: "Articles Read", event_viewed: "Events Viewed",
+            wordle_played: "Wordle Played", echo_played: "Echo Played", pipes_played: "Pipes Played"
         };
-
         const ACTION_COLORS = {
-            article_read:  "#3b82f6",
-            event_viewed:  "#10b981",
-            wordle_played: "#FFBF00",
-            echo_played:   "#8b5cf6",
-            pipes_played:  "#f97316"
+            article_read: "#3b82f6", event_viewed: "#10b981",
+            wordle_played: "#FFBF00", echo_played: "#8b5cf6", pipes_played: "#f97316"
         };
+        let lineChart, pieChart, signupChart;
 
-        let lineChart, pieChart;
-
+        // ── Analytics Tab ─────────────────────────────────────────────────────
         async function fetchData() {
             try {
                 const resp = await fetch(`/api/analytics/dau?start=${START}&end=${END}`);
                 const json = await resp.json();
                 if (!json.success) return;
-
                 const days = json.data;
-                const labels = days.map(d => d.date.slice(5)); // MM-DD
+                const labels = days.map(d => d.date.slice(5));
                 const values = days.map(d => d.unique_users);
 
-                // Today's numbers
-                const today = days[days.length - 1] || { unique_users: 0, actions: {} };
+                const rolling7 = values.map((_, i) => {
+                    const w = values.slice(Math.max(0, i - 6), i + 1);
+                    return Math.round(w.reduce((a, b) => a + b, 0) / w.length);
+                });
+
+                const today = days[days.length - 1] || { unique_users: 0, total_events: 0, actions: {}, user_ids: [] };
                 document.getElementById("todayDAU").textContent = today.unique_users;
 
-                // Line chart
+                const totalEvents = today.total_events || 0;
+                document.getElementById("statEvents").textContent = totalEvents;
+                document.getElementById("statAvg").textContent = today.unique_users > 0
+                    ? (totalEvents / today.unique_users).toFixed(1) : "0.0";
+
+                const todayUsers = new Set(today.user_ids || []);
+                const yesterday = days[days.length - 2];
+                const yUsers = new Set((yesterday && yesterday.user_ids) || []);
+                const returning = [...todayUsers].filter(u => yUsers.has(u)).length;
+                const newU = today.unique_users - returning;
+                document.getElementById("statReturning").textContent = returning;
+                document.getElementById("statReturningPct").textContent = today.unique_users > 0
+                    ? `${newU} new · ${Math.round(returning / today.unique_users * 100)}% retention`
+                    : "vs. yesterday";
+
                 if (lineChart) lineChart.destroy();
                 lineChart = new Chart(document.getElementById("lineChart"), {
                     type: "line",
                     data: {
                         labels,
-                        datasets: [{
-                            label: "Unique Users",
-                            data: values,
-                            borderColor: "#FFBF00",
-                            backgroundColor: "rgba(255,191,0,0.1)",
-                            fill: true,
-                            tension: 0.3,
-                            pointRadius: 2
-                        }]
+                        datasets: [
+                            { label: "Unique Users", data: values, borderColor: "#FFBF00", backgroundColor: "rgba(255,191,0,0.1)", fill: true, tension: 0.3, pointRadius: 2 },
+                            { label: "7-Day Avg", data: rolling7, borderColor: "#3b82f6", backgroundColor: "transparent", borderDash: [5,4], tension: 0.3, pointRadius: 0 }
+                        ]
                     },
                     options: {
                         responsive: true,
-                        plugins: { legend: { display: false } },
+                        plugins: { legend: { display: true, labels: { color: "#94a3b8", font: { size: 12 }, boxWidth: 16 } } },
                         scales: {
                             x: { ticks: { color: "#64748b" }, grid: { color: "#1e293b" } },
                             y: { beginAtZero: true, ticks: { color: "#64748b" }, grid: { color: "#1e293b" } }
@@ -146,40 +393,271 @@
                     }
                 });
 
-                // Pie chart
                 const actions = today.actions || {};
-                const pieLabels = Object.keys(actions).map(k => ACTION_LABELS[k] || k);
-                const pieValues = Object.values(actions);
-                const pieColors = Object.keys(actions).map(k => ACTION_COLORS[k] || "#64748b");
-
                 if (pieChart) pieChart.destroy();
                 pieChart = new Chart(document.getElementById("pieChart"), {
                     type: "doughnut",
                     data: {
-                        labels: pieLabels,
-                        datasets: [{
-                            data: pieValues,
-                            backgroundColor: pieColors,
-                            borderWidth: 0
-                        }]
+                        labels: Object.keys(actions).map(k => ACTION_LABELS[k] || k),
+                        datasets: [{ data: Object.values(actions), backgroundColor: Object.keys(actions).map(k => ACTION_COLORS[k] || "#64748b"), borderWidth: 0 }]
+                    },
+                    options: { responsive: true, plugins: { legend: { position: "bottom", labels: { color: "#94a3b8", padding: 12, font: { size: 12 } } } } }
+                });
+            } catch (err) { console.error("fetchData error:", err); }
+        }
+
+        async function fetchPeak() {
+            try {
+                const resp = await fetch(`/api/analytics/peak?token=${TOKEN}`);
+                const json = await resp.json();
+                if (!json.success) return;
+                document.getElementById("statPeakDAU").textContent = json.data.unique_users;
+                document.getElementById("statPeakDate").textContent = json.data.date ? `on ${json.data.date}` : "no data yet";
+            } catch (err) { console.error("fetchPeak error:", err); }
+        }
+
+        async function fetchWAUMAU() {
+            try {
+                const resp = await fetch(`/api/analytics/wau-mau?token=${TOKEN}`);
+                const json = await resp.json();
+                if (!json.success) return;
+                const { wau, mau, dau_mau_ratio } = json.data;
+                document.getElementById("statWAU").textContent = wau;
+                document.getElementById("statMAU").textContent = mau;
+                document.getElementById("statDAUMAU").textContent = dau_mau_ratio + "%";
+            } catch (err) { console.error("fetchWAUMAU error:", err); }
+        }
+
+        // ── Users Tab ─────────────────────────────────────────────────────────
+        const AVATAR_COLORS = ["#3b82f6","#10b981","#8b5cf6","#f97316","#ef4444","#06b6d4","#FFBF00","#ec4899"];
+        function avatarColor(name) {
+            let h = 0;
+            for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+            return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+        }
+        function initials(name) {
+            const parts = name.trim().split(/\s+/);
+            return parts.length >= 2 ? (parts[0][0] + parts[parts.length-1][0]).toUpperCase() : name.slice(0,2).toUpperCase();
+        }
+        function providerBadge(p) {
+            const map = { apple: "Apple", google: "Google", phone: "Phone", email: "Email" };
+            return `<span class="provider-badge provider-${p}">${map[p] || p}</span>`;
+        }
+        function fmtDate(iso) {
+            if (!iso) return "—";
+            return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        }
+        function todayPT() {
+            return new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" }); // YYYY-MM-DD
+        }
+
+        async function fetchUsers() {
+            try {
+                const resp = await fetch(`/api/analytics/users?token=${TOKEN}`);
+                const json = await resp.json();
+                if (!json.success) return;
+                const users = json.data;
+
+                document.getElementById("statTotalUsers").textContent = json.total;
+
+                // New today / this week (Pacific)
+                const todayStr = todayPT();
+                const weekAgo = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+                weekAgo.setDate(weekAgo.getDate() - 6);
+                const weekStr = weekAgo.toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+
+                const newToday = users.filter(u => u.createdAt && u.createdAt.slice(0,10) === todayStr).length;
+                const newWeek  = users.filter(u => u.createdAt && u.createdAt.slice(0,10) >= weekStr).length;
+                document.getElementById("statNewToday").textContent = newToday;
+                document.getElementById("statNewWeek").textContent  = newWeek;
+
+                // Signup chart — count per day for last 30 days
+                const days30 = Array.from({ length: 30 }, (_, i) => {
+                    const d = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+                    d.setDate(d.getDate() - (29 - i));
+                    return d.toLocaleDateString("en-CA");
+                });
+                const countsByDay = {};
+                days30.forEach(d => countsByDay[d] = 0);
+                users.forEach(u => {
+                    const day = u.createdAt ? u.createdAt.slice(0,10) : null;
+                    if (day && countsByDay[day] !== undefined) countsByDay[day]++;
+                });
+                if (signupChart) signupChart.destroy();
+                signupChart = new Chart(document.getElementById("signupChart"), {
+                    type: "bar",
+                    data: {
+                        labels: days30.map(d => d.slice(5)),
+                        datasets: [{ label: "New Signups", data: days30.map(d => countsByDay[d]), backgroundColor: "rgba(16,185,129,0.7)", borderRadius: 4 }]
                     },
                     options: {
                         responsive: true,
-                        plugins: {
-                            legend: {
-                                position: "bottom",
-                                labels: { color: "#94a3b8", padding: 12, font: { size: 12 } }
-                            }
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { ticks: { color: "#64748b" }, grid: { color: "#1e293b" } },
+                            y: { beginAtZero: true, ticks: { color: "#64748b", stepSize: 1 }, grid: { color: "#1e293b" } }
                         }
                     }
                 });
-            } catch (err) {
-                console.error("Dashboard fetch error:", err);
-            }
+
+                // User rows (newest first)
+                const sorted = [...users].sort((a,b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+                const rows = sorted.map(u => {
+                    const name = u.username || "—";
+                    const contact = u.email || u.phoneNumber || "—";
+                    return `<div class="user-row">
+                        <div class="avatar" style="background:${avatarColor(name)}">${initials(name)}</div>
+                        <div class="user-name">${name}</div>
+                        <div class="user-email">${contact}</div>
+                        <div>${providerBadge(u.authProvider || "email")}</div>
+                        <div class="user-date">${fmtDate(u.createdAt)}</div>
+                    </div>`;
+                }).join("");
+                document.getElementById("userRows").innerHTML = rows || "<div style='padding:24px;text-align:center;color:#475569;'>No users yet.</div>";
+            } catch (err) { console.error("fetchUsers error:", err); }
         }
 
+        async function fetchChurnStreak() {
+            try {
+                const [churnR, streakR] = await Promise.all([
+                    fetch(`/api/analytics/churn?token=${TOKEN}`).then(r => r.json()),
+                    fetch(`/api/analytics/streak?token=${TOKEN}`).then(r => r.json()),
+                ]);
+                if (churnR.success) {
+                    const { at_risk_count, total_tracked } = churnR.data;
+                    document.getElementById("statChurn").textContent = at_risk_count;
+                    const churnPct = total_tracked > 0 ? Math.round(at_risk_count / total_tracked * 100) : 0;
+                    document.getElementById("statChurnPct").textContent = churnPct + "%";
+                }
+                if (streakR.success) {
+                    const { streak, since } = streakR.data;
+                    document.getElementById("statStreak").textContent = streak + (streak === 1 ? " day" : " days");
+                    document.getElementById("statStreakSince").textContent = since ? `since ${since}` : "no streak yet";
+                }
+            } catch (err) { console.error("fetchChurnStreak error:", err); }
+        }
+
+        async function fetchCohorts() {
+            try {
+                const resp = await fetch(`/api/analytics/cohorts?token=${TOKEN}`);
+                const json = await resp.json();
+                if (!json.success) return;
+                const cohorts = json.data;
+                const maxWeeks = cohorts.length;
+
+                // Build header
+                let html = `<table class="cohort-table"><thead><tr>
+                    <th>Cohort Week</th><th>Users</th>`;
+                for (let i = 0; i < maxWeeks; i++) html += `<th>Week ${i === 0 ? "0 (same)" : i}</th>`;
+                html += `</tr></thead><tbody>`;
+
+                cohorts.forEach((cohort, i) => {
+                    html += `<tr><td style="color:#e2e8f0;font-weight:500;">${cohort.label}</td><td>${cohort.size}</td>`;
+                    for (let j = 0; j < maxWeeks; j++) {
+                        const r = cohort.retention.find(r => r.week_offset === j);
+                        if (!r) { html += `<td><span class="cohort-cell" style="background:#0f172a;color:#334155;">—</span></td>`; continue; }
+                        const pct = r.pct;
+                        const bg = pct >= 60 ? "#14532d" : pct >= 40 ? "#1e3a2f" : pct >= 20 ? "#1e293b" : "#1a1a2e";
+                        const col = pct >= 60 ? "#4ade80" : pct >= 40 ? "#86efac" : pct >= 20 ? "#64748b" : "#334155";
+                        html += `<td><span class="cohort-cell" style="background:${bg};color:${col};">${pct}%</span></td>`;
+                    }
+                    html += `</tr>`;
+                });
+                html += `</tbody></table>`;
+                document.getElementById("cohortTable").innerHTML = html;
+            } catch (err) { console.error("fetchCohorts error:", err); }
+        }
+
+        // ── CSV Export ────────────────────────────────────────────────────────
+        let _cachedUsers = [];
+        function exportCSV() {
+            if (!_cachedUsers.length) { alert("User data not loaded yet — try again in a moment."); return; }
+            const header = ["Name", "Email/Phone", "Auth Provider", "Joined"];
+            const rows = _cachedUsers.map(u => [
+                `"${(u.username || "").replace(/"/g, '""')}"`,
+                `"${(u.email || u.phoneNumber || "").replace(/"/g, '""')}"`,
+                u.authProvider || "email",
+                u.createdAt ? u.createdAt.slice(0, 10) : ""
+            ].join(","));
+            const csv = [header.join(","), ...rows].join("\n");
+            const blob = new Blob([csv], { type: "text/csv" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `tapin_users_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+        }
+
+        // Patch fetchUsers to cache data for CSV
+        const _origFetchUsers = fetchUsers;
+        fetchUsers = async function() {
+            try {
+                const resp = await fetch(`/api/analytics/users?token=${TOKEN}`);
+                const json = await resp.json();
+                if (!json.success) return;
+                _cachedUsers = json.data;
+                // rest of original fetchUsers logic (inline to avoid duplication)
+                document.getElementById("statTotalUsers").textContent = json.total;
+                const todayStr = todayPT();
+                const weekAgo = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+                weekAgo.setDate(weekAgo.getDate() - 6);
+                const weekStr = weekAgo.toLocaleDateString("en-CA");
+                document.getElementById("statNewToday").textContent = _cachedUsers.filter(u => u.createdAt && u.createdAt.slice(0,10) === todayStr).length;
+                document.getElementById("statNewWeek").textContent  = _cachedUsers.filter(u => u.createdAt && u.createdAt.slice(0,10) >= weekStr).length;
+
+                const days30 = Array.from({ length: 30 }, (_, i) => {
+                    const d = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+                    d.setDate(d.getDate() - (29 - i));
+                    return d.toLocaleDateString("en-CA");
+                });
+                const countsByDay = {};
+                days30.forEach(d => countsByDay[d] = 0);
+                _cachedUsers.forEach(u => { const day = u.createdAt ? u.createdAt.slice(0,10) : null; if (day && countsByDay[day] !== undefined) countsByDay[day]++; });
+                if (signupChart) signupChart.destroy();
+                signupChart = new Chart(document.getElementById("signupChart"), {
+                    type: "bar",
+                    data: { labels: days30.map(d => d.slice(5)), datasets: [{ label: "New Signups", data: days30.map(d => countsByDay[d]), backgroundColor: "rgba(16,185,129,0.7)", borderRadius: 4 }] },
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: "#64748b" }, grid: { color: "#1e293b" } }, y: { beginAtZero: true, ticks: { color: "#64748b", stepSize: 1 }, grid: { color: "#1e293b" } } } }
+                });
+
+                const sorted = [..._cachedUsers].sort((a,b) => (b.createdAt||"").localeCompare(a.createdAt||""));
+                const rows = sorted.map(u => {
+                    const name = u.username || "—";
+                    return `<div class="user-row">
+                        <div class="avatar" style="background:${avatarColor(name)}">${initials(name)}</div>
+                        <div class="user-name">${name}</div>
+                        <div class="user-email">${u.email || u.phoneNumber || "—"}</div>
+                        <div>${providerBadge(u.authProvider || "email")}</div>
+                        <div class="user-date">${fmtDate(u.createdAt)}</div>
+                    </div>`;
+                }).join("");
+                document.getElementById("userRows").innerHTML = rows || "<div style='padding:24px;text-align:center;color:#475569;'>No users yet.</div>";
+            } catch (err) { console.error("fetchUsers error:", err); }
+        };
+
+        async function fetchLive() {
+            try {
+                const resp = await fetch(`/api/analytics/live?token=${TOKEN}`);
+                const json = await resp.json();
+                if (!json.success) return;
+                document.getElementById("liveCount").textContent = json.data.live_count;
+            } catch (err) { console.error("fetchLive error:", err); }
+        }
+
+        // ── Boot ──────────────────────────────────────────────────────────────
+        fetchLive();
         fetchData();
-        setInterval(fetchData, 60000);
+        fetchPeak();
+        fetchWAUMAU();
+        fetchChurnStreak();
+        fetchCohorts();
+        fetchUsers();
+        setInterval(fetchLive,         30000); // every 30 sec
+        setInterval(fetchData,         60000);
+        setInterval(fetchPeak,       300000);
+        setInterval(fetchWAUMAU,     300000);
+        setInterval(fetchChurnStreak,300000);
+        setInterval(fetchCohorts,    600000); // cohorts every 10 min (expensive)
+        setInterval(fetchUsers,      300000);
     </script>
 </body>
 </html>

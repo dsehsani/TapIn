@@ -37,6 +37,9 @@ struct ArticleDetailView: View {
         .task {
             await viewModel.load(article: article)
         }
+        .onDisappear {
+            viewModel.cancelReadTracking()
+        }
         .navigationBarHidden(true)
         .overlay(alignment: .top) {
             if let svm = savedViewModel, svm.showToast {
