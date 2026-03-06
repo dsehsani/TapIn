@@ -255,6 +255,126 @@ class LeaderboardService: ObservableObject {
         }
     }
 
+    // MARK: - Pipes: Submit Score
+
+    func submitPipesScore(
+        puzzlesCompleted: Int,
+        totalMoves: Int,
+        totalTimeSeconds: Int,
+        puzzleDate: String,
+        username: String? = nil
+    ) async throws -> PipesScoreSubmissionResponse {
+        isLoading = true
+        lastError = nil
+        defer { isLoading = false }
+
+        guard let url = URL(string: APIConfig.pipesLeaderboardScoreURL) else {
+            throw AppError.requestFailed(reason: "Invalid URL")
+        }
+
+        let requestBody = PipesScoreSubmissionRequest(
+            puzzles_completed: puzzlesCompleted,
+            total_moves: totalMoves,
+            total_time_seconds: totalTimeSeconds,
+            puzzle_date: puzzleDate,
+            username: username
+        )
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        do {
+            request.httpBody = try JSONEncoder().encode(requestBody)
+        } catch {
+            throw AppError.requestFailed(reason: "Failed to encode request")
+        }
+
+        do {
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw AppError.invalidResponse
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                if let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data) {
+                    throw AppError.requestFailed(reason: errorResponse.error)
+                }
+                throw AppError.serverError(statusCode: httpResponse.statusCode)
+            }
+
+            return try JSONDecoder().decode(PipesScoreSubmissionResponse.self, from: data)
+
+        } catch let error as AppError {
+            lastError = error
+            throw error
+        } catch is URLError {
+            let appError = AppError.networkUnavailable
+            lastError = appError
+            throw appError
+        } catch is DecodingError {
+            let appError = AppError.decodingFailed
+            lastError = appError
+            throw appError
+        } catch {
+            let appError = AppError.requestFailed(reason: error.localizedDescription)
+            lastError = appError
+            throw appError
+        }
+    }
+
+    // MARK: - Pipes: Fetch Leaderboard
+
+    func fetchPipesLeaderboard(for puzzleDate: String, limit: Int = 5) async throws -> [PipesLeaderboardEntryResponse] {
+        isLoading = true
+        lastError = nil
+        defer { isLoading = false }
+
+        guard var urlComponents = URLComponents(string: APIConfig.pipesLeaderboardURL(date: puzzleDate)) else {
+            throw AppError.requestFailed(reason: "Invalid URL")
+        }
+        urlComponents.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+
+        guard let url = urlComponents.url else {
+            throw AppError.requestFailed(reason: "Invalid URL")
+        }
+
+        do {
+            let (data, response) = try await session.data(from: url)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw AppError.invalidResponse
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                if let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data) {
+                    throw AppError.requestFailed(reason: errorResponse.error)
+                }
+                throw AppError.serverError(statusCode: httpResponse.statusCode)
+            }
+
+            let leaderboardResponse = try JSONDecoder().decode(PipesLeaderboardResponse.self, from: data)
+            return leaderboardResponse.leaderboard
+
+        } catch let error as AppError {
+            lastError = error
+            throw error
+        } catch is URLError {
+            let appError = AppError.networkUnavailable
+            lastError = appError
+            throw appError
+        } catch is DecodingError {
+            let appError = AppError.decodingFailed
+            lastError = appError
+            throw appError
+        } catch {
+            let appError = AppError.requestFailed(reason: error.localizedDescription)
+            lastError = appError
+            throw appError
+        }
+    }
+
     // MARK: - Health Check
 
     /// Checks if the leaderboard server is reachable.
@@ -331,4 +451,48 @@ struct LeaderboardEntryResponse: Codable, Identifiable {
 struct APIErrorResponse: Codable {
     let success: Bool
     let error: String
+}
+
+// MARK: - Pipes Request/Response Models
+
+struct PipesScoreSubmissionRequest: Codable {
+    let puzzles_completed: Int
+    let total_moves: Int
+    let total_time_seconds: Int
+    let puzzle_date: String
+    let username: String?
+}
+
+struct PipesScoreSubmissionResponse: Codable {
+    let success: Bool
+    let score: PipesScoreResponse
+}
+
+struct PipesScoreResponse: Codable {
+    let id: String
+    let username: String
+    let puzzles_completed: Int
+    let total_moves: Int
+    let total_time_seconds: Int
+    let puzzle_date: String
+}
+
+struct PipesLeaderboardResponse: Codable {
+    let success: Bool
+    let puzzle_date: String
+    let leaderboard: [PipesLeaderboardEntryResponse]
+}
+
+struct PipesLeaderboardEntryResponse: Codable, Identifiable {
+    let rank: Int
+    let username: String
+    let puzzles_completed: Int
+    let total_moves: Int
+    let total_time_seconds: Int
+
+    var id: String { "\(rank)-\(username)" }
+
+    var puzzlesCompleted: Int { puzzles_completed }
+    var totalMoves: Int { total_moves }
+    var totalTimeSeconds: Int { total_time_seconds }
 }

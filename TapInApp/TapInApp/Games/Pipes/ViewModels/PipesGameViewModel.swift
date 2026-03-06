@@ -48,6 +48,10 @@ class PipesGameViewModel {
     /// True when there's saved progress (skip tutorial on re-entry)
     var hasExistingProgress: Bool = false
 
+    /// Leaderboard state
+    var scoreSubmitted: Bool = false
+    var assignedUsername: String? = nil
+
     let difficultyLabels = ["Easy", "Easy", "Medium", "Medium", "Hard"]
 
     private(set) var currentPuzzle: PipePuzzle
@@ -392,6 +396,7 @@ class PipesGameViewModel {
         // Set session-only flags so overlays show
         if dailyCompletedCount == dailyPuzzles.count {
             justCompletedAll = true
+            submitScoreToLeaderboard()
         } else {
             justSolvedPuzzle = true
         }
@@ -439,6 +444,80 @@ class PipesGameViewModel {
         let dr = abs(a.row - b.row)
         let dc = abs(a.col - b.col)
         return (dr == 1 && dc == 0) || (dr == 0 && dc == 1)
+    }
+
+    // MARK: - Leaderboard Submission
+
+    func submitScoreToLeaderboard() {
+        guard !isArchiveMode else { return }
+        guard !scoreSubmitted else { return }
+
+        let dateKey = currentDateKey
+
+        // Gather stats from all completed puzzles
+        var totalMoves = 0
+        var totalTime = 0
+        var completed = 0
+
+        for i in 0..<dailyPuzzles.count {
+            if let saved = PipesGameStorage.shared.loadPuzzleState(for: dateKey, puzzleIndex: i),
+               saved.status == .completed {
+                totalMoves += saved.moves
+                totalTime += saved.timeSeconds
+                completed += 1
+            }
+        }
+
+        guard completed > 0 else { return }
+
+        Task {
+            do {
+                let response = try await LeaderboardService.shared.submitPipesScore(
+                    puzzlesCompleted: completed,
+                    totalMoves: totalMoves,
+                    totalTimeSeconds: totalTime,
+                    puzzleDate: dateKey,
+                    username: AppState.shared.userName
+                )
+
+                await MainActor.run {
+                    self.assignedUsername = response.score.username
+                    self.scoreSubmitted = true
+                }
+
+                #if DEBUG
+                print("Pipes score submitted! Username: \(response.score.username)")
+                #endif
+            } catch {
+                #if DEBUG
+                print("Failed to submit pipes score: \(error)")
+                #endif
+            }
+        }
+    }
+
+    /// Total moves across all completed puzzles for current day (for overlay display)
+    var totalMovesForDay: Int {
+        var total = 0
+        for i in 0..<dailyPuzzles.count {
+            if let saved = PipesGameStorage.shared.loadPuzzleState(for: currentDateKey, puzzleIndex: i),
+               saved.status == .completed {
+                total += saved.moves
+            }
+        }
+        return total
+    }
+
+    /// Total time across all completed puzzles for current day (for overlay display)
+    var totalTimeForDay: Int {
+        var total = 0
+        for i in 0..<dailyPuzzles.count {
+            if let saved = PipesGameStorage.shared.loadPuzzleState(for: currentDateKey, puzzleIndex: i),
+               saved.status == .completed {
+                total += saved.timeSeconds
+            }
+        }
+        return total
     }
 
     func goToNextPuzzle() {
