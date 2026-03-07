@@ -50,12 +50,12 @@ struct TapInAppApp: App {
     // Use AppState.shared so the onboarding ViewModel and the
     // app gate both observe the exact same instance.
     @StateObject private var appState = AppState.shared
-    @State private var isCheckingSession = true
+    @State private var isCheckingSession = false
     @State private var needsForceUpdate = false
 
     // MARK: - Debug Flags
     // Set to true to force onboarding screen on launch (keeps your account intact)
-    private let forceOnboarding = false
+    private let forceOnboarding = true
     // Set to true to replay all onboarding tips on next launch
     private let resetTips = false
 
@@ -88,8 +88,11 @@ struct TapInAppApp: App {
                 guard !needsForceUpdate else { return }
                 await appState.restoreSession()
                 isCheckingSession = false
-                // Schedule daily DailyFive reminders (refreshes the 7-day window each launch)
-                await NotificationService.shared.scheduleDailyFiveReminders()
+                // Only schedule reminders for users who have already completed onboarding
+                // (new users set their preference on the notification permission screen)
+                if appState.isAuthenticated {
+                    await NotificationService.shared.scheduleDailyFiveReminders()
+                }
             }
             .alert(
                 appState.globalError?.title ?? "Error",
