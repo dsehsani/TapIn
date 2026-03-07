@@ -40,7 +40,7 @@ final class NotificationService {
     /// Schedules two reminders for a saved event: 1 day before and 1 hour before.
     /// Skips if the fire date is already in the past or notifications are disabled.
     func scheduleReminders(for event: CampusEvent) async {
-        guard AppState.shared.notificationsEnabled else { return }
+        guard AppState.shared.eventNotificationsEnabled else { return }
         let granted = await requestPermissionIfNeeded()
         guard granted else { return }
 
@@ -106,7 +106,7 @@ final class NotificationService {
     /// Schedules one reminder per day for the next 7 days at a random time between 10am–8pm.
     /// Safe to call repeatedly — cancels any existing DailyFive reminders before rescheduling.
     func scheduleDailyFiveReminders() async {
-        guard AppState.shared.notificationsEnabled else { return }
+        guard AppState.shared.gameNotificationsEnabled else { return }
         let granted = await requestPermissionIfNeeded()
         guard granted else { return }
 

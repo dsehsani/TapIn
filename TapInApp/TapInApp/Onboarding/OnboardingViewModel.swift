@@ -17,6 +17,7 @@ enum OnboardingStep: Equatable {
     case otpVerification
     case profileSetup
     case interestsPicker
+    case notificationPermissions
 }
 
 @MainActor
@@ -90,6 +91,7 @@ class OnboardingViewModel: ObservableObject {
             navigateTo(.phoneEntry)
         case .interestsPicker: navigateTo(.signInOptions)
         case .profileSetup:  navigateTo(.interestsPicker)
+        case .notificationPermissions: navigateTo(.profileSetup)
         default: break
         }
     }

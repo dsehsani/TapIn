@@ -36,6 +36,8 @@ class AppState: ObservableObject {
 
     // MARK: - App Settings
     @Published var notificationsEnabled: Bool = true
+    @Published var eventNotificationsEnabled: Bool = true
+    @Published var gameNotificationsEnabled: Bool = true
 
     // MARK: - Loading States
     @Published var isLoading: Bool = false
@@ -206,6 +208,8 @@ class AppState: ObservableObject {
         // Save authentication state
         UserDefaults.standard.set(isAuthenticated, forKey: "isAuthenticated")
         UserDefaults.standard.set(notificationsEnabled, forKey: "notificationsEnabled")
+        UserDefaults.standard.set(eventNotificationsEnabled, forKey: "eventNotificationsEnabled")
+        UserDefaults.standard.set(gameNotificationsEnabled, forKey: "gameNotificationsEnabled")
 
         // Save auth tokens to Keychain (encrypted at rest)
         if let token = authToken {
@@ -238,6 +242,8 @@ class AppState: ObservableObject {
     private func loadPersistedState() {
         isAuthenticated = UserDefaults.standard.bool(forKey: "isAuthenticated")
         notificationsEnabled = UserDefaults.standard.bool(forKey: "notificationsEnabled")
+        eventNotificationsEnabled = UserDefaults.standard.object(forKey: "eventNotificationsEnabled") as? Bool ?? true
+        gameNotificationsEnabled = UserDefaults.standard.object(forKey: "gameNotificationsEnabled") as? Bool ?? true
         // Load auth tokens from Keychain (migrate from UserDefaults if needed)
         authToken = KeychainService.load(key: "authToken")
             ?? UserDefaults.standard.string(forKey: "authToken")

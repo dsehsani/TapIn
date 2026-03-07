@@ -267,7 +267,7 @@ struct ProfileSetupView: View {
 
     private var ctaSection: some View {
         VStack(spacing: 16) {
-            Button(action: { Task { await viewModel.completeOnboarding() } }) {
+            Button(action: { viewModel.navigateTo(.notificationPermissions) }) {
                 Text("Let's Go")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(colorScheme == .dark ? Color(hex: "#0d1b4b") : Color(hex: "#E8485A"))
@@ -277,7 +277,7 @@ struct ProfileSetupView: View {
                     .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
             }
 
-            Button(action: { Task { await viewModel.completeOnboarding() } }) {
+            Button(action: { viewModel.navigateTo(.notificationPermissions) }) {
                 Text("Skip for now")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.white.opacity(0.55))
