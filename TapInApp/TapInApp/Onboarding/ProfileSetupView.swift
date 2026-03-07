@@ -22,7 +22,7 @@ struct ProfileSetupView: View {
 
     private enum ProfileField { case name, email }
 
-    private let roles = ["Freshman", "Sophomore", "Junior", "Senior", "Graduate Student", "Professor", "Staff", "Faculty", "Alumni"]
+    private let roles = ["Freshman", "Sophomore", "Junior", "Senior", "Graduate Student", "Professor", "Staff", "Faculty", "Alumni", "Resident"]
 
     // Same gradients as WelcomeView / SignInOptionsView / PhoneEntry / OTP
     private let darkGradient = LinearGradient(
@@ -200,7 +200,7 @@ struct ProfileSetupView: View {
 
             // Email
             VStack(alignment: .leading, spacing: 6) {
-                Text("Email")
+                Text("Email (Optional)")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.white.opacity(0.7))
                     .padding(.leading, 4)
