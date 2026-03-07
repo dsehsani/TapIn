@@ -91,4 +91,65 @@ final class NotificationService {
     func cancelAllReminders() {
         center.removeAllPendingNotificationRequests()
     }
+
+    // MARK: - DailyFive Reminders
+
+    private let dailyFiveMessages: [(title: String, body: String)] = [
+        ("Your DailyFive is waiting! 🧩", "Solve today's word and climb the leaderboard."),
+        ("Can you crack today's word?", "DailyFive is live — see if you can top the leaderboard."),
+        ("Today's puzzle is unsolved.", "Jump in and see where you rank on today's leaderboard."),
+        ("The leaderboard is filling up!", "Don't miss your shot at today's DailyFive."),
+        ("Word of the day — solved yet?", "Your DailyFive streak is waiting. Keep it going!"),
+        ("Quick challenge for you 🎯", "Today's DailyFive word is live. How fast can you get it?"),
+    ]
+
+    /// Schedules one reminder per day for the next 7 days at a random time between 10am–8pm.
+    /// Safe to call repeatedly — cancels any existing DailyFive reminders before rescheduling.
+    func scheduleDailyFiveReminders() async {
+        guard AppState.shared.notificationsEnabled else { return }
+        let granted = await requestPermissionIfNeeded()
+        guard granted else { return }
+
+        // Remove stale DailyFive reminders before rescheduling
+        let pending = await center.pendingNotificationRequests()
+        let staleIds = pending
+            .map { $0.identifier }
+            .filter { $0.hasPrefix("dailyfive_reminder_") }
+        center.removePendingNotificationRequests(withIdentifiers: staleIds)
+
+        let calendar = Calendar.current
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+
+        for dayOffset in 1...7 {
+            guard let day = calendar.date(byAdding: .day, value: dayOffset, to: Date()) else { continue }
+
+            // Random hour between 10 and 19 (10am–7pm), random minute
+            let hour = Int.random(in: 10...19)
+            let minute = Int.random(in: 0...59)
+
+            var comps = calendar.dateComponents([.year, .month, .day], from: day)
+            comps.hour = hour
+            comps.minute = minute
+
+            let message = dailyFiveMessages[dayOffset % dailyFiveMessages.count]
+            let content = UNMutableNotificationContent()
+            content.title = message.title
+            content.body = message.body
+            content.sound = .default
+
+            let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+            let id = "dailyfive_reminder_\(df.string(from: day))"
+            let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+            try? await center.add(request)
+        }
+    }
+
+    /// Cancels today's DailyFive reminder (call when the user completes or loses the puzzle).
+    func cancelTodaysDailyFiveReminder() {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        let todayId = "dailyfive_reminder_\(df.string(from: Date()))"
+        center.removePendingNotificationRequests(withIdentifiers: [todayId])
+    }
 }

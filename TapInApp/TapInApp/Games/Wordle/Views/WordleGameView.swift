@@ -285,8 +285,10 @@ struct WordleGameView: View {
             if newState == .won && !viewModel.isArchiveMode {
                 fetchLeaderboard()
                 onGameComplete?(true)
+                NotificationService.shared.cancelTodaysDailyFiveReminder()
             } else if newState == .lost && !viewModel.isArchiveMode {
                 onGameComplete?(false)
+                NotificationService.shared.cancelTodaysDailyFiveReminder()
             }
         }
     }

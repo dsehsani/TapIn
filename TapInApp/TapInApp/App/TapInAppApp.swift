@@ -82,6 +82,8 @@ struct TapInAppApp: App {
                 if resetTips { OnboardingManager.shared.resetAllTips() }
                 await appState.restoreSession()
                 isCheckingSession = false
+                // Schedule daily DailyFive reminders (refreshes the 7-day window each launch)
+                await NotificationService.shared.scheduleDailyFiveReminders()
             }
             .alert(
                 appState.globalError?.title ?? "Error",
