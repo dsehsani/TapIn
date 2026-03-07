@@ -50,7 +50,7 @@ struct TapInAppApp: App {
     // Use AppState.shared so the onboarding ViewModel and the
     // app gate both observe the exact same instance.
     @StateObject private var appState = AppState.shared
-    @State private var isCheckingSession = false
+    @State private var isCheckingSession = true
     @State private var needsForceUpdate = false
 
     // MARK: - Debug Flags

@@ -23,7 +23,7 @@ enum APIConfig {
     // MARK: - Events Endpoint
 
     /// GET - All AI-processed campus events (with aiSummary + aiBulletPoints)
-    static var eventsURL: String { "\(baseURL)/api/events" }
+    static var eventsURL: String { "\(baseURL)api/events" }
 
     // MARK: - Articles Endpoint
 
@@ -75,13 +75,13 @@ enum APIConfig {
     // MARK: - Claude Endpoints
 
     /// POST - Summarize an event description
-    static var summarizeURL: String { "\(baseURL)/api/claude/summarize" }
+    static var summarizeURL: String { "\(baseURL)api/claude/summarize" }
 
     /// POST - General-purpose Claude chat (future features)
-    static var chatURL: String { "\(baseURL)/api/claude/chat" }
+    static var chatURL: String { "\(baseURL)api/claude/chat" }
 
     /// GET - Claude proxy health check
-    static var claudeHealthURL: String { "\(baseURL)/api/claude/health" }
+    static var claudeHealthURL: String { "\(baseURL)api/claude/health" }
 
     // MARK: - User Auth Endpoints
 
