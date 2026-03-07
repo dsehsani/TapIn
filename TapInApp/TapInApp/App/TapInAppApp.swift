@@ -51,6 +51,7 @@ struct TapInAppApp: App {
     // app gate both observe the exact same instance.
     @StateObject private var appState = AppState.shared
     @State private var isCheckingSession = true
+    @State private var needsForceUpdate = false
 
     // MARK: - Debug Flags
     // Set to true to force onboarding screen on launch (keeps your account intact)
@@ -67,6 +68,8 @@ struct TapInAppApp: App {
                         Color(.systemBackground).ignoresSafeArea()
                         ProgressView()
                     }
+                } else if needsForceUpdate {
+                    ForceUpdateView()
                 } else if appState.isAuthenticated && !forceOnboarding {
                     ContentView()
                         .environmentObject(appState)
@@ -80,6 +83,9 @@ struct TapInAppApp: App {
             }
             .task {
                 if resetTips { OnboardingManager.shared.resetAllTips() }
+                // Check for required update before showing any UI
+                needsForceUpdate = await AppUpdateService.shared.isUpdateRequired()
+                guard !needsForceUpdate else { return }
                 await appState.restoreSession()
                 isCheckingSession = false
                 // Schedule daily DailyFive reminders (refreshes the 7-day window each launch)
