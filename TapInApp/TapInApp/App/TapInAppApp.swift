@@ -55,7 +55,7 @@ struct TapInAppApp: App {
 
     // MARK: - Debug Flags
     // Set to true to force onboarding screen on launch (keeps your account intact)
-    private let forceOnboarding = true
+    private let forceOnboarding = false
     // Set to true to replay all onboarding tips on next launch
     private let resetTips = false
 

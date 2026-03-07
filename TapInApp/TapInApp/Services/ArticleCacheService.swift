@@ -120,6 +120,8 @@ extension NewsArticle: Codable {
         case publishDate
     }
 
+    private static let iso8601 = ISO8601DateFormatter()
+
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.id = UUID()
@@ -132,10 +134,8 @@ extension NewsArticle: Codable {
         self.articleURL  = try c.decodeIfPresent(String.self, forKey: .articleURL)
         self.isFeatured  = false
 
-        // Parse ISO 8601 date string from backend
         let dateStr = try c.decodeIfPresent(String.self, forKey: .publishDate) ?? ""
-        let formatter = ISO8601DateFormatter()
-        self.timestamp = formatter.date(from: dateStr) ?? Date()
+        self.timestamp = NewsArticle.iso8601.date(from: dateStr) ?? Date()
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -147,10 +147,11 @@ extension NewsArticle: Codable {
         try c.encodeIfPresent(author,     forKey: .author)
         try c.encodeIfPresent(readTime,   forKey: .readTime)
         try c.encodeIfPresent(articleURL, forKey: .articleURL)
-        let formatter = ISO8601DateFormatter()
-        try c.encode(formatter.string(from: timestamp), forKey: .publishDate)
+        try c.encode(NewsArticle.iso8601.string(from: timestamp), forKey: .publishDate)
     }
 }
+
+private let sharedISO8601 = ISO8601DateFormatter()
 
 // ArticleContent wrapper for disk persistence
 private struct CachedArticleContent: Codable {
@@ -164,11 +165,10 @@ private struct CachedArticleContent: Codable {
     let articleURL: String
 
     init(from content: ArticleContent) {
-        let formatter = ISO8601DateFormatter()
         self.title          = content.title
         self.author         = content.author
         self.authorEmail    = content.authorEmail
-        self.publishDate    = formatter.string(from: content.publishDate)
+        self.publishDate    = sharedISO8601.string(from: content.publishDate)
         self.category       = content.category
         self.thumbnailURL   = content.thumbnailURL?.absoluteString
         self.bodyParagraphs = content.bodyParagraphs
@@ -176,13 +176,12 @@ private struct CachedArticleContent: Codable {
     }
 
     func toArticleContent() -> ArticleContent? {
-        let formatter = ISO8601DateFormatter()
         guard let url = URL(string: articleURL) else { return nil }
         return ArticleContent(
             title:          title,
             author:         author,
             authorEmail:    authorEmail,
-            publishDate:    formatter.date(from: publishDate) ?? Date(),
+            publishDate:    sharedISO8601.date(from: publishDate) ?? Date(),
             category:       category,
             thumbnailURL:   thumbnailURL.flatMap { URL(string: $0) },
             bodyParagraphs: bodyParagraphs,

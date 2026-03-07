@@ -145,6 +145,15 @@ class CampusViewModel: ObservableObject {
         )
     }
 
+    // Pre-compiled regex instances — compiling NSRegularExpression is expensive,
+    // so these are shared across all extractLocation calls.
+    private static let roomTrailingRegex = try? NSRegularExpression(
+        pattern: #"^\s*,?\s*(?:Room|Rm\.?)\s*\d+[A-Za-z]?"#, options: .caseInsensitive)
+    private static let labelRegex = try? NSRegularExpression(
+        pattern: #"(?i)(?:location|where|place|venue)\s*[:：]\s*(.+)"#)
+    private static let roomNumberRegex = try? NSRegularExpression(
+        pattern: #"(?i)(?:room|rm\.?)\s*\d+[A-Za-z]?"#)
+
     /// Attempts to extract a location from event description text.
     private func extractLocation(from text: String) -> String? {
         // 1. Check for known UC Davis buildings/locations first (most reliable)
@@ -167,12 +176,11 @@ class CampusViewModel: ObservableObject {
             if let range = text.range(of: location, options: .caseInsensitive) {
                 var result = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
                 // Grab a trailing room number if present (e.g., "Walker Hall 101")
-                let after = text[range.upperBound...]
-                let roomPattern = #"^\s*,?\s*(?:Room|Rm\.?)\s*\d+[A-Za-z]?"#
-                if let roomRegex = try? NSRegularExpression(pattern: roomPattern, options: .caseInsensitive),
-                   let roomMatch = roomRegex.firstMatch(in: String(after), range: NSRange(location: 0, length: (after as NSString).length)),
-                   let roomRange = Range(roomMatch.range, in: String(after)) {
-                    let room = String(after)[roomRange]
+                let after = String(text[range.upperBound...])
+                if let roomRegex = CampusViewModel.roomTrailingRegex,
+                   let roomMatch = roomRegex.firstMatch(in: after, range: NSRange(location: 0, length: (after as NSString).length)),
+                   let roomRange = Range(roomMatch.range, in: after) {
+                    let room = after[roomRange]
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                         .trimmingCharacters(in: CharacterSet(charactersIn: ","))
                         .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -183,8 +191,7 @@ class CampusViewModel: ObservableObject {
         }
 
         // 2. Look for explicit labels: "Location: ...", "Where: ...", "Venue: ..."
-        let labelPattern = #"(?i)(?:location|where|place|venue)\s*[:：]\s*(.+)"#
-        if let regex = try? NSRegularExpression(pattern: labelPattern),
+        if let regex = CampusViewModel.labelRegex,
            let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
            let range = Range(match.range(at: 1), in: text) {
             let candidate = String(text[range])
@@ -197,8 +204,7 @@ class CampusViewModel: ObservableObject {
         }
 
         // 3. Look for room number patterns (e.g., "Room 101", "Rm 204")
-        let roomPattern = #"(?i)(?:room|rm\.?)\s*\d+[A-Za-z]?"#
-        if let regex = try? NSRegularExpression(pattern: roomPattern),
+        if let regex = CampusViewModel.roomNumberRegex,
            let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
            let range = Range(match.range, in: text) {
             return String(text[range])

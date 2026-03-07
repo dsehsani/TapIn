@@ -275,10 +275,10 @@ class NewsService {
 
     // MARK: - Background Prefetch
 
-    /// Silently pre-fetches article content for all articles in the background.
+    /// Silently pre-fetches article content for the first few articles in the background.
     /// Populates both in-memory and disk caches so tapping an article is instant.
     func prefetchContent(for articles: [NewsArticle]) {
-        for article in articles {
+        for article in articles.prefix(5) {
             let cacheKey = article.articleURL ?? article.id.uuidString
             // Skip if already cached in memory
             if contentCache.object(forKey: cacheKey as NSString) != nil { continue }
