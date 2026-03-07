@@ -217,14 +217,14 @@ struct EditProfileView: View {
                     .animation(.easeInOut(duration: 0.2), value: focusedField == .name)
             }
 
-            // UC Davis Email
+            // Email
             VStack(alignment: .leading, spacing: 6) {
-                Text("UC Davis Email")
+                Text("Email")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.white.opacity(0.7))
                     .padding(.leading, 4)
 
-                TextField("email@ucdavis.edu", text: $email)
+                TextField("your@email.com", text: $email)
                     .focused($focusedField, equals: .email)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)

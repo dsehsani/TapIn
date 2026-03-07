@@ -35,7 +35,7 @@ struct ProfileSetupView: View {
     )
 
     private var isEmailValid: Bool {
-        viewModel.email.isEmpty || viewModel.email.lowercased().hasSuffix("@ucdavis.edu")
+        true
     }
 
     var body: some View {
@@ -198,14 +198,14 @@ struct ProfileSetupView: View {
                     .animation(.easeInOut(duration: 0.2), value: focusedField == .name)
             }
 
-            // UC Davis Email
+            // Email
             VStack(alignment: .leading, spacing: 6) {
-                Text("UC Davis Email")
+                Text("Email")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.white.opacity(0.7))
                     .padding(.leading, 4)
 
-                TextField("email@ucdavis.edu", text: $viewModel.email)
+                TextField("your@email.com", text: $viewModel.email)
                     .focused($focusedField, equals: .email)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
@@ -219,20 +219,11 @@ struct ProfileSetupView: View {
                     .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .stroke(
-                                !isEmailValid ? Color(hex: "#FF6B6B").opacity(0.8) :
-                                    focusedField == .email ? .white.opacity(0.6) : .white.opacity(0.2),
-                                lineWidth: (!isEmailValid || focusedField == .email) ? 2 : 1.5
+                                focusedField == .email ? .white.opacity(0.6) : .white.opacity(0.2),
+                                lineWidth: focusedField == .email ? 2 : 1.5
                             )
                     )
                     .animation(.easeInOut(duration: 0.2), value: focusedField == .email)
-
-                if !isEmailValid {
-                    Text("Must be a @ucdavis.edu address")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Color(hex: "#FF6B6B"))
-                        .padding(.leading, 4)
-                        .transition(.opacity.animation(.easeInOut))
-                }
             }
         }
     }
