@@ -34,6 +34,7 @@ from api.users import users_bp
 from api.pipes import pipes_bp
 from api.analytics import analytics_bp
 from api.config import config_bp
+from api.social import social_bp
 
 # Load environment variables from .env file (for local development)
 load_dotenv()
@@ -112,6 +113,10 @@ def create_app() -> Flask:
     # Register the Config blueprint
     # App configuration (min version, feature flags) at /api/config
     app.register_blueprint(config_bp)
+
+    # Register the Social blueprint
+    # Likes, comments, and moderation at /api/social
+    app.register_blueprint(social_bp)
 
     # --------------------------------------------------------------------------
     # MARK: - Root Endpoint

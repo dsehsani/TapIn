@@ -18,6 +18,7 @@ struct EventDetailView: View {
     private var bulletPoints: [String] { event.aiBulletPoints }
     @State private var showAISummary: Bool = true
     @State private var locationCoordinate: CLLocationCoordinate2D?
+    @State private var showComments = false
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -213,6 +214,26 @@ struct EventDetailView: View {
                         }
                     }
 
+                    // MARK: - Like & Comments
+                    Divider()
+
+                    HStack(spacing: 20) {
+                        LikeButton(contentType: .event, contentId: event.id.uuidString)
+
+                        Button { showComments = true } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "bubble.right")
+                                    .font(.system(size: 16, weight: .medium))
+                                Text("Comments")
+                                    .font(.system(size: 13, weight: .medium))
+                            }
+                            .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+
+                        Spacer()
+                    }
+
                     // MARK: - Save Event Button
                     Button(action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
@@ -274,6 +295,10 @@ struct EventDetailView: View {
 
             // Floating nav buttons (matches ArticleDetailView pattern)
             floatingButtons
+        }
+        .sheet(isPresented: $showComments) {
+            CommentsView(contentType: .event, contentId: event.id.uuidString)
+                .presentationDetents([.medium, .large])
         }
         .overlay(alignment: .top) {
             if savedViewModel.showToast {

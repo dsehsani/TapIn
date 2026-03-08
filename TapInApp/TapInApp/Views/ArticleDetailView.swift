@@ -14,6 +14,7 @@ struct ArticleDetailView: View {
     @StateObject private var viewModel = ArticleDetailViewModel()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
+    @State private var showComments = false
 
     var body: some View {
         Group {
@@ -24,7 +25,9 @@ struct ArticleDetailView: View {
                 ArticleReadingView(
                     content: content,
                     colorScheme: colorScheme,
+                    articleId: article.id.uuidString,
                     isSaved: savedViewModel?.isArticleSaved(article) ?? false,
+                    showComments: $showComments,
                     onDismiss: { dismiss() },
                     onSave: { savedViewModel?.toggleArticleSaved(article) }
                 )
@@ -41,6 +44,10 @@ struct ArticleDetailView: View {
             viewModel.cancelReadTracking()
         }
         .navigationBarHidden(true)
+        .sheet(isPresented: $showComments) {
+            CommentsView(contentType: .article, contentId: article.id.uuidString)
+                .presentationDetents([.medium, .large])
+        }
         .overlay(alignment: .top) {
             if let svm = savedViewModel, svm.showToast {
                 SavedToast(
@@ -61,16 +68,20 @@ struct ArticleDetailView: View {
 private struct ArticleReadingView: View {
     let content: ArticleContent
     let colorScheme: ColorScheme
+    let articleId: String
     let onDismiss: () -> Void
     var onSave: () -> Void = {}
     @State private var isSaved: Bool
+    @Binding var showComments: Bool
 
-    init(content: ArticleContent, colorScheme: ColorScheme, isSaved: Bool, onDismiss: @escaping () -> Void, onSave: @escaping () -> Void) {
+    init(content: ArticleContent, colorScheme: ColorScheme, articleId: String, isSaved: Bool, showComments: Binding<Bool>, onDismiss: @escaping () -> Void, onSave: @escaping () -> Void) {
         self.content = content
         self.colorScheme = colorScheme
+        self.articleId = articleId
         self.onDismiss = onDismiss
         self.onSave = onSave
         self._isSaved = State(initialValue: isSaved)
+        self._showComments = showComments
     }
 
     var body: some View {
@@ -179,6 +190,19 @@ private struct ArticleReadingView: View {
                 Spacer()
 
                 HStack(spacing: 10) {
+                    // Like button
+                    LikeButton(contentType: .article, contentId: articleId)
+                        .padding(10)
+                        .background(.thinMaterial, in: Circle())
+
+                    // Comments button
+                    Button { showComments = true } label: {
+                        Image(systemName: "bubble.right")
+                            .font(.system(size: 15, weight: .semibold))
+                            .padding(10)
+                            .background(.thinMaterial, in: Circle())
+                    }
+
                     Button(action: {
                         isSaved.toggle()
                         onSave()

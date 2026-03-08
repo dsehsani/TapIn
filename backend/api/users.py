@@ -36,6 +36,7 @@ from google.cloud import storage as gcs
 
 from services import auth_service
 from services.firestore_client import is_firestore_connected
+from services.moderation import moderation_service
 from repositories.user_repository import user_repository, VALID_GAME_TYPES
 from middleware.auth_middleware import require_auth
 
@@ -385,6 +386,22 @@ def update_me():
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"success": False, "error": "Request body must be JSON"}), 400
+
+    # Moderate display name if being changed
+    display_name = data.get("username") or data.get("displayName")
+    if display_name and display_name.strip():
+        try:
+            if not moderation_service.moderate_display_name(display_name.strip()):
+                return jsonify({
+                    "success": False,
+                    "error": "This display name is not allowed. Please choose a different name."
+                }), 400
+        except Exception as e:
+            logger.error(f"Name moderation error (fail-closed): {e}")
+            return jsonify({
+                "success": False,
+                "error": "Unable to verify display name. Please try again."
+            }), 500
 
     try:
         user_repository.update_profile(g.user_id, data)

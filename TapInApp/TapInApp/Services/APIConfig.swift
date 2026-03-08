@@ -88,6 +88,23 @@ enum APIConfig {
     /// GET - Minimum required iOS version (for force update check)
     static var minVersionURL: String { "\(baseURL)api/config/min-version" }
 
+    // MARK: - Social Endpoints
+
+    /// POST - Toggle like
+    static var socialLikeURL: String { "\(baseURL)api/social/like" }
+
+    /// GET - Like status for a single item
+    static var socialLikeStatusURL: String { "\(baseURL)api/social/like-status" }
+
+    /// POST - Batch like status
+    static var socialBatchLikeStatusURL: String { "\(baseURL)api/social/like-status/batch" }
+
+    /// POST - Submit a comment
+    static var socialCommentURL: String { "\(baseURL)api/social/comment" }
+
+    /// GET - Fetch approved comments
+    static var socialCommentsURL: String { "\(baseURL)api/social/comments" }
+
     // MARK: - User Auth Endpoints
 
     /// POST - Apple Sign-In (sends identityToken + appleUserId)
