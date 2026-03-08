@@ -22,6 +22,9 @@ struct BackendUser: Codable {
     let username: String
     let email: String
     let authProvider: String
+    let interests: [String]?
+    let year: String?
+    let profileImageURL: String?
     let createdAt: String?
     let updatedAt: String?
 }
@@ -243,9 +246,9 @@ class UserAPIService {
 
     // MARK: - Update Profile
 
-    /// Updates the current user's profile fields (email, username).
+    /// Updates the current user's profile fields.
     /// Requires a valid backend JWT.
-    func updateProfile(token: String, email: String? = nil, username: String? = nil, interests: [String]? = nil) async throws {
+    func updateProfile(token: String, email: String? = nil, username: String? = nil, interests: [String]? = nil, year: String? = nil) async throws {
         guard let requestURL = URL(string: APIConfig.meURL) else {
             throw UserAPIError.invalidResponse
         }
@@ -254,6 +257,7 @@ class UserAPIService {
         if let email = email { body["email"] = email }
         if let username = username { body["username"] = username }
         if let interests = interests { body["interests"] = interests }
+        if let year = year { body["year"] = year }
 
         guard !body.isEmpty else { return }
 
@@ -279,6 +283,54 @@ class UserAPIService {
         if !result.success {
             throw UserAPIError.serverError(result.error ?? "Failed to update profile (HTTP \(http.statusCode))")
         }
+    }
+
+    // MARK: - Profile Image
+
+    /// Uploads a profile image to the backend (stored in GCS).
+    /// Returns the public URL of the uploaded image.
+    func uploadProfileImage(token: String, imageData: Data) async throws -> String {
+        guard let requestURL = URL(string: APIConfig.profileImageURL) else {
+            throw UserAPIError.invalidResponse
+        }
+
+        let body: [String: Any] = [
+            "imageData": imageData.base64EncodedString()
+        ]
+
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse else {
+            throw UserAPIError.invalidResponse
+        }
+
+        struct ImageUploadResponse: Codable {
+            let success: Bool
+            let profileImageURL: String?
+            let error: String?
+        }
+
+        let result = try JSONDecoder().decode(ImageUploadResponse.self, from: data)
+        if result.success, let url = result.profileImageURL {
+            return url
+        }
+        throw UserAPIError.serverError(result.error ?? "Failed to upload image (HTTP \(http.statusCode))")
+    }
+
+    /// Downloads a profile image from a URL.
+    func downloadProfileImage(from urlString: String) async throws -> Data {
+        guard let url = URL(string: urlString) else {
+            throw UserAPIError.invalidResponse
+        }
+        let (data, _) = try await URLSession.shared.data(from: url)
+        return data
     }
 
     // MARK: - Delete Account

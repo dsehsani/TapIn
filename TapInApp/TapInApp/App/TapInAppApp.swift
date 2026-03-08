@@ -46,6 +46,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 @main
 struct TapInAppApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+    @Environment(\.scenePhase) private var scenePhase
 
     // Use AppState.shared so the onboarding ViewModel and the
     // app gate both observe the exact same instance.
@@ -63,11 +64,7 @@ struct TapInAppApp: App {
         WindowGroup {
             Group {
                 if isCheckingSession {
-                    // Brief splash while validating session
-                    ZStack {
-                        Color(.systemBackground).ignoresSafeArea()
-                        ProgressView()
-                    }
+                    SplashView()
                 } else if needsForceUpdate {
                     ForceUpdateView()
                 } else if appState.isAuthenticated && !forceOnboarding {
@@ -78,20 +75,29 @@ struct TapInAppApp: App {
                         .environmentObject(appState)
                 }
             }
+            .animation(.easeInOut(duration: 0.4), value: isCheckingSession)
             .onOpenURL { url in
                 GIDSignIn.sharedInstance.handle(url)
             }
             .task {
                 if resetTips { OnboardingManager.shared.resetAllTips() }
-                // Check for required update before showing any UI
-                needsForceUpdate = await AppUpdateService.shared.isUpdateRequired()
-                guard !needsForceUpdate else { return }
-                await appState.restoreSession()
-                isCheckingSession = false
+                // Run update check and session restore in parallel
+                async let updateRequired = AppUpdateService.shared.isUpdateRequired()
+                async let sessionRestore: Void = appState.restoreSession()
+                needsForceUpdate = await updateRequired
+                _ = await sessionRestore
+                withAnimation { isCheckingSession = false }
                 // Only schedule reminders for users who have already completed onboarding
                 // (new users set their preference on the notification permission screen)
-                if appState.isAuthenticated {
+                if appState.isAuthenticated && !needsForceUpdate {
                     await NotificationService.shared.scheduleDailyFiveReminders()
+                }
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active && !isCheckingSession {
+                    Task {
+                        needsForceUpdate = await AppUpdateService.shared.isUpdateRequired()
+                    }
                 }
             }
             .alert(

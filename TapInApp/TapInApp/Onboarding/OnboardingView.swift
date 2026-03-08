@@ -9,6 +9,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     @StateObject private var viewModel = OnboardingViewModel()
+    @State private var hasAppeared = false
 
     var body: some View {
         ZStack {
@@ -63,7 +64,8 @@ struct OnboardingView: View {
                     ))
             }
         }
-        .animation(.easeInOut(duration: 0.35), value: viewModel.currentStep)
+        .animation(hasAppeared ? .easeInOut(duration: 0.35) : nil, value: viewModel.currentStep)
+        .onAppear { hasAppeared = true }
     }
 }
 

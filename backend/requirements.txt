@@ -43,3 +43,6 @@ requests>=2.31.0
 
 # Firebase Admin SDK (phone auth token verification)
 firebase-admin>=6.0.0
+
+# Google Cloud Storage (profile image uploads)
+google-cloud-storage>=2.14.0

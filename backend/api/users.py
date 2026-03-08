@@ -27,13 +27,19 @@
 #    DELETE /api/users/me/events/<event_id>     — cancel RSVP
 #
 
+import base64
+import logging
+import uuid
+
 from flask import Blueprint, request, jsonify, g
+from google.cloud import storage as gcs
+
 from services import auth_service
 from services.firestore_client import is_firestore_connected
 from repositories.user_repository import user_repository, VALID_GAME_TYPES
 from middleware.auth_middleware import require_auth
 
-import logging
+_GCS_BUCKET = "tapin-profile-images"
 
 logger = logging.getLogger(__name__)
 
@@ -389,6 +395,44 @@ def update_me():
     except Exception as e:
         logger.error(f"update_me error: {e}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@users_bp.route("/me/profile-image", methods=["POST"])
+@require_auth
+def upload_profile_image():
+    """
+    Upload a profile image (base64-encoded).
+
+    Request JSON: { "imageData": "<base64 string>" }
+    Response: { "success": true, "profileImageURL": "https://..." }
+    """
+    data = request.get_json(silent=True)
+    if not data or not data.get("imageData"):
+        return jsonify({"success": False, "error": "imageData is required"}), 400
+
+    try:
+        image_bytes = base64.b64decode(data["imageData"])
+
+        # Limit to 5 MB
+        if len(image_bytes) > 5 * 1024 * 1024:
+            return jsonify({"success": False, "error": "Image must be under 5 MB"}), 400
+
+        # Upload to GCS with a unique filename per user (overwrites previous)
+        client = gcs.Client()
+        bucket = client.bucket(_GCS_BUCKET)
+        blob_name = f"profiles/{g.user_id}.jpg"
+        blob = bucket.blob(blob_name)
+        blob.upload_from_string(image_bytes, content_type="image/jpeg")
+
+        public_url = f"https://storage.googleapis.com/{_GCS_BUCKET}/{blob_name}"
+
+        # Save URL to user profile in Firestore
+        user_repository.update_profile(g.user_id, {"profileImageURL": public_url})
+
+        return jsonify({"success": True, "profileImageURL": public_url}), 200
+    except Exception as e:
+        logger.error(f"upload_profile_image error: {e}")
+        return jsonify({"success": False, "error": "Failed to upload image"}), 500
 
 
 @users_bp.route("/me", methods=["DELETE"])

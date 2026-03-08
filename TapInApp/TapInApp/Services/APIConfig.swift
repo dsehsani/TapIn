@@ -83,6 +83,11 @@ enum APIConfig {
     /// GET - Claude proxy health check
     static var claudeHealthURL: String { "\(baseURL)api/claude/health" }
 
+    // MARK: - Config Endpoints
+
+    /// GET - Minimum required iOS version (for force update check)
+    static var minVersionURL: String { "\(baseURL)api/config/min-version" }
+
     // MARK: - User Auth Endpoints
 
     /// POST - Apple Sign-In (sends identityToken + appleUserId)
@@ -102,6 +107,9 @@ enum APIConfig {
 
     /// GET - Current user profile (requires Bearer token)
     static var meURL: String { "\(baseURL)api/users/me" }
+
+    /// POST - Upload profile image (base64, requires Bearer token)
+    static var profileImageURL: String { "\(baseURL)api/users/me/profile-image" }
 
     /// PATCH - Update game stats
     static func gameStatsURL(gameType: String) -> String {

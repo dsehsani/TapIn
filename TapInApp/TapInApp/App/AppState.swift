@@ -144,6 +144,23 @@ class AppState: ObservableObject {
     /// Signs out the current user
     func signOut() {
         NotificationService.shared.cancelAllReminders()
+
+        // Save profile image under a provider-scoped key before clearing,
+        // so it can be restored on re-login with the same account.
+        // Try all provider IDs: SMS userId, Apple userId, or the last-used
+        // provider key from localProfiles (covers Google sign-in).
+        var providerKey = smsUserId
+            ?? UserDefaults.standard.string(forKey: "appleUserId")
+            ?? ""
+        if providerKey.isEmpty, let email = currentUser?.email,
+           let profiles = UserDefaults.standard.dictionary(forKey: "localProfiles") as? [String: [String: String]] {
+            providerKey = profiles.first(where: { $0.value["email"] == email })?.key ?? ""
+        }
+        if !providerKey.isEmpty,
+           let imageData = UserDefaults.standard.data(forKey: "profileImageData") {
+            UserDefaults.standard.set(imageData, forKey: "profileImage_\(providerKey)")
+        }
+
         currentUser = nil
         isAuthenticated = false
         authError = nil
@@ -166,6 +183,7 @@ class AppState: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "tutorial_seen_echo")
         UserDefaults.standard.removeObject(forKey: "unseenNotificationEventIds")
         UserDefaults.standard.removeObject(forKey: "dau_tracked_actions")
+        // NOTE: localProfiles is intentionally NOT cleared on sign-out
         persistState()
     }
 
@@ -289,8 +307,24 @@ class AppState: ObservableObject {
         // Have a backend token but lost isAuthenticated — validate and restore
         if let token = backendToken {
             if let user = try? await UserAPIService.shared.fetchProfile(token: token) {
-                currentUser = User(name: user.username, email: user.email, year: nil)
+                currentUser = User(
+                    name: user.username,
+                    email: user.email,
+                    year: user.year,
+                    interests: user.interests
+                )
                 isAuthenticated = true
+
+                // Restore profile image from backend if not cached locally
+                if UserDefaults.standard.data(forKey: "profileImageData") == nil,
+                   let imageURL = user.profileImageURL, !imageURL.isEmpty {
+                    Task {
+                        if let data = try? await UserAPIService.shared.downloadProfileImage(from: imageURL) {
+                            UserDefaults.standard.set(data, forKey: "profileImageData")
+                        }
+                    }
+                }
+
                 persistState()
             }
         }

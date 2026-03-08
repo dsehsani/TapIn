@@ -8,7 +8,8 @@
 #  Collection: "users"
 #  Document schema:
 #    id, username, email, authProvider, appleUserId, googleUserId, phoneNumber,
-#    passwordHash, createdAt, updatedAt,
+#    passwordHash, interests [], year, profileImageURL,
+#    createdAt, updatedAt,
 #    gameStats {}, savedArticles [], readArticles [], eventRSVPs []
 #
 
@@ -84,6 +85,9 @@ class UserRepository:
             "googleUserId": google_user_id,
             "phoneNumber": phone_number,
             "passwordHash": password_hash,
+            "interests": [],
+            "year": "",
+            "profileImageURL": "",
             "createdAt": now,
             "updatedAt": now,
             "gameStats": _default_game_stats(),
@@ -166,9 +170,9 @@ class UserRepository:
     # --------------------------------------------------------------------------
 
     def update_profile(self, user_id: str, fields: dict) -> None:
-        """Update allowed profile fields (username, email).
+        """Update allowed profile fields.
         If email is provided, checks uniqueness first."""
-        allowed = {"username", "email"}
+        allowed = {"username", "email", "interests", "year", "profileImageURL"}
         updates = {k: v for k, v in fields.items() if k in allowed}
         if not updates:
             return

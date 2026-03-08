@@ -109,18 +109,28 @@ class OnboardingViewModel: ObservableObject {
             await registerWithBackend(displayName: name)
         }
 
-        // Push email to backend so it's stored in Firestore for uniqueness checks.
-        // (Phone auth doesn't include the email — it's collected during profile setup.)
-        if let token = AppState.shared.backendToken, !email.isEmpty {
-            try? await UserAPIService.shared.updateProfile(token: token, email: email)
-        }
-
-        // Push interests to backend if available
-        if let token = AppState.shared.backendToken, !selectedInterests.isEmpty {
+        // Push all profile fields to backend in one call
+        if let token = AppState.shared.backendToken {
             try? await UserAPIService.shared.updateProfile(
                 token: token,
-                interests: Array(selectedInterests)
+                email: email.isEmpty ? nil : email,
+                interests: selectedInterests.isEmpty ? nil : Array(selectedInterests),
+                year: year.isEmpty ? nil : year
             )
+        }
+
+        // Upload profile image to backend (GCS) — runs separately since it's large
+        if let token = AppState.shared.backendToken, let imageData = profileImageData {
+            do {
+                let imageURL = try await UserAPIService.shared.uploadProfileImage(
+                    token: token, imageData: imageData
+                )
+                AppState.shared.currentUser?.profileImageURL = imageURL
+            } catch {
+                #if DEBUG
+                print("Profile image upload (non-blocking): \(error.localizedDescription)")
+                #endif
+            }
         }
 
         // Now mark as authenticated (even if backend failed — user can still use app locally)
@@ -162,17 +172,79 @@ class OnboardingViewModel: ObservableObject {
         var profiles = UserDefaults.standard.dictionary(forKey: "localProfiles") as? [String: [String: String]] ?? [:]
         profiles[providerKey] = profile
         UserDefaults.standard.set(profiles, forKey: "localProfiles")
+
+        // Also persist profile image keyed to this provider (survives sign-out)
+        if let imageData = UserDefaults.standard.data(forKey: "profileImageData") {
+            UserDefaults.standard.set(imageData, forKey: "profileImage_\(providerKey)")
+        }
     }
 
     /// Looks up a previously-completed profile by provider user ID.
-    private func loadLocalProfile(providerKey: String) -> (name: String, email: String, year: String)? {
+    private func loadLocalProfile(providerKey: String) -> (name: String, email: String, year: String, interests: [String])? {
         guard let profiles = UserDefaults.standard.dictionary(forKey: "localProfiles") as? [String: [String: String]],
               let profile = profiles[providerKey] else { return nil }
+        let interests = (profile["interests"] ?? "")
+            .split(separator: ",")
+            .map(String.init)
+            .filter { !$0.isEmpty }
         return (
             name: profile["name"] ?? "Aggie Student",
             email: profile["email"] ?? "",
-            year: profile["year"] ?? ""
+            year: profile["year"] ?? "",
+            interests: interests
         )
+    }
+
+    /// Restores a returning user's profile data (interests, year, profile image) and marks
+    /// them as authenticated. Used by all three auth provider paths.
+    ///
+    /// Data priority: backend fields > local cache > empty
+    private func restoreUserData(providerKey: String, user: User, backendUser: BackendUser? = nil) {
+        var restored = user
+
+        // Restore interests: backend → local cache
+        if restored.interests == nil || restored.interests!.isEmpty {
+            if let backendInterests = backendUser?.interests, !backendInterests.isEmpty {
+                restored = User(name: restored.name, email: restored.email,
+                                year: restored.year, interests: backendInterests)
+            } else if let profiles = UserDefaults.standard.dictionary(forKey: "localProfiles") as? [String: [String: String]],
+                      let cached = profiles[providerKey],
+                      let interestsString = cached["interests"], !interestsString.isEmpty {
+                restored = User(name: restored.name, email: restored.email,
+                                year: restored.year,
+                                interests: interestsString.split(separator: ",").map(String.init))
+            }
+        }
+
+        // Restore year from backend if available
+        if restored.year == nil || restored.year!.isEmpty,
+           let backendYear = backendUser?.year, !backendYear.isEmpty {
+            restored = User(name: restored.name, email: restored.email,
+                            profileImageURL: restored.profileImageURL,
+                            year: backendYear, interests: restored.interests)
+        }
+
+        // Restore profile image: local provider cache first, then download from backend
+        if let imageData = UserDefaults.standard.data(forKey: "profileImage_\(providerKey)") {
+            UserDefaults.standard.set(imageData, forKey: "profileImageData")
+        } else if let imageURL = backendUser?.profileImageURL, !imageURL.isEmpty {
+            // Download from GCS in background — don't block login
+            Task {
+                do {
+                    let data = try await UserAPIService.shared.downloadProfileImage(from: imageURL)
+                    UserDefaults.standard.set(data, forKey: "profileImageData")
+                    UserDefaults.standard.set(data, forKey: "profileImage_\(providerKey)")
+                } catch {
+                    #if DEBUG
+                    print("Profile image download (non-blocking): \(error.localizedDescription)")
+                    #endif
+                }
+            }
+        }
+
+        AppState.shared.currentUser = restored
+        AppState.shared.isAuthenticated = true
+        AppState.shared.persistStatePublic()
     }
 
     /// Sends auth credentials to the backend to get a backend JWT.
@@ -284,13 +356,12 @@ class OnboardingViewModel: ObservableObject {
                         #if DEBUG
                         print("[Apple Auth] Returning user found in backend")
                         #endif
-                        AppState.shared.currentUser = User(
-                            name: user.username,
-                            email: user.email,
-                            year: nil
+                        restoreUserData(
+                            providerKey: credential.user,
+                            user: User(name: user.username, email: user.email,
+                                       year: user.year, interests: user.interests),
+                            backendUser: user
                         )
-                        AppState.shared.isAuthenticated = true
-                        AppState.shared.persistStatePublic()
                         appleSignInDelegate = nil
                         isLoading = false
                         return
@@ -312,13 +383,15 @@ class OnboardingViewModel: ObservableObject {
                 #if DEBUG
                 print("[Apple Auth] Restoring from local profile cache")
                 #endif
-                AppState.shared.currentUser = User(
-                    name: localProfile.name,
-                    email: localProfile.email,
-                    year: localProfile.year
+                restoreUserData(
+                    providerKey: credential.user,
+                    user: User(
+                        name: localProfile.name,
+                        email: localProfile.email,
+                        year: localProfile.year,
+                        interests: localProfile.interests
+                    )
                 )
-                AppState.shared.isAuthenticated = true
-                AppState.shared.persistStatePublic()
                 appleSignInDelegate = nil
                 isLoading = false
                 return
@@ -436,13 +509,13 @@ class OnboardingViewModel: ObservableObject {
 
                 if backendResult.isNewUser == false, let user = backendResult.user {
                     // Returning user — skip profile setup, go straight to main app
-                    AppState.shared.currentUser = User(
-                        name: user.username,
-                        email: user.email,
-                        year: nil
+                    let phoneProviderKey = AppState.shared.smsUserId ?? ""
+                    restoreUserData(
+                        providerKey: phoneProviderKey,
+                        user: User(name: user.username, email: user.email,
+                                   year: user.year, interests: user.interests),
+                        backendUser: user
                     )
-                    AppState.shared.isAuthenticated = true
-                    AppState.shared.persistStatePublic()
                     isLoading = false
                     return
                 }
@@ -516,13 +589,12 @@ class OnboardingViewModel: ObservableObject {
                     #if DEBUG
                     print("[Google Auth] Returning user found in backend")
                     #endif
-                    AppState.shared.currentUser = User(
-                        name: existingUser.username,
-                        email: existingUser.email,
-                        year: nil
+                    restoreUserData(
+                        providerKey: googleId,
+                        user: User(name: existingUser.username, email: existingUser.email,
+                                   year: existingUser.year, interests: existingUser.interests),
+                        backendUser: existingUser
                     )
-                    AppState.shared.isAuthenticated = true
-                    AppState.shared.persistStatePublic()
                     isLoading = false
                     return
                 }
@@ -542,13 +614,15 @@ class OnboardingViewModel: ObservableObject {
                 #if DEBUG
                 print("[Google Auth] Restoring from local profile cache")
                 #endif
-                AppState.shared.currentUser = User(
-                    name: localProfile.name,
-                    email: localProfile.email,
-                    year: localProfile.year
+                restoreUserData(
+                    providerKey: googleId,
+                    user: User(
+                        name: localProfile.name,
+                        email: localProfile.email,
+                        year: localProfile.year,
+                        interests: localProfile.interests
+                    )
                 )
-                AppState.shared.isAuthenticated = true
-                AppState.shared.persistStatePublic()
                 isLoading = false
                 return
             }

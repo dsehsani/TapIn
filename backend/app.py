@@ -33,6 +33,7 @@ from api.articles import articles_bp
 from api.users import users_bp
 from api.pipes import pipes_bp
 from api.analytics import analytics_bp
+from api.config import config_bp
 
 # Load environment variables from .env file (for local development)
 load_dotenv()
@@ -107,6 +108,10 @@ def create_app() -> Flask:
     # Register the Analytics blueprint
     # DAU tracking and dashboard at /api/analytics
     app.register_blueprint(analytics_bp)
+
+    # Register the Config blueprint
+    # App configuration (min version, feature flags) at /api/config
+    app.register_blueprint(config_bp)
 
     # --------------------------------------------------------------------------
     # MARK: - Root Endpoint
