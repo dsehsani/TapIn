@@ -26,6 +26,19 @@ struct PipesGameView: View {
             Color.adaptiveBackground(colorScheme)
                 .ignoresSafeArea()
 
+            if viewModel.isLoadingPuzzle {
+                VStack(spacing: 16) {
+                    header
+                    Spacer()
+                    ProgressView()
+                        .scaleEffect(1.3)
+                        .tint(Color.ucdGold)
+                    Text("Loading today's puzzles...")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+            } else {
             VStack(spacing: 16) {
                 header
 
@@ -82,11 +95,12 @@ struct PipesGameView: View {
 
                 Spacer()
             }
+            }
 
             // MARK: - Overlays (mutually exclusive, priority order)
 
             // 1. "Just completed all 5" celebration — user solved the last one this session
-            if viewModel.justCompletedAll {
+            if !viewModel.isLoadingPuzzle && viewModel.justCompletedAll {
                 allCompleteOverlay
             }
             // 2. "Just solved a single puzzle" — brief toast, then auto-advance
@@ -113,11 +127,11 @@ struct PipesGameView: View {
                 .zIndex(1)
             }
             // 3. "Already completed today" — re-entry when all 5 were done previously
-            else if viewModel.alreadyCompletedToday {
+            else if !viewModel.isLoadingPuzzle && viewModel.alreadyCompletedToday {
                 alreadyCompletedOverlay
             }
             // 4. Tutorial / start screen — only for fresh day (no progress)
-            else if showStartScreen && viewModel.gameState == .playing {
+            else if !viewModel.isLoadingPuzzle && showStartScreen && viewModel.gameState == .playing {
                 GameTutorialOverlay(
                     gameName: "Pipes",
                     gameIcon: "point.topleft.down.to.point.bottomright.curvepath.fill",

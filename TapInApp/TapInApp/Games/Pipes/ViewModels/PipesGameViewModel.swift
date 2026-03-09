@@ -72,6 +72,7 @@ class PipesGameViewModel {
     init() {
         currentPuzzle = PipesPuzzleProvider.shared.puzzleForDate()
         gridSize = currentPuzzle.size
+        isLoadingPuzzle = true  // Start in loading state until loadDailyFive() completes
         rebuildGrid()
     }
 
@@ -177,6 +178,7 @@ class PipesGameViewModel {
         }) ?? 0
 
         loadPuzzle(at: startIndex)
+         isLoadingPuzzle = false
     }
 
     // MARK: - Puzzle Switching
