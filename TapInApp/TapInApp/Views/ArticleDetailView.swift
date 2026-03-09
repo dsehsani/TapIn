@@ -14,8 +14,6 @@ struct ArticleDetailView: View {
     @StateObject private var viewModel = ArticleDetailViewModel()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
-    @State private var showComments = false
-
     var body: some View {
         Group {
             switch viewModel.loadState {
@@ -25,9 +23,8 @@ struct ArticleDetailView: View {
                 ArticleReadingView(
                     content: content,
                     colorScheme: colorScheme,
-                    articleId: article.id.uuidString,
+                    articleId: article.socialId,
                     isSaved: savedViewModel?.isArticleSaved(article) ?? false,
-                    showComments: $showComments,
                     onDismiss: { dismiss() },
                     onSave: { savedViewModel?.toggleArticleSaved(article) }
                 )
@@ -44,10 +41,6 @@ struct ArticleDetailView: View {
             viewModel.cancelReadTracking()
         }
         .navigationBarHidden(true)
-        .sheet(isPresented: $showComments) {
-            CommentsView(contentType: .article, contentId: article.id.uuidString)
-                .presentationDetents([.medium, .large])
-        }
         .overlay(alignment: .top) {
             if let svm = savedViewModel, svm.showToast {
                 SavedToast(
@@ -72,16 +65,14 @@ private struct ArticleReadingView: View {
     let onDismiss: () -> Void
     var onSave: () -> Void = {}
     @State private var isSaved: Bool
-    @Binding var showComments: Bool
 
-    init(content: ArticleContent, colorScheme: ColorScheme, articleId: String, isSaved: Bool, showComments: Binding<Bool>, onDismiss: @escaping () -> Void, onSave: @escaping () -> Void) {
+    init(content: ArticleContent, colorScheme: ColorScheme, articleId: String, isSaved: Bool, onDismiss: @escaping () -> Void, onSave: @escaping () -> Void) {
         self.content = content
         self.colorScheme = colorScheme
         self.articleId = articleId
         self.onDismiss = onDismiss
         self.onSave = onSave
         self._isSaved = State(initialValue: isSaved)
-        self._showComments = showComments
     }
 
     var body: some View {
@@ -195,28 +186,19 @@ private struct ArticleReadingView: View {
                         .padding(10)
                         .background(.thinMaterial, in: Circle())
 
-                    // Comments button
-                    Button { showComments = true } label: {
-                        Image(systemName: "bubble.right")
-                            .font(.system(size: 15, weight: .semibold))
-                            .padding(10)
-                            .background(.thinMaterial, in: Circle())
-                    }
-
-                    Button(action: {
-                        isSaved.toggle()
-                        onSave()
-                    }) {
-                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(isSaved ? (colorScheme == .dark ? Color.ucdGold : Color.ucdBlue) : .primary)
-                            .padding(10)
-                            .background(.thinMaterial, in: Circle())
-                            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isSaved)
-                    }
-
-                    ShareLink(item: content.articleURL) {
-                        Image(systemName: "square.and.arrow.up")
+                    // Overflow menu (share + save)
+                    Menu {
+                        Button(action: {
+                            isSaved.toggle()
+                            onSave()
+                        }) {
+                            Label(isSaved ? "Unsave" : "Save", systemImage: isSaved ? "bookmark.fill" : "bookmark")
+                        }
+                        ShareLink(item: content.articleURL) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
                             .font(.system(size: 15, weight: .semibold))
                             .padding(10)
                             .background(.thinMaterial, in: Circle())

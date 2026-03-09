@@ -1,14 +1,14 @@
 //
-//  LikeButton.swift
+//  CardLikeIndicator.swift
 //  TapInApp
 //
-//  Reusable like button with optimistic updates and animation.
+//  Compact tappable like button for feed cards.
 //  Observes SocialService.likeCache for shared, reactive like state.
 //
 
 import SwiftUI
 
-struct LikeButton: View {
+struct CardLikeIndicator: View {
     let contentType: ContentType
     let contentId: String
 
@@ -24,13 +24,13 @@ struct LikeButton: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: status.liked ? "heart.fill" : "heart")
-                    .font(.system(size: 20, weight: .medium))
+                    .font(.system(size: 15, weight: .medium))
                     .foregroundColor(status.liked ? .red : .secondary)
                     .scaleEffect(isAnimating ? 1.3 : 1.0)
                     .animation(.spring(response: 0.3, dampingFraction: 0.5), value: isAnimating)
 
                 Text("\(status.likeCount)")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.secondary)
             }
         }
@@ -55,10 +55,8 @@ struct LikeButton: View {
         let newLiked = !wasLiked
         let newCount = max(0, oldCount + (newLiked ? 1 : -1))
 
-        // Start cooldown — all refreshes will ignore this key for 5 seconds
         socialService.startToggleCooldown(contentType: contentType, contentId: contentId)
 
-        // Optimistic update — writes to shared cache, all observers see it
         socialService.updateCache(
             contentType: contentType, contentId: contentId,
             status: LikeStatus(liked: newLiked, likeCount: newCount)
@@ -72,14 +70,12 @@ struct LikeButton: View {
                 let (liked, count) = try await SocialService.shared.toggleLike(
                     contentType: contentType, contentId: contentId
                 )
-                // Server confirmed — update with real values, refresh cooldown timer
                 socialService.startToggleCooldown(contentType: contentType, contentId: contentId)
                 socialService.updateCache(
                     contentType: contentType, contentId: contentId,
                     status: LikeStatus(liked: liked, likeCount: count)
                 )
             } catch {
-                // Revert on failure
                 socialService.updateCache(
                     contentType: contentType, contentId: contentId,
                     status: LikeStatus(liked: wasLiked, likeCount: oldCount)

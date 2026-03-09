@@ -14,120 +14,135 @@ struct FeaturedArticleCard: View {
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 0) {
-                // Image Section
-                ZStack(alignment: .topLeading) {
-                    if let url = URL(string: article.imageURL), !article.imageURL.isEmpty {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(16/10, contentMode: .fill)
-                            case .failure(_):
-                                categoryPlaceholder
-                            case .empty:
-                                categoryPlaceholder
-                                    .overlay(ProgressView())
-                            @unknown default:
-                                categoryPlaceholder
-                            }
+        VStack(alignment: .leading, spacing: 0) {
+            // Image Section
+            ZStack {
+                if let url = URL(string: article.imageURL), !article.imageURL.isEmpty {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(16/10, contentMode: .fill)
+                        case .failure(_):
+                            categoryPlaceholder
+                        case .empty:
+                            categoryPlaceholder
+                                .overlay(ProgressView())
+                        @unknown default:
+                            categoryPlaceholder
                         }
-                        .aspectRatio(16/10, contentMode: .fill)
-                    } else {
-                        categoryPlaceholder
                     }
-
-                    // Featured Badge
-                    if article.isFeatured {
-                        Text("FEATURED")
-                            .font(.system(size: 10, weight: .black))
-                            .tracking(1.5)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 4)
-                            .background(Color.accentCoral)
-                            .clipShape(Capsule())
-                            .shadow(color: Color.accentCoral.opacity(0.3), radius: 4, x: 0, y: 2)
-                            .padding(16)
-                    }
+                    .aspectRatio(16/10, contentMode: .fill)
+                } else {
+                    categoryPlaceholder
                 }
-                .clipped()
 
-                // Content Section
-                VStack(alignment: .leading, spacing: 12) {
-                    // Category and Timestamp
-                    HStack(spacing: 8) {
-                        Text(article.category.uppercased())
-                            .font(.system(size: 12, weight: .bold))
-                            .tracking(1.5)
-                            .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
-
-                        Text("•")
-                            .foregroundColor(.textSecondary)
-
-                        Text(article.timestamp.timeAgoDisplay())
-                            .font(.system(size: 12))
-                            .foregroundColor(.textMuted)
-                    }
-
-                    // Title
-                    Text(article.title)
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-
-                    // Excerpt
-                    Text(article.excerpt)
-                        .font(.system(size: 14))
-                        .foregroundColor(colorScheme == .dark ? Color(hex: "#94a3b8") : Color(hex: "#475569"))
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-
-                    // Footer
+                // Featured Badge — top left, Like — top right
+                VStack {
                     HStack {
-                        if let author = article.author {
-                            Text("By \(author)")
-                                .font(.system(size: 12))
-                                .italic()
-                                .foregroundColor(.textSecondary)
+                        if article.isFeatured {
+                            Text("FEATURED")
+                                .font(.system(size: 10, weight: .black))
+                                .tracking(1.5)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 4)
+                                .background(Color.accentCoral)
+                                .clipShape(Capsule())
+                                .shadow(color: Color.accentCoral.opacity(0.3), radius: 4, x: 0, y: 2)
                         }
 
                         Spacer()
 
-                        HStack(spacing: 4) {
-                            Text("Read More")
-                                .font(.system(size: 14, weight: .bold))
-
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .bold))
-                        }
-                        .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+                        // Like button — top right, isolated from card tap
+                        CardLikeIndicator(contentType: .article, contentId: article.socialId)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Capsule())
                     }
-                    .padding(.top, 8)
+                    Spacer()
                 }
-                .padding(20)
-                .overlay(
-                    Rectangle()
-                        .fill(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f8fafc"))
-                        .frame(height: 1),
-                    alignment: .top
-                )
+                .padding(16)
             }
-            .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .clipped()
+            .contentShape(Rectangle())
+            .onTapGesture { onTap() }
+
+            // Content Section
+            VStack(alignment: .leading, spacing: 12) {
+                // Category and Timestamp
+                HStack(spacing: 8) {
+                    Text(article.category.uppercased())
+                        .font(.system(size: 12, weight: .bold))
+                        .tracking(1.5)
+                        .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+
+                    Text("•")
+                        .foregroundColor(.textSecondary)
+
+                    Text(article.timestamp.timeAgoDisplay())
+                        .font(.system(size: 12))
+                        .foregroundColor(.textMuted)
+                }
+
+                // Title
+                Text(article.title)
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+
+                // Excerpt
+                Text(article.excerpt)
+                    .font(.system(size: 14))
+                    .foregroundColor(colorScheme == .dark ? Color(hex: "#94a3b8") : Color(hex: "#475569"))
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+
+                // Footer
+                HStack {
+                    if let author = article.author {
+                        Text("By \(author)")
+                            .font(.system(size: 12))
+                            .italic()
+                            .foregroundColor(.textSecondary)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 4) {
+                        Text("Read More")
+                            .font(.system(size: 14, weight: .bold))
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+                }
+                .padding(.top, 8)
+            }
+            .padding(20)
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(
-                        colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"),
-                        lineWidth: 1
-                    )
+                Rectangle()
+                    .fill(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f8fafc"))
+                    .frame(height: 1),
+                alignment: .top
             )
-            .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
+            .contentShape(Rectangle())
+            .onTapGesture { onTap() }
         }
-        .buttonStyle(PlainButtonStyle())
+        .background(colorScheme == .dark ? Color(hex: "#0f172a") : .white)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(
+                    colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#f1f5f9"),
+                    lineWidth: 1
+                )
+        )
+        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         .padding(.horizontal, 16)
     }
 

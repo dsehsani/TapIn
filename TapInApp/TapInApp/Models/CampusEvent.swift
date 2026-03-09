@@ -126,6 +126,19 @@ struct CampusEvent: Identifiable, Equatable, Codable {
 
 import SwiftUI
 
+// MARK: - Stable Social ID
+extension CampusEvent {
+    /// Deterministic ID for likes/comments — same across all devices.
+    /// Uses title + date (stable from backend) instead of the random UUID.
+    var socialId: String {
+        let formatter = ISO8601DateFormatter()
+        let key = "\(title)_\(formatter.string(from: date))"
+        // Replace chars invalid in Firestore doc IDs
+        return key.replacingOccurrences(of: "/", with: "_")
+                  .replacingOccurrences(of: ".", with: "_")
+    }
+}
+
 enum EventDateUrgency {
     case today
     case tomorrow

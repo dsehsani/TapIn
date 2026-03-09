@@ -208,9 +208,12 @@ struct ForYouEventCard: View {
                     .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
                     .lineLimit(1)
 
-                    // Save row
-                    HStack {
+                    // Like + Save row
+                    HStack(spacing: 8) {
                         Spacer()
+
+                        CardLikeIndicator(contentType: .event, contentId: event.socialId)
+
                         Button(action: {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                                 savedViewModel.toggleEventSaved(event)

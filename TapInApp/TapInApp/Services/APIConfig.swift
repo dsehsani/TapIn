@@ -99,12 +99,6 @@ enum APIConfig {
     /// POST - Batch like status
     static var socialBatchLikeStatusURL: String { "\(baseURL)api/social/like-status/batch" }
 
-    /// POST - Submit a comment
-    static var socialCommentURL: String { "\(baseURL)api/social/comment" }
-
-    /// GET - Fetch approved comments
-    static var socialCommentsURL: String { "\(baseURL)api/social/comments" }
-
     // MARK: - User Auth Endpoints
 
     /// POST - Apple Sign-In (sends identityToken + appleUserId)

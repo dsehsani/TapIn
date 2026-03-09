@@ -2,56 +2,110 @@
 //  SocialService.swift
 //  TapInApp
 //
-//  Service layer for likes and comments. All data is persisted
-//  server-side in Firestore — nothing stored locally.
+//  Service layer for likes with shared in-memory cache.
+//  All data is persisted server-side in Firestore.
+//  Views observe likeCache via @Published for automatic updates.
 //
 
 import Foundation
+import Combine
 
 // MARK: - Models
 
 enum ContentType: String, Codable {
-    case article, event, comment
+    case article, event
 }
 
-struct LikeStatus {
+struct LikeStatus: Equatable {
     let liked: Bool
     let likeCount: Int
-}
-
-struct Comment: Identifiable, Codable {
-    let id: String
-    let authorName: String
-    let body: String
-    var likeCount: Int
-    var likedByMe: Bool
-    let createdAt: String
-    let isMine: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case id = "comment_id"
-        case authorName = "author_name"
-        case body
-        case likeCount = "like_count"
-        case likedByMe = "liked_by_me"
-        case createdAt = "created_at"
-        case isMine = "is_mine"
-    }
-}
-
-struct CommentsPage {
-    let comments: [Comment]
-    let total: Int
-    let page: Int
-    let hasMore: Bool
 }
 
 // MARK: - Social Service
 
 @MainActor
-final class SocialService {
+final class SocialService: ObservableObject {
     static let shared = SocialService()
     private init() {}
+
+    /// Shared like cache — keyed by "<contentType>_<contentId>".
+    /// Views observe this via @ObservedObject for automatic UI updates.
+    @Published private(set) var likeCache: [String: LikeStatus] = [:]
+
+    /// After a toggle, ignore refresh results for this key until the cooldown expires.
+    /// This prevents stale Firestore reads from overwriting the optimistic/confirmed state.
+    private var toggleCooldowns: [String: Date] = [:]
+
+    /// How long to protect a key after a toggle (seconds).
+    /// Gives Firestore transaction time to commit + propagate.
+    private let cooldownDuration: TimeInterval = 5
+
+    // MARK: - Cache Helpers
+
+    func cacheKey(_ contentType: ContentType, _ contentId: String) -> String {
+        "\(contentType.rawValue)_\(contentId)"
+    }
+
+    /// Update cache entry. All observers (LikeButton, CardLikeIndicator) update automatically.
+    func updateCache(contentType: ContentType, contentId: String, status: LikeStatus) {
+        likeCache[cacheKey(contentType, contentId)] = status
+    }
+
+    /// Start cooldown for a key — refresh results will be ignored until it expires.
+    func startToggleCooldown(contentType: ContentType, contentId: String) {
+        let key = cacheKey(contentType, contentId)
+        toggleCooldowns[key] = Date().addingTimeInterval(cooldownDuration)
+    }
+
+    /// Check if a key is still in its cooldown window.
+    private func isInCooldown(_ key: String) -> Bool {
+        guard let expiry = toggleCooldowns[key] else { return false }
+        if Date() < expiry {
+            return true
+        }
+        // Cooldown expired — clean up
+        toggleCooldowns.removeValue(forKey: key)
+        return false
+    }
+
+    /// Prefetch and cache like status for a batch of items.
+    /// Call this when a feed loads its items — replaces N individual calls with 1 batch call.
+    /// Always fetches from server (no skip for cached items) to ensure fresh counts.
+    func prefetchLikeStatus(items: [(ContentType, String)]) async {
+        guard !items.isEmpty else { return }
+        do {
+            let statuses = try await batchLikeStatus(items: items)
+            for (key, status) in statuses {
+                // Don't overwrite items in cooldown (recently toggled)
+                guard !isInCooldown(key) else { continue }
+                likeCache[key] = status
+            }
+        } catch { /* silent */ }
+    }
+
+    /// Refresh cache for all currently-tracked items.
+    /// Call on foreground return, pull-to-refresh, or a timer.
+    func refreshAllCachedLikes() async {
+        let items: [(ContentType, String)] = likeCache.keys.compactMap { key in
+            // Skip items in cooldown
+            guard !isInCooldown(key) else { return nil }
+            // Key format: "article_<socialId>" or "event_<socialId>"
+            guard let separatorIndex = key.firstIndex(of: "_") else { return nil }
+            let typeStr = String(key[key.startIndex..<separatorIndex])
+            let idStr = String(key[key.index(after: separatorIndex)...])
+            guard let ct = ContentType(rawValue: typeStr) else { return nil }
+            return (ct, idStr)
+        }
+        guard !items.isEmpty else { return }
+        do {
+            let statuses = try await batchLikeStatus(items: items)
+            for (key, status) in statuses {
+                // Double-check cooldown (might have started during the network call)
+                guard !isInCooldown(key) else { continue }
+                likeCache[key] = status
+            }
+        } catch { /* silent */ }
+    }
 
     // MARK: - Likes
 
@@ -78,7 +132,9 @@ final class SocialService {
             throw SocialError.notAuthenticated
         }
 
-        let urlString = "\(APIConfig.socialLikeStatusURL)?content_type=\(contentType.rawValue)&content_id=\(contentId)"
+        let encodedType = contentType.rawValue.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? contentType.rawValue
+        let encodedId = contentId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? contentId
+        let urlString = "\(APIConfig.socialLikeStatusURL)?content_type=\(encodedType)&content_id=\(encodedId)"
         let result = try await get(url: urlString, token: token)
         return LikeStatus(
             liked: result["liked"] as? Bool ?? false,
@@ -108,74 +164,6 @@ final class SocialService {
         return statuses
     }
 
-    // MARK: - Comments
-
-    /// Submit a new comment. Returns immediately — comment enters moderation.
-    func postComment(contentType: ContentType, contentId: String, body: String) async throws {
-        guard let token = AppState.shared.backendToken else {
-            throw SocialError.notAuthenticated
-        }
-
-        let requestBody: [String: Any] = [
-            "content_type": contentType.rawValue,
-            "content_id": contentId,
-            "body": body
-        ]
-
-        _ = try await post(url: APIConfig.socialCommentURL, token: token, body: requestBody)
-    }
-
-    /// Fetch approved comments for a piece of content.
-    func fetchComments(contentType: ContentType, contentId: String, page: Int = 1) async throws -> CommentsPage {
-        guard let token = AppState.shared.backendToken else {
-            throw SocialError.notAuthenticated
-        }
-
-        let urlString = "\(APIConfig.socialCommentsURL)?content_type=\(contentType.rawValue)&content_id=\(contentId)&page=\(page)"
-        let result = try await get(url: urlString, token: token)
-
-        var comments: [Comment] = []
-        if let data = try? JSONSerialization.data(withJSONObject: result["comments"] ?? []),
-           let decoded = try? JSONDecoder().decode([Comment].self, from: data) {
-            comments = decoded
-        }
-
-        return CommentsPage(
-            comments: comments,
-            total: result["total"] as? Int ?? 0,
-            page: result["page"] as? Int ?? 1,
-            hasMore: result["has_more"] as? Bool ?? false
-        )
-    }
-
-    /// Delete own comment.
-    func deleteComment(commentId: String, contentType: ContentType, contentId: String) async throws {
-        guard let token = AppState.shared.backendToken else {
-            throw SocialError.notAuthenticated
-        }
-
-        guard let requestURL = URL(string: "\(APIConfig.socialCommentURL)/\(commentId)") else {
-            throw SocialError.invalidURL
-        }
-
-        let body: [String: Any] = [
-            "content_type": contentType.rawValue,
-            "content_id": contentId
-        ]
-
-        var request = URLRequest(url: requestURL)
-        request.httpMethod = "DELETE"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 15
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (_, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw SocialError.serverError
-        }
-    }
-
     // MARK: - Private Helpers
 
     private func post(url: String, token: String, body: [String: Any]) async throws -> [String: Any] {
@@ -190,9 +178,6 @@ final class SocialService {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            if let http = response as? HTTPURLResponse, http.statusCode == 429 {
-                throw SocialError.rateLimited
-            }
             throw SocialError.serverError
         }
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -226,14 +211,12 @@ enum SocialError: LocalizedError {
     case notAuthenticated
     case invalidURL
     case serverError
-    case rateLimited
 
     var errorDescription: String? {
         switch self {
         case .notAuthenticated: return "Please sign in to continue."
         case .invalidURL: return "Invalid request."
         case .serverError: return "Something went wrong. Please try again."
-        case .rateLimited: return "Too many comments. Please wait a few minutes."
         }
     }
 }

@@ -44,6 +44,22 @@ struct NewsArticle: Identifiable {
     }
 }
 
+// MARK: - Stable Social ID
+extension NewsArticle {
+    /// Deterministic ID for likes/comments — same across all devices.
+    /// Uses articleURL (stable from backend) instead of the random UUID.
+    var socialId: String {
+        if let url = articleURL, !url.isEmpty {
+            // Replace chars invalid in Firestore doc IDs
+            return url.replacingOccurrences(of: "https://", with: "")
+                      .replacingOccurrences(of: "http://", with: "")
+                      .replacingOccurrences(of: "/", with: "_")
+                      .replacingOccurrences(of: ".", with: "_")
+        }
+        return id.uuidString
+    }
+}
+
 // MARK: - Helpers
 extension NewsArticle {
     /// Returns an SF Symbol name matching the article's category, used as a fallback when no image is available.

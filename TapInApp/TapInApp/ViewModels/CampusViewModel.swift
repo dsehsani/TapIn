@@ -43,6 +43,10 @@ class CampusViewModel: ObservableObject {
             allEvents = fetched.map { resolveLocation($0) }
             applyFilter()
             generateMissingSummaries()
+
+            // Batch prefetch like status for all events
+            let likeItems = allEvents.map { (ContentType.event, $0.socialId) }
+            await SocialService.shared.prefetchLikeStatus(items: likeItems)
         } catch {
             errorMessage = error.localizedDescription
             // Fall back to sample data if network fails

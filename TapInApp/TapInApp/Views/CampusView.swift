@@ -233,18 +233,22 @@ struct EventCard: View {
 
                 Spacer()
 
-                // Save Toggle
-                Button(action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                        savedViewModel.toggleEventSaved(event)
+                HStack(spacing: 12) {
+                    CardLikeIndicator(contentType: .event, contentId: event.socialId)
+
+                    // Save Toggle
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                            savedViewModel.toggleEventSaved(event)
+                        }
+                    }) {
+                        Image(systemName: savedViewModel.isEventSaved(event) ? "bookmark.fill" : "bookmark")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(savedViewModel.isEventSaved(event) ? (colorScheme == .dark ? Color.ucdGold : Color.ucdBlue) : .textSecondary)
                     }
-                }) {
-                    Image(systemName: savedViewModel.isEventSaved(event) ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(savedViewModel.isEventSaved(event) ? (colorScheme == .dark ? Color.ucdGold : Color.ucdBlue) : .textSecondary)
+                    .buttonStyle(.plain)
+                    .sensoryFeedback(.impact(weight: .medium), trigger: savedViewModel.isEventSaved(event))
                 }
-                .buttonStyle(.plain)
-                .sensoryFeedback(.impact(weight: .medium), trigger: savedViewModel.isEventSaved(event))
             }
         }
         .padding(16)

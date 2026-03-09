@@ -307,6 +307,12 @@ class NewsViewModel: ObservableObject {
         articles = processed
         featuredArticle = processed.first
         latestArticles = Array(processed.dropFirst())
+
+        // Batch prefetch like status for all articles
+        Task {
+            let likeItems = processed.map { (ContentType.article, $0.socialId) }
+            await SocialService.shared.prefetchLikeStatus(items: likeItems)
+        }
     }
 
     private func loadSampleData() {

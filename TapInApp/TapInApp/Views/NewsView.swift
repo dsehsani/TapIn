@@ -451,6 +451,8 @@ struct ArticleRowCard: View {
                                 .font(.system(size: 11))
                         }
                         Spacer()
+                        CardLikeIndicator(contentType: .article, contentId: article.socialId)
+                            .padding(.trailing, 6)
                         Button(action: {
                             onSave()
                         }) {

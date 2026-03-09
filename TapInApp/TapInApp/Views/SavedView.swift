@@ -219,6 +219,8 @@ struct SavedArticleRow: View {
             Spacer(minLength: 0)
 
             VStack(spacing: 6) {
+                CardLikeIndicator(contentType: .article, contentId: article.socialId)
+
                 // Bookmark indicator
                 Image(systemName: "bookmark.fill")
                     .font(.system(size: 16))
@@ -311,7 +313,7 @@ struct SavedEventRow: View {
                     .lineLimit(2)
             }
 
-            // Bottom row: time + location + status badge
+            // Bottom row: time + location + like + status badge
             HStack(spacing: 16) {
                 HStack(spacing: 6) {
                     Image(systemName: "clock.fill")
@@ -333,6 +335,8 @@ struct SavedEventRow: View {
                             .lineLimit(1)
                     }
                 }
+
+                CardLikeIndicator(contentType: .event, contentId: event.socialId)
 
                 Spacer()
 
