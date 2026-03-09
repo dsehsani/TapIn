@@ -127,10 +127,10 @@ The solution paths must:
     def generate_puzzle_set(self, difficulties: list, grid_size: int = 5) -> list:
         """
         Generate multiple puzzles for a daily-five set.
-        Guarantees all 5 puzzles are distinct templates.
+        Guarantees all 5 puzzles are distinct and progressively difficult.
 
-        Uses deterministic template selection (seeded by date) to guarantee
-        distinct puzzles. AI generation is used for the single /daily endpoint.
+        Tries Claude API first for unique AI-generated puzzles.
+        Falls back to difficulty-matched deterministic templates.
 
         Args:
             difficulties: List of difficulty strings, e.g. ["easy", "easy", "medium", "medium", "hard"]
@@ -139,32 +139,389 @@ The solution paths must:
         Returns:
             List of puzzle dicts (without solutions)
         """
+        # Try Claude API generation first
+        try:
+            if self.api_key:
+                puzzles = self._generate_ai_puzzle_set(difficulties, grid_size)
+                if puzzles and len(puzzles) == len(difficulties):
+                    logger.info(f"Generated {len(puzzles)} unique AI puzzles")
+                    return puzzles
+                logger.warning("AI puzzle set incomplete, falling back to templates")
+        except Exception as e:
+            logger.warning(f"AI puzzle set generation failed: {e}")
+
         return self._generate_deterministic_set(difficulties, grid_size)
+
+    # ------------------------------------------------------------------
+    # MARK: - AI Puzzle Set Generation
+    # ------------------------------------------------------------------
+
+    def _generate_ai_puzzle_set(self, difficulties: list, grid_size: int = 5) -> list:
+        """
+        Generate all 5 puzzles in a single Claude API call.
+        Each puzzle is unique and matched to its difficulty level.
+        Validates with backtracking solver to guarantee solvability.
+        """
+        diff_summary = "\n".join(f"  Puzzle {i+1}: {d}" for i, d in enumerate(difficulties))
+
+        prompt = f"""Generate {len(difficulties)} UNIQUE Pipes puzzles (Flow Free style) for a daily puzzle set.
+
+Grid Size: {grid_size}x{grid_size} for each puzzle
+Colors: {', '.join(self.COLORS)} (5 colors per puzzle)
+
+The puzzles must have ESCALATING DIFFICULTY:
+{diff_summary}
+
+Difficulty guidelines:
+- easy: Short, direct paths with minimal turns. Most paths are 3-5 cells. Endpoints are close together. Few paths cross over each other's natural routes.
+- medium: Moderate path lengths (4-6 cells average). Some paths must weave around others. At least 2 paths have 2+ turns.
+- hard: Long, winding paths (5-8 cells average). Paths interleave significantly. The solution is not obvious from endpoint positions. Multiple paths must route around each other.
+
+CRITICAL REQUIREMENTS:
+1. Each puzzle must be COMPLETELY DIFFERENT - different endpoint positions, different path structures
+2. Each color pair must have exactly 2 endpoints
+3. All {grid_size * grid_size} cells must be filled when solved (no empty cells)
+4. Paths cannot cross or overlap
+5. Paths connect only through adjacent cells (up/down/left/right, NO diagonals)
+6. Each puzzle must be solvable
+
+Think step by step for EACH puzzle:
+1. Design the solution paths first (fill the entire grid with 5 non-overlapping paths)
+2. Verify all {grid_size * grid_size} cells are covered exactly once
+3. Extract the endpoint pairs from the solution paths
+
+Return ONLY a JSON array with {len(difficulties)} puzzle objects (no other text):
+[
+    {{
+        "index": 0,
+        "size": {grid_size},
+        "difficulty": "easy",
+        "pairs": [
+            {{"color": "red", "start": {{"row": 0, "col": 0}}, "end": {{"row": 1, "col": 2}}}},
+            ...
+        ],
+        "solution": [
+            {{"color": "red", "path": [{{"row": 0, "col": 0}}, {{"row": 0, "col": 1}}, {{"row": 1, "col": 1}}, {{"row": 1, "col": 2}}]}},
+            ...
+        ]
+    }},
+    ...
+]
+"""
+
+        client = self._get_client()
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=8000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        response_text = message.content[0].text
+
+        # Extract JSON array
+        start = response_text.find("[")
+        end = response_text.rfind("]") + 1
+        if start == -1 or end == 0:
+            raise ValueError("No JSON array found in response")
+
+        puzzle_list = json.loads(response_text[start:end])
+
+        if len(puzzle_list) != len(difficulties):
+            raise ValueError(f"Expected {len(difficulties)} puzzles, got {len(puzzle_list)}")
+
+        # Validate each puzzle, retry failures individually
+        validated = [None] * len(difficulties)
+        seen_endpoint_sets = []
+        failed_indices = []
+
+        for i, puzzle in enumerate(puzzle_list):
+            puzzle["index"] = i
+            puzzle["difficulty"] = difficulties[i]
+
+            failure_reason = self._check_puzzle(puzzle, seen_endpoint_sets)
+            if failure_reason:
+                logger.warning(f"Puzzle {i} ({difficulties[i]}): {failure_reason}")
+                failed_indices.append(i)
+                continue
+
+            # Track uniqueness
+            endpoint_set = frozenset(
+                (p["color"], p["start"]["row"], p["start"]["col"], p["end"]["row"], p["end"]["col"])
+                for p in puzzle["pairs"]
+            )
+            seen_endpoint_sets.append(endpoint_set)
+
+            validated[i] = {
+                "index": i,
+                "size": puzzle["size"],
+                "pairs": puzzle["pairs"],
+                "difficulty": difficulties[i],
+            }
+
+        # Retry failed puzzles with solver feedback (one API call for all failures)
+        if failed_indices:
+            logger.info(f"Retrying {len(failed_indices)} failed puzzles with feedback")
+            replacements = self._retry_failed_puzzles(
+                failed_indices, difficulties, grid_size, puzzle_list, seen_endpoint_sets
+            )
+            for idx, replacement in zip(failed_indices, replacements):
+                if replacement:
+                    validated[idx] = replacement
+
+        # Fill any still-missing puzzles with templates
+        for i in range(len(validated)):
+            if validated[i] is None:
+                logger.warning(f"Puzzle {i} still failed after retry, using template fallback")
+                templates = self._get_templates_by_difficulty()
+                pool = templates.get(difficulties[i], self._get_puzzle_templates())
+                fallback = pool[i % len(pool)]
+                validated[i] = {
+                    "index": i,
+                    "size": fallback["size"],
+                    "pairs": fallback["pairs"],
+                    "difficulty": difficulties[i],
+                }
+
+        return validated
+
+    def _check_puzzle(self, puzzle: dict, seen_endpoint_sets: list) -> Optional[str]:
+        """
+        Validate a puzzle and return failure reason, or None if valid.
+        """
+        if not self._validate_puzzle(puzzle):
+            return "failed structural validation"
+
+        if not self._solve_puzzle(puzzle):
+            return "failed solvability check"
+
+        endpoint_set = frozenset(
+            (p["color"], p["start"]["row"], p["start"]["col"], p["end"]["row"], p["end"]["col"])
+            for p in puzzle["pairs"]
+        )
+        if endpoint_set in seen_endpoint_sets:
+            return "duplicate of another puzzle"
+
+        return None
+
+    def _retry_failed_puzzles(
+        self, failed_indices: list, difficulties: list,
+        grid_size: int, original_puzzles: list, seen_endpoint_sets: list
+    ) -> list:
+        """
+        Retry failed puzzles with a single API call that includes
+        solver feedback explaining what went wrong.
+        """
+        retry_descriptions = []
+        for idx in failed_indices:
+            original = original_puzzles[idx]
+            reason = self._check_puzzle(original, seen_endpoint_sets)
+            retry_descriptions.append(
+                f"Puzzle {idx + 1} ({difficulties[idx]}): {reason}. "
+                f"Original pairs: {json.dumps(original.get('pairs', []))}"
+            )
+
+        feedback = "\n".join(retry_descriptions)
+        prompt = f"""The following Pipes puzzles from a daily set failed validation. Generate REPLACEMENTS.
+
+FAILURES:
+{feedback}
+
+Generate {len(failed_indices)} NEW replacement puzzles. Each must be:
+- A {grid_size}x{grid_size} grid using colors: {', '.join(self.COLORS)}
+- COMPLETELY DIFFERENT from the failed versions (different endpoint positions)
+- Solvable: all {grid_size * grid_size} cells filled with non-overlapping adjacent paths
+
+Difficulties needed: {', '.join(difficulties[i] for i in failed_indices)}
+
+Difficulty guidelines:
+- easy: Short, direct paths (3-5 cells each). Endpoints close together.
+- medium: Moderate paths (4-6 cells). Some weaving required.
+- hard: Long winding paths (5-8 cells). Paths interleave significantly.
+
+IMPORTANT: Design the solution paths FIRST, verify all {grid_size * grid_size} cells are covered, then extract endpoints.
+
+Return ONLY a JSON array (no other text):
+[
+    {{
+        "size": {grid_size},
+        "pairs": [{{"color": "red", "start": {{"row": 0, "col": 0}}, "end": {{"row": 1, "col": 2}}}}, ...],
+        "solution": [{{"color": "red", "path": [{{"row": 0, "col": 0}}, ...]}}, ...]
+    }},
+    ...
+]
+"""
+
+        try:
+            client = self._get_client()
+            message = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=4000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            response_text = message.content[0].text
+            start = response_text.find("[")
+            end = response_text.rfind("]") + 1
+            if start == -1 or end == 0:
+                return [None] * len(failed_indices)
+
+            retry_list = json.loads(response_text[start:end])
+
+            results = []
+            for j, puzzle in enumerate(retry_list):
+                idx = failed_indices[j] if j < len(failed_indices) else j
+                puzzle["index"] = idx
+                puzzle["difficulty"] = difficulties[idx]
+
+                failure_reason = self._check_puzzle(puzzle, seen_endpoint_sets)
+                if failure_reason:
+                    logger.warning(f"Retry puzzle {idx} still failed: {failure_reason}")
+                    results.append(None)
+                    continue
+
+                endpoint_set = frozenset(
+                    (p["color"], p["start"]["row"], p["start"]["col"], p["end"]["row"], p["end"]["col"])
+                    for p in puzzle["pairs"]
+                )
+                seen_endpoint_sets.append(endpoint_set)
+
+                results.append({
+                    "index": idx,
+                    "size": puzzle["size"],
+                    "pairs": puzzle["pairs"],
+                    "difficulty": difficulties[idx],
+                })
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Retry generation failed: {e}")
+            return [None] * len(failed_indices)
+
+    # ------------------------------------------------------------------
+    # MARK: - Backtracking Solver
+    # ------------------------------------------------------------------
+
+    def _solve_puzzle(self, puzzle: dict) -> bool:
+        """
+        Verify a puzzle is solvable using backtracking DFS.
+        Takes only the endpoint pairs and confirms at least one valid
+        solution exists that fills the entire grid.
+
+        Returns True if solvable, False otherwise.
+        """
+        size = puzzle.get("size", 5)
+        pairs = puzzle.get("pairs", [])
+
+        # Build list of (color, start, end) tuples
+        color_pairs = []
+        for pair in pairs:
+            start = (pair["start"]["row"], pair["start"]["col"])
+            end = (pair["end"]["row"], pair["end"]["col"])
+            color_pairs.append((pair["color"], start, end))
+
+        total_cells = size * size
+        # Grid tracks which color occupies each cell (None = empty)
+        grid = [[None] * size for _ in range(size)]
+
+        # Mark all endpoints on the grid
+        for color, start, end in color_pairs:
+            grid[start[0]][start[1]] = color
+            grid[end[0]][end[1]] = color
+
+        filled_count = len(color_pairs) * 2  # endpoints are pre-filled
+
+        def neighbors(r, c):
+            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < size and 0 <= nc < size:
+                    yield nr, nc
+
+        def solve(color_idx, pos, filled):
+            """Try to extend the path for color_pairs[color_idx] from pos to its end."""
+            if color_idx >= len(color_pairs):
+                # All colors connected — check if grid is full
+                return filled == total_cells
+
+            color, start, end = color_pairs[color_idx]
+
+            # If we've reached the endpoint for this color, move to next color
+            if pos == end:
+                return solve(color_idx + 1, color_pairs[color_idx + 1][1] if color_idx + 1 < len(color_pairs) else None, filled)
+
+            # Try extending to each neighbor
+            for nr, nc in neighbors(pos[0], pos[1]):
+                if (nr, nc) == end:
+                    # Reached the endpoint — move to next color
+                    if solve(color_idx + 1,
+                             color_pairs[color_idx + 1][1] if color_idx + 1 < len(color_pairs) else None,
+                             filled):
+                        return True
+                elif grid[nr][nc] is None:
+                    grid[nr][nc] = color
+                    if solve(color_idx, (nr, nc), filled + 1):
+                        return True
+                    grid[nr][nc] = None
+
+            return False
+
+        # Start solving from the first color's start position
+        try:
+            return solve(0, color_pairs[0][1], filled_count)
+        except RecursionError:
+            logger.warning("Solver hit recursion limit")
+            return False
+
+    # ------------------------------------------------------------------
+    # MARK: - Deterministic Fallback
+    # ------------------------------------------------------------------
 
     def _generate_deterministic_set(self, difficulties: list, grid_size: int = 5) -> list:
         """
-        Pick 5 distinct templates deterministically based on today's date.
-        Shuffles the template pool with a date-based seed, then picks sequentially.
+        Pick distinct templates deterministically based on today's date.
+        Templates are matched by difficulty level to ensure proper progression.
         """
         today = date.today()
         seed = today.year * 10000 + today.month * 100 + today.day
         rng = random.Random(seed)
 
-        templates = self._get_puzzle_templates()
-        indices = list(range(len(templates)))
-        rng.shuffle(indices)
+        templates_by_difficulty = self._get_templates_by_difficulty()
+
+        # Shuffle each difficulty pool independently
+        for diff in templates_by_difficulty:
+            rng.shuffle(templates_by_difficulty[diff])
+
+        # Track how many we've used from each difficulty pool
+        pick_count = {"easy": 0, "medium": 0, "hard": 0}
 
         puzzles = []
+        seen_indices = set()
+
         for i, difficulty in enumerate(difficulties):
-            # Wrap around if we have more puzzles than templates
-            template_idx = indices[i % len(indices)]
-            template = templates[template_idx]
+            pool = templates_by_difficulty.get(difficulty, [])
+            idx = pick_count[difficulty] % len(pool) if pool else 0
+
+            template = pool[idx]
+            pick_count[difficulty] += 1
+
+            # Ensure no duplicate template across the entire set
+            template_id = id(template)
+            if template_id in seen_indices and len(pool) > pick_count[difficulty]:
+                # Try next in pool
+                pick_count[difficulty] += 1
+                idx = pick_count[difficulty] % len(pool)
+                template = pool[idx]
+                template_id = id(template)
+
+            seen_indices.add(template_id)
+
             puzzles.append({
                 "index": i,
                 "size": template["size"],
                 "pairs": template["pairs"],
                 "difficulty": difficulty,
             })
+
         return puzzles
 
     def _generate_deterministic_puzzle(self, difficulty: str, grid_size: int, seed_offset: int = 0) -> dict:
@@ -174,20 +531,31 @@ The solution paths must:
         """
         today = date.today()
         seed = today.year * 10000 + today.month * 100 + today.day + seed_offset * 97
-        random.seed(seed)
+        rng = random.Random(seed)
 
+        templates_by_difficulty = self._get_templates_by_difficulty()
+        pool = templates_by_difficulty.get(difficulty, self._get_puzzle_templates())
+        rng.shuffle(pool)
+
+        return pool[0]
+
+    def _get_templates_by_difficulty(self) -> dict:
+        """Return templates organized by difficulty level."""
         templates = self._get_puzzle_templates()
-        template_idx = seed % len(templates)
-        template = templates[template_idx]
-
-        return template
+        by_difficulty = {"easy": [], "medium": [], "hard": []}
+        for t in templates:
+            diff = t.get("difficulty", "medium")
+            by_difficulty[diff].append(t)
+        return by_difficulty
 
     def _get_puzzle_templates(self) -> list:
-        """Return a list of pre-designed solvable puzzle templates."""
+        """Return a list of pre-designed solvable puzzle templates, tagged by difficulty."""
         return [
-            # Template 1 - Easy
+            # ---------- EASY templates ----------
+            # Template 1 - Easy: mostly straight paths, endpoints close together
             {
                 "size": 5,
+                "difficulty": "easy",
                 "pairs": [
                     {"color": "red", "start": {"row": 0, "col": 0}, "end": {"row": 1, "col": 3}},
                     {"color": "blue", "start": {"row": 0, "col": 3}, "end": {"row": 2, "col": 3}},
@@ -203,63 +571,10 @@ The solution paths must:
                     {"color": "orange", "path": [{"row": 3, "col": 3}, {"row": 3, "col": 4}, {"row": 4, "col": 4}, {"row": 4, "col": 3}, {"row": 4, "col": 2}]},
                 ]
             },
-            # Template 2 - Medium
+            # Template 2 - Easy: parallel straight paths
             {
                 "size": 5,
-                "pairs": [
-                    {"color": "red", "start": {"row": 0, "col": 0}, "end": {"row": 2, "col": 0}},
-                    {"color": "blue", "start": {"row": 0, "col": 2}, "end": {"row": 1, "col": 3}},
-                    {"color": "green", "start": {"row": 1, "col": 2}, "end": {"row": 3, "col": 0}},
-                    {"color": "yellow", "start": {"row": 2, "col": 3}, "end": {"row": 3, "col": 2}},
-                    {"color": "orange", "start": {"row": 4, "col": 0}, "end": {"row": 4, "col": 4}},
-                ],
-                "solution": [
-                    {"color": "red", "path": [{"row": 0, "col": 0}, {"row": 0, "col": 1}, {"row": 1, "col": 1}, {"row": 1, "col": 0}, {"row": 2, "col": 0}]},
-                    {"color": "blue", "path": [{"row": 0, "col": 2}, {"row": 0, "col": 3}, {"row": 0, "col": 4}, {"row": 1, "col": 4}, {"row": 1, "col": 3}]},
-                    {"color": "green", "path": [{"row": 1, "col": 2}, {"row": 2, "col": 2}, {"row": 2, "col": 1}, {"row": 3, "col": 1}, {"row": 3, "col": 0}]},
-                    {"color": "yellow", "path": [{"row": 2, "col": 3}, {"row": 2, "col": 4}, {"row": 3, "col": 4}, {"row": 3, "col": 3}, {"row": 3, "col": 2}]},
-                    {"color": "orange", "path": [{"row": 4, "col": 0}, {"row": 4, "col": 1}, {"row": 4, "col": 2}, {"row": 4, "col": 3}, {"row": 4, "col": 4}]},
-                ]
-            },
-            # Template 3 - Hard
-            {
-                "size": 5,
-                "pairs": [
-                    {"color": "red", "start": {"row": 0, "col": 0}, "end": {"row": 1, "col": 1}},
-                    {"color": "blue", "start": {"row": 0, "col": 3}, "end": {"row": 2, "col": 3}},
-                    {"color": "green", "start": {"row": 1, "col": 0}, "end": {"row": 3, "col": 2}},
-                    {"color": "yellow", "start": {"row": 2, "col": 4}, "end": {"row": 4, "col": 4}},
-                    {"color": "orange", "start": {"row": 4, "col": 2}, "end": {"row": 3, "col": 1}},
-                ],
-                "solution": [
-                    {"color": "red", "path": [{"row": 0, "col": 0}, {"row": 0, "col": 1}, {"row": 0, "col": 2}, {"row": 1, "col": 2}, {"row": 1, "col": 1}]},
-                    {"color": "blue", "path": [{"row": 0, "col": 3}, {"row": 0, "col": 4}, {"row": 1, "col": 4}, {"row": 1, "col": 3}, {"row": 2, "col": 3}]},
-                    {"color": "green", "path": [{"row": 1, "col": 0}, {"row": 2, "col": 0}, {"row": 2, "col": 1}, {"row": 2, "col": 2}, {"row": 3, "col": 2}]},
-                    {"color": "yellow", "path": [{"row": 2, "col": 4}, {"row": 3, "col": 4}, {"row": 3, "col": 3}, {"row": 4, "col": 3}, {"row": 4, "col": 4}]},
-                    {"color": "orange", "path": [{"row": 4, "col": 2}, {"row": 4, "col": 1}, {"row": 4, "col": 0}, {"row": 3, "col": 0}, {"row": 3, "col": 1}]},
-                ]
-            },
-            # Template 4
-            {
-                "size": 5,
-                "pairs": [
-                    {"color": "red", "start": {"row": 0, "col": 0}, "end": {"row": 1, "col": 4}},
-                    {"color": "blue", "start": {"row": 1, "col": 0}, "end": {"row": 2, "col": 0}},
-                    {"color": "green", "start": {"row": 1, "col": 2}, "end": {"row": 3, "col": 3}},
-                    {"color": "yellow", "start": {"row": 2, "col": 2}, "end": {"row": 3, "col": 0}},
-                    {"color": "orange", "start": {"row": 4, "col": 0}, "end": {"row": 4, "col": 4}},
-                ],
-                "solution": [
-                    {"color": "red", "path": [{"row": 0, "col": 0}, {"row": 0, "col": 1}, {"row": 0, "col": 2}, {"row": 0, "col": 3}, {"row": 0, "col": 4}, {"row": 1, "col": 4}]},
-                    {"color": "blue", "path": [{"row": 1, "col": 0}, {"row": 1, "col": 1}, {"row": 2, "col": 1}, {"row": 2, "col": 0}]},
-                    {"color": "green", "path": [{"row": 1, "col": 2}, {"row": 1, "col": 3}, {"row": 2, "col": 3}, {"row": 2, "col": 4}, {"row": 3, "col": 4}, {"row": 3, "col": 3}]},
-                    {"color": "yellow", "path": [{"row": 2, "col": 2}, {"row": 3, "col": 2}, {"row": 3, "col": 1}, {"row": 3, "col": 0}]},
-                    {"color": "orange", "path": [{"row": 4, "col": 0}, {"row": 4, "col": 1}, {"row": 4, "col": 2}, {"row": 4, "col": 3}, {"row": 4, "col": 4}]},
-                ]
-            },
-            # Template 5
-            {
-                "size": 5,
+                "difficulty": "easy",
                 "pairs": [
                     {"color": "red", "start": {"row": 0, "col": 0}, "end": {"row": 4, "col": 0}},
                     {"color": "blue", "start": {"row": 0, "col": 4}, "end": {"row": 4, "col": 4}},
@@ -275,9 +590,10 @@ The solution paths must:
                     {"color": "orange", "path": [{"row": 3, "col": 1}, {"row": 4, "col": 1}, {"row": 4, "col": 2}, {"row": 4, "col": 3}, {"row": 3, "col": 3}]},
                 ]
             },
-            # Template 6
+            # Template 3 - Easy: simple L-shaped paths
             {
                 "size": 5,
+                "difficulty": "easy",
                 "pairs": [
                     {"color": "red", "start": {"row": 0, "col": 0}, "end": {"row": 1, "col": 3}},
                     {"color": "blue", "start": {"row": 0, "col": 4}, "end": {"row": 2, "col": 2}},
@@ -293,9 +609,30 @@ The solution paths must:
                     {"color": "orange", "path": [{"row": 4, "col": 0}, {"row": 4, "col": 1}, {"row": 4, "col": 2}, {"row": 4, "col": 3}, {"row": 4, "col": 4}]},
                 ]
             },
-            # Template 7
+            # ---------- MEDIUM templates ----------
+            # Template 4 - Medium: some weaving required
             {
                 "size": 5,
+                "difficulty": "medium",
+                "pairs": [
+                    {"color": "red", "start": {"row": 0, "col": 0}, "end": {"row": 2, "col": 0}},
+                    {"color": "blue", "start": {"row": 0, "col": 2}, "end": {"row": 1, "col": 3}},
+                    {"color": "green", "start": {"row": 1, "col": 2}, "end": {"row": 3, "col": 0}},
+                    {"color": "yellow", "start": {"row": 2, "col": 3}, "end": {"row": 3, "col": 2}},
+                    {"color": "orange", "start": {"row": 4, "col": 0}, "end": {"row": 4, "col": 4}},
+                ],
+                "solution": [
+                    {"color": "red", "path": [{"row": 0, "col": 0}, {"row": 0, "col": 1}, {"row": 1, "col": 1}, {"row": 1, "col": 0}, {"row": 2, "col": 0}]},
+                    {"color": "blue", "path": [{"row": 0, "col": 2}, {"row": 0, "col": 3}, {"row": 0, "col": 4}, {"row": 1, "col": 4}, {"row": 1, "col": 3}]},
+                    {"color": "green", "path": [{"row": 1, "col": 2}, {"row": 2, "col": 2}, {"row": 2, "col": 1}, {"row": 3, "col": 1}, {"row": 3, "col": 0}]},
+                    {"color": "yellow", "path": [{"row": 2, "col": 3}, {"row": 2, "col": 4}, {"row": 3, "col": 4}, {"row": 3, "col": 3}, {"row": 3, "col": 2}]},
+                    {"color": "orange", "path": [{"row": 4, "col": 0}, {"row": 4, "col": 1}, {"row": 4, "col": 2}, {"row": 4, "col": 3}, {"row": 4, "col": 4}]},
+                ]
+            },
+            # Template 5 - Medium: paths cross over natural routes
+            {
+                "size": 5,
+                "difficulty": "medium",
                 "pairs": [
                     {"color": "red", "start": {"row": 0, "col": 0}, "end": {"row": 1, "col": 4}},
                     {"color": "blue", "start": {"row": 1, "col": 0}, "end": {"row": 2, "col": 0}},
@@ -311,7 +648,31 @@ The solution paths must:
                     {"color": "orange", "path": [{"row": 4, "col": 0}, {"row": 4, "col": 1}, {"row": 4, "col": 2}, {"row": 4, "col": 3}, {"row": 4, "col": 4}]},
                 ]
             },
+            # ---------- HARD templates ----------
+            # Template 6 - Hard: long winding paths
+            {
+                "size": 5,
+                "difficulty": "hard",
+                "pairs": [
+                    {"color": "red", "start": {"row": 0, "col": 0}, "end": {"row": 1, "col": 1}},
+                    {"color": "blue", "start": {"row": 0, "col": 3}, "end": {"row": 2, "col": 3}},
+                    {"color": "green", "start": {"row": 1, "col": 0}, "end": {"row": 3, "col": 2}},
+                    {"color": "yellow", "start": {"row": 2, "col": 4}, "end": {"row": 4, "col": 4}},
+                    {"color": "orange", "start": {"row": 4, "col": 2}, "end": {"row": 3, "col": 1}},
+                ],
+                "solution": [
+                    {"color": "red", "path": [{"row": 0, "col": 0}, {"row": 0, "col": 1}, {"row": 0, "col": 2}, {"row": 1, "col": 2}, {"row": 1, "col": 1}]},
+                    {"color": "blue", "path": [{"row": 0, "col": 3}, {"row": 0, "col": 4}, {"row": 1, "col": 4}, {"row": 1, "col": 3}, {"row": 2, "col": 3}]},
+                    {"color": "green", "path": [{"row": 1, "col": 0}, {"row": 2, "col": 0}, {"row": 2, "col": 1}, {"row": 2, "col": 2}, {"row": 3, "col": 2}]},
+                    {"color": "yellow", "path": [{"row": 2, "col": 4}, {"row": 3, "col": 4}, {"row": 3, "col": 3}, {"row": 4, "col": 3}, {"row": 4, "col": 4}]},
+                    {"color": "orange", "path": [{"row": 4, "col": 2}, {"row": 4, "col": 1}, {"row": 4, "col": 0}, {"row": 3, "col": 0}, {"row": 3, "col": 1}]},
+                ]
+            },
         ]
+
+    # ------------------------------------------------------------------
+    # MARK: - Validation
+    # ------------------------------------------------------------------
 
     def _validate_puzzle(self, puzzle: dict) -> bool:
         """Verify the puzzle is valid and solvable."""
