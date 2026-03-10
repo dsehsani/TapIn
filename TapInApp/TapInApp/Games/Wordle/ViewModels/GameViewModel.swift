@@ -134,9 +134,10 @@ class GameViewModel {
 
     /// Creates a new GameViewModel and loads today's game
     init() {
-        // Initialize word lists
-        self.validWords = Set(WordList.validGuesses + WordList.answers)
-        self.answerWords = WordList.answers
+        // Initialize word lists — filter answers to exactly 5 letters as a safety net
+        let safeAnswers = WordList.answers.filter { $0.count == 5 }
+        self.validWords = Set(WordList.validGuesses + safeAnswers)
+        self.answerWords = safeAnswers
 
         // Initialize game for today
         loadGameForDate(DateWordGenerator.today)
@@ -600,7 +601,7 @@ class GameViewModel {
 ///
 struct WordList {
     /// Curated list of answer words (education/campus themed)
-    /// These are the possible daily words
+    /// These are the possible daily words — MUST all be exactly 5 letters
     static let answers: [String] = [
         "aggie", "study", "brain", "learn", "smart", "teach", "think", "write",
         "class", "grade", "paper", "books", "essay", "notes", "group", "table",
@@ -610,16 +611,16 @@ struct WordList {
         "bread", "toast", "pasta", "pizza", "salad", "steak", "bacon", "cream",
         "house", "dwell", "rooms", "doors", "floor", "walls", "brick",
         "world", "globe", "atlas", "north", "south", "ocean", "river", "beach",
-        "happy", "smile", "laugh", "cheer", "peace", "calm", "quiet", "relax",
+        "happy", "smile", "laugh", "cheer", "peace", "calms", "quiet", "relax",
         "quick", "speed", "swift", "rapid", "blaze", "spark", "flame", "shine",
         "cloud", "storm", "rainy", "sunny", "foggy", "windy", "frost", "snowy",
         "money", "coins", "bills", "spend", "saved", "banks", "loans", "funds",
         "phone", "email", "texts", "calls", "video", "media", "press", "radio",
-        "sleep", "dream", "awake", "arise", "early", "night", "dusk", "dawn",
+        "sleep", "dream", "awake", "arise", "early", "night", "dusky", "dawns",
         "young", "child", "adult", "elder", "human", "being", "folks",
-        "heart", "blood", "bones", "brain", "lungs", "hands", "feet", "eyes",
+        "heart", "blood", "bones", "brain", "lungs", "hands", "feast", "sight",
         "paint", "brush", "color", "shade", "lines", "shape", "forms", "style",
-        "stone", "metal", "glass", "steel", "woods", "cloth", "silk", "wool",
+        "stone", "metal", "glass", "steel", "woods", "cloth", "silks", "wools",
         "speak", "words", "voice", "talks", "chats", "story", "tales", "prose",
         "pride", "glory", "honor", "noble", "brave", "valor", "loyal", "trust"
     ]
