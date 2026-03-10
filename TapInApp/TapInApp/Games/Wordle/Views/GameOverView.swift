@@ -55,12 +55,27 @@ struct GameOverView: View {
 
             // Bottom sheet
             VStack(spacing: 0) {
-                // Drag indicator
-                Capsule()
-                    .fill(Color.gray.opacity(0.4))
-                    .frame(width: 36, height: 4)
-                    .padding(.top, 10)
-                    .padding(.bottom, 16)
+                // Drag indicator + close button
+                ZStack {
+                    Capsule()
+                        .fill(Color.gray.opacity(0.4))
+                        .frame(width: 36, height: 4)
+
+                    HStack {
+                        Spacer()
+                        Button(action: onDismiss) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
+                                .frame(width: 28, height: 28)
+                                .background(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.05))
+                                .clipShape(Circle())
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+                .padding(.top, 10)
+                .padding(.bottom, 16)
 
                 // Result header
                 resultHeader
@@ -313,6 +328,7 @@ struct GameOverView: View {
                     .foregroundColor(muted)
                 actionButton("Browse Archive", filled: true, action: onBrowseArchive)
             }
+            actionButton("Back to Games", filled: false, action: onBack)
         }
     }
 

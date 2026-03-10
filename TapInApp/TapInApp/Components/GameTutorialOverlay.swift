@@ -34,7 +34,7 @@ struct GameTutorialOverlay: View {
                     HStack {
                         Spacer()
                         Button(action: onExit) {
-                            Image(systemName: "xmark")
+                            Image(systemName: "house.fill")
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(colorScheme == .dark ? .white : Color.textSecondary)
                                 .frame(width: 30, height: 30)

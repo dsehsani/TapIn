@@ -20,6 +20,7 @@ struct PipesGameView: View {
     @State private var hasShownExitDialog = false
     @State private var pipesLeaderboardEntries: [PipesLeaderboardEntryResponse] = []
     @State private var isLoadingPipesLeaderboard = false
+    @State private var sheetDragOffset: CGFloat = 0
 
     var body: some View {
         ZStack {
@@ -421,6 +422,9 @@ struct PipesGameView: View {
             // Backdrop
             Color.black.opacity(colorScheme == .dark ? 0.5 : 0.25)
                 .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation { viewModel.justCompletedAll = false }
+                }
 
             // Bottom sheet
             VStack(spacing: 0) {
@@ -502,14 +506,33 @@ struct PipesGameView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 30)
             }
+            .offset(y: sheetDragOffset)
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        if value.translation.height > 0 {
+                            sheetDragOffset = value.translation.height
+                        }
+                    }
+                    .onEnded { value in
+                        if value.translation.height > 120 {
+                            withAnimation { viewModel.justCompletedAll = false }
+                        }
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            sheetDragOffset = 0
+                        }
+                    }
+            )
             .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(cardBg)
                     .shadow(color: .black.opacity(0.2), radius: 30, y: -5)
+                    .offset(y: sheetDragOffset)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .stroke(colorScheme == .dark ? Color.white.opacity(0.06) : .clear, lineWidth: 1)
+                    .offset(y: sheetDragOffset)
             )
         }
         .ignoresSafeArea(edges: .bottom)
@@ -710,8 +733,26 @@ struct PipesGameView: View {
         ZStack {
             Color.black.opacity(0.6)
                 .ignoresSafeArea()
+                .onTapGesture {
+                    viewModel.alreadyCompletedToday = false
+                }
 
             VStack(spacing: 20) {
+                // Close button
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        viewModel.alreadyCompletedToday = false
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 28, height: 28)
+                            .background(Color.white.opacity(0.15))
+                            .clipShape(Circle())
+                    }
+                }
+
                 Image(systemName: "checkmark.seal.fill")
                     .font(.system(size: 60))
                     .foregroundColor(Color.ucdGold)
