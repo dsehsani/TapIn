@@ -17,7 +17,7 @@ config_bp = Blueprint("config", __name__, url_prefix="/api/config")
 # ---------------------------------------------------------------------------
 # Change this value whenever you publish a new App Store release and want
 # all older builds to force-update.  Semantic versioning: "major.minor.patch"
-MIN_IOS_VERSION = "1.0.2"
+MIN_IOS_VERSION = "1.0.3"
 
 @config_bp.route("/min-version", methods=["GET"])
 def min_version():
