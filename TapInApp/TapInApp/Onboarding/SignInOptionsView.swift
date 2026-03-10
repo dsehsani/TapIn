@@ -142,6 +142,17 @@ struct SignInOptionsView: View {
                 }
                 .padding(.horizontal, 24)
 
+                // Browse as Guest
+                Button {
+                    AppState.shared.enterGuestMode()
+                } label: {
+                    Text("Browse as Guest")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                .padding(.top, 20)
+                .frame(maxWidth: .infinity)
+
                 Spacer()
 
                 // Legal footer

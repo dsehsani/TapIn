@@ -495,6 +495,9 @@ class PipesGameViewModel {
     // MARK: - Leaderboard Submission
 
     func submitScoreToLeaderboard() {
+        // Guests can't compete on leaderboards
+        guard !AppState.shared.isGuestMode else { return }
+
         guard !isArchiveMode else { return }
         guard !scoreSubmitted else { return }
         guard !didExitGame else { return }

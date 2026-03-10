@@ -485,6 +485,9 @@ class GameViewModel {
     /// - Note: This method handles errors gracefully and does not
     ///   block the user from continuing to use the app.
     func submitScoreToLeaderboard() {
+        // Guests can't compete on leaderboards
+        guard !AppState.shared.isGuestMode else { return }
+
         // Only submit for today's game
         guard !isArchiveMode else { return }
 

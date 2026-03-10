@@ -125,6 +125,10 @@ struct LeaderboardView: View {
                 Divider()
 
                 ScrollView {
+                    if AppState.shared.isGuestMode {
+                        guestBanner
+                    }
+
                     if viewModel.isLoading && viewModel.selectedGame == game {
                         loadingView
                     } else if let error = viewModel.errorMessage, viewModel.selectedGame == game {
@@ -517,6 +521,49 @@ struct LeaderboardView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 80)
+    }
+
+    // MARK: - Guest Banner
+
+    private var guestBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "person.crop.circle.badge.questionmark")
+                .font(.system(size: 22))
+                .foregroundColor(Color.ucdGold)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Sign in to compete")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(colorScheme == .dark ? .white : .primary)
+                Text("Create an account to submit scores and appear on the leaderboard.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.textSecondary)
+            }
+
+            Spacer()
+
+            Button {
+                AppState.shared.signOut()
+            } label: {
+                Text("Sign In")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(Color.ucdGold, in: Capsule())
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(colorScheme == .dark ? Color(hex: "#1a2033") : Color.ucdGold.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.ucdGold.opacity(0.3), lineWidth: 1)
+        )
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
     }
 
     // MARK: - Coming Soon View

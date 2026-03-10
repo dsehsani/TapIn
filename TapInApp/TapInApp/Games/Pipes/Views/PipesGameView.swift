@@ -456,8 +456,13 @@ struct PipesGameView: View {
 
                 // Leaderboard (non-archive only)
                 if !viewModel.isArchiveMode {
-                    pipesLeaderboardSection(muted: muted, textPrimary: textPrimary)
-                        .padding(.bottom, 18)
+                    if AppState.shared.isGuestMode {
+                        pipesGuestLeaderboardBanner(muted: muted, textPrimary: textPrimary)
+                            .padding(.bottom, 18)
+                    } else {
+                        pipesLeaderboardSection(muted: muted, textPrimary: textPrimary)
+                            .padding(.bottom, 18)
+                    }
                 }
 
                 // Actions
@@ -565,6 +570,45 @@ struct PipesGameView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func pipesGuestLeaderboardBanner(muted: Color, textPrimary: Color) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 5) {
+                Image(systemName: "trophy.fill")
+                    .font(.system(size: 11))
+                    .foregroundColor(Color.ucdGold)
+                Text("LEADERBOARD")
+                    .font(.system(size: 11, weight: .bold))
+                    .tracking(1)
+                    .foregroundColor(muted)
+            }
+
+            VStack(spacing: 6) {
+                Text("Sign in to compete")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(textPrimary)
+                Text("Create an account to submit scores and appear on the leaderboard.")
+                    .font(.system(size: 12))
+                    .foregroundColor(muted)
+                    .multilineTextAlignment(.center)
+
+                Button {
+                    AppState.shared.signOut()
+                } label: {
+                    Text("Sign In")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 8)
+                        .background(Color.ucdGold, in: Capsule())
+                }
+                .padding(.top, 4)
+            }
+            .padding(.vertical, 12)
+        }
+        .padding(.horizontal, 24)
     }
 
     @ViewBuilder

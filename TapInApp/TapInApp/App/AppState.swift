@@ -60,8 +60,11 @@ class AppState: ObservableObject {
         currentUser?.email ?? ""
     }
 
+    /// True when the user tapped "Browse as Guest" — no backend token, no account.
+    @Published var isGuestMode: Bool = false
+
     var isGuest: Bool {
-        currentUser == nil || !isAuthenticated
+        isGuestMode || currentUser == nil || !isAuthenticated
     }
 
     // MARK: - Initialization
@@ -109,6 +112,7 @@ class AppState: ObservableObject {
         // Always clear all local state
         currentUser = nil
         isAuthenticated = false
+        isGuestMode = false
         authError = nil
         authToken = nil
         smsUserId = nil
@@ -163,6 +167,7 @@ class AppState: ObservableObject {
 
         currentUser = nil
         isAuthenticated = false
+        isGuestMode = false
         authError = nil
         authToken = nil
         smsUserId = nil
@@ -184,6 +189,18 @@ class AppState: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "unseenNotificationEventIds")
         UserDefaults.standard.removeObject(forKey: "dau_tracked_actions")
         // NOTE: localProfiles is intentionally NOT cleared on sign-out
+        persistState()
+    }
+
+    /// Enters guest browse mode — no account, no backend token.
+    /// Allows browsing news and events without signing in.
+    func enterGuestMode() {
+        isGuestMode = true
+        isAuthenticated = true
+        currentUser = nil
+        backendToken = nil
+        authToken = nil
+        smsUserId = nil
         persistState()
     }
 
@@ -225,6 +242,7 @@ class AppState: ObservableObject {
     private func persistState() {
         // Save authentication state
         UserDefaults.standard.set(isAuthenticated, forKey: "isAuthenticated")
+        UserDefaults.standard.set(isGuestMode, forKey: "isGuestMode")
         UserDefaults.standard.set(notificationsEnabled, forKey: "notificationsEnabled")
         UserDefaults.standard.set(eventNotificationsEnabled, forKey: "eventNotificationsEnabled")
         UserDefaults.standard.set(gameNotificationsEnabled, forKey: "gameNotificationsEnabled")
@@ -259,6 +277,7 @@ class AppState: ObservableObject {
 
     private func loadPersistedState() {
         isAuthenticated = UserDefaults.standard.bool(forKey: "isAuthenticated")
+        isGuestMode = UserDefaults.standard.bool(forKey: "isGuestMode")
         notificationsEnabled = UserDefaults.standard.bool(forKey: "notificationsEnabled")
         eventNotificationsEnabled = UserDefaults.standard.object(forKey: "eventNotificationsEnabled") as? Bool ?? true
         gameNotificationsEnabled = UserDefaults.standard.object(forKey: "gameNotificationsEnabled") as? Bool ?? true

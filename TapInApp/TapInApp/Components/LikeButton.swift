@@ -13,8 +13,10 @@ struct LikeButton: View {
     let contentId: String
 
     @ObservedObject private var socialService = SocialService.shared
+    @EnvironmentObject private var appState: AppState
     @State private var isAnimating = false
     @State private var isToggling = false
+    @State private var showSignInPrompt = false
 
     private var cacheKey: String { socialService.cacheKey(contentType, contentId) }
     private var status: LikeStatus { socialService.likeCache[cacheKey] ?? LikeStatus(liked: false, likeCount: 0) }
@@ -36,6 +38,14 @@ struct LikeButton: View {
             }
         }
         .buttonStyle(.plain)
+        .alert("Sign In Required", isPresented: $showSignInPrompt) {
+            Button("Sign In") {
+                appState.signOut()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Create an account to like posts and access all features.")
+        }
         .onAppear {
             if socialService.likeCache[cacheKey] == nil {
                 Task {
@@ -51,6 +61,10 @@ struct LikeButton: View {
     }
 
     private func toggleLike() {
+        if appState.isGuestMode {
+            showSignInPrompt = true
+            return
+        }
         guard !isToggling else { return }
         isToggling = true
 

@@ -67,8 +67,21 @@ struct ProfileView: View {
                         .padding(.top, 24)
                         .padding(.horizontal, 16)
 
-                    // MARK: - Sign Out & Delete Account
-                    if viewModel.isLoggedIn {
+                    // MARK: - Sign Out & Delete Account / Sign In (guest)
+                    if AppState.shared.isGuestMode {
+                        Button(action: { AppState.shared.signOut() }) {
+                            Text("Sign In")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.accentCoral)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(colorScheme == .dark ? Color(hex: "#1a2033") : .white)
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .shadow(color: .black.opacity(0.04), radius: 8)
+                        }
+                        .padding(.top, 16)
+                        .padding(.horizontal, 16)
+                    } else if viewModel.isLoggedIn {
                         Button(action: { viewModel.logout() }) {
                             Text("Sign Out")
                                 .font(.system(size: 16, weight: .semibold))
@@ -144,10 +157,14 @@ struct ProfileView: View {
                         .scaledToFill()
                         .frame(width: 80, height: 80)
                         .clipShape(Circle())
-                } else {
-                    Text(String(viewModel.userName.prefix(1)).uppercased())
+                } else if let firstChar = viewModel.userName.first, !viewModel.userName.isEmpty, viewModel.userName != "Guest" {
+                    Text(String(firstChar).uppercased())
                         .font(.system(size: 32, weight: .bold))
                         .foregroundColor(.white)
+                } else {
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(.white.opacity(0.5))
                 }
             }
 
@@ -179,7 +196,20 @@ struct ProfileView: View {
             }
 
             // Edit Profile / Sign In
-            if viewModel.isLoggedIn {
+            if AppState.shared.isGuestMode {
+                Button(action: { AppState.shared.signOut() }) {
+                    Text("Sign In")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 10)
+                        .overlay(
+                            Capsule()
+                                .stroke(.white, lineWidth: 2)
+                        )
+                }
+                .padding(.top, 4)
+            } else if viewModel.isLoggedIn {
                 Button(action: { showEditProfile = true }) {
                     Text("Edit Profile")
                         .font(.system(size: 14, weight: .bold))

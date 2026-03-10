@@ -38,7 +38,7 @@ final class LikeSyncQueue {
 
     /// Drain the queue — call on app foreground and after successful auth.
     func drain() async {
-        var queue = load()
+        let queue = load()
         guard !queue.isEmpty else { return }
 
         var remaining: [PendingAction] = []

@@ -83,13 +83,16 @@ struct TapInAppApp: App {
                 if resetTips { OnboardingManager.shared.resetAllTips() }
                 // Run update check and session restore in parallel
                 async let updateRequired = AppUpdateService.shared.isUpdateRequired()
-                async let sessionRestore: Void = appState.restoreSession()
-                needsForceUpdate = await updateRequired
-                _ = await sessionRestore
+                if !appState.isGuestMode {
+                    async let sessionRestore: Void = appState.restoreSession()
+                    needsForceUpdate = await updateRequired
+                    _ = await sessionRestore
+                } else {
+                    needsForceUpdate = await updateRequired
+                }
                 withAnimation { isCheckingSession = false }
-                // Only schedule reminders for users who have already completed onboarding
-                // (new users set their preference on the notification permission screen)
-                if appState.isAuthenticated && !needsForceUpdate {
+                // Only schedule reminders for signed-in users (not guests)
+                if appState.isAuthenticated && !appState.isGuestMode && !needsForceUpdate {
                     await NotificationService.shared.scheduleDailyFiveReminders()
                 }
             }
@@ -97,9 +100,11 @@ struct TapInAppApp: App {
                 if newPhase == .active && !isCheckingSession {
                     Task {
                         needsForceUpdate = await AppUpdateService.shared.isUpdateRequired()
-                        async let drain: Void = LikeSyncQueue.shared.drain()
-                        async let refresh: Void = SocialService.shared.refreshAllCachedLikes()
-                        _ = await (drain, refresh)
+                        if !appState.isGuestMode {
+                            async let drain: Void = LikeSyncQueue.shared.drain()
+                            async let refresh: Void = SocialService.shared.refreshAllCachedLikes()
+                            _ = await (drain, refresh)
+                        }
                     }
                 }
             }

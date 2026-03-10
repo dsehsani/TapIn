@@ -67,9 +67,6 @@ struct EditProfileView: View {
                     interestsSection
                         .padding(.horizontal, 24)
                         .padding(.top, 24)
-                    saveButton
-                        .padding(.horizontal, 24)
-                        .padding(.top, 36)
                         .padding(.bottom, 52)
                 }
             }
@@ -131,6 +128,21 @@ struct EditProfileView: View {
                     .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1))
             }
             Spacer()
+            Button(action: { saveProfile() }) {
+                if isSaving {
+                    ProgressView()
+                        .tint(.white)
+                        .frame(width: 42, height: 42)
+                } else {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 42, height: 42)
+                        .background(.white.opacity(0.15), in: Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1))
+                }
+            }
+            .disabled(isSaving)
         }
         .padding(.horizontal, 24)
         .padding(.top, 16)
@@ -155,9 +167,13 @@ struct EditProfileView: View {
                                 .scaledToFill()
                                 .frame(width: 120, height: 120)
                                 .clipShape(Circle())
-                        } else {
-                            Text(String(name.prefix(1)).uppercased())
+                        } else if let firstChar = name.first, !name.isEmpty {
+                            Text(String(firstChar).uppercased())
                                 .font(.system(size: 46, weight: .bold))
+                                .foregroundColor(.white.opacity(0.4))
+                        } else {
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 40))
                                 .foregroundColor(.white.opacity(0.4))
                         }
                     }
@@ -328,39 +344,21 @@ struct EditProfileView: View {
         }
     }
 
-    // MARK: - Save Button
+    // MARK: - Save
 
-    private var saveButton: some View {
-        Button(action: {
-            Task {
-                isSaving = true
-                await viewModel.updateProfile(
-                    name: name,
-                    email: email,
-                    year: year,
-                    imageData: profileImageData,
-                    interests: Array(selectedInterests)
-                )
-                isSaving = false
-                dismiss()
-            }
-        }) {
-            Group {
-                if isSaving {
-                    ProgressView()
-                        .tint(colorScheme == .dark ? Color(hex: "#0d1b4b") : Color(hex: "#E8485A"))
-                } else {
-                    Text("Save Changes")
-                        .font(.system(size: 18, weight: .bold))
-                }
-            }
-            .foregroundColor(colorScheme == .dark ? Color(hex: "#0d1b4b") : Color(hex: "#E8485A"))
-            .frame(maxWidth: .infinity)
-            .frame(height: 60)
-            .background(.white, in: Capsule())
-            .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
+    private func saveProfile() {
+        Task {
+            isSaving = true
+            await viewModel.updateProfile(
+                name: name,
+                email: email,
+                year: year,
+                imageData: profileImageData,
+                interests: Array(selectedInterests)
+            )
+            isSaving = false
+            dismiss()
         }
-        .disabled(isSaving)
     }
 }
 

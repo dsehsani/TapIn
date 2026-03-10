@@ -86,25 +86,43 @@ struct TopNavigationBar: View {
                     .frame(width: 42, height: 42)
                     .clipShape(Circle())
             } else {
-                // Initials fallback
-                let initial = String(
-                    (UserDefaults.standard.string(forKey: "userName") ?? "U").prefix(1)
-                ).uppercased()
+                // Initials fallback — use first letter of user's name
+                let name = AppState.shared.userName
+                let initial = name != "Guest" && !name.isEmpty
+                    ? String(name.prefix(1)).uppercased()
+                    : ""
 
-                Text(initial)
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 42, height: 42)
-                    .background(
-                        LinearGradient(
-                            colors: colorScheme == .dark
-                                ? [Color(hex: "#1e2545"), Color(hex: "#302050")]
-                                : [Color.accentCoral, Color.accentOrange],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                if initial.isEmpty {
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.white.opacity(0.7))
+                        .frame(width: 42, height: 42)
+                        .background(
+                            LinearGradient(
+                                colors: colorScheme == .dark
+                                    ? [Color(hex: "#1e2545"), Color(hex: "#302050")]
+                                    : [Color.accentCoral, Color.accentOrange],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .clipShape(Circle())
+                        .clipShape(Circle())
+                } else {
+                    Text(initial)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 42, height: 42)
+                        .background(
+                            LinearGradient(
+                                colors: colorScheme == .dark
+                                    ? [Color(hex: "#1e2545"), Color(hex: "#302050")]
+                                    : [Color.accentCoral, Color.accentOrange],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .clipShape(Circle())
+                }
             }
         }
     }
