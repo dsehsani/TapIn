@@ -59,6 +59,8 @@ class NewsViewModel: ObservableObject {
         Task {
             // Fetch fresh articles (bypassing disk cache)
             await fetchArticles(forceRefresh: true)
+            // Warm the like cache for the initial article set
+            await prefetchLikes()
             // Prefetch all other categories in the background so filter switches are instant
             await prefetchAllCategories()
         }
@@ -307,12 +309,13 @@ class NewsViewModel: ObservableObject {
         articles = processed
         featuredArticle = processed.first
         latestArticles = Array(processed.dropFirst())
+    }
 
-        // Batch prefetch like status for all articles
-        Task {
-            let likeItems = processed.map { (ContentType.article, $0.socialId) }
-            await SocialService.shared.prefetchLikeStatus(items: likeItems)
-        }
+    /// Prefetch like status for all current articles.
+    /// Awaitable so callers (e.g. pull-to-refresh) can wait for the cache to warm.
+    func prefetchLikes() async {
+        let likeItems = articles.map { (ContentType.article, $0.socialId) }
+        await SocialService.shared.prefetchLikeStatus(items: likeItems)
     }
 
     private func loadSampleData() {

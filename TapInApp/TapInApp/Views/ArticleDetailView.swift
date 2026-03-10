@@ -37,8 +37,14 @@ struct ArticleDetailView: View {
         .task {
             await viewModel.load(article: article)
         }
+        .task {
+            // Warm the like cache before the real-time listener starts
+            await SocialService.shared.prefetchLikeStatus(items: [(.article, article.socialId)])
+            SocialService.shared.startListening(contentType: .article, contentId: article.socialId)
+        }
         .onDisappear {
             viewModel.cancelReadTracking()
+            SocialService.shared.stopListening(contentType: .article, contentId: article.socialId)
         }
         .navigationBarHidden(true)
         .overlay(alignment: .top) {

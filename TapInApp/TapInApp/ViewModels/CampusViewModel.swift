@@ -35,7 +35,11 @@ class CampusViewModel: ObservableObject {
 
     @MainActor
     func fetchEvents() async {
-        isLoading = true
+        // Only show loading spinner when we have nothing to display yet;
+        // on pull-to-refresh the existing list stays visible.
+        if allEvents.isEmpty {
+            isLoading = true
+        }
         errorMessage = nil
 
         do {

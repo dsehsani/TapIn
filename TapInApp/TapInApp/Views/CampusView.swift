@@ -148,7 +148,13 @@ struct CampusView: View {
                         .padding(.bottom, 8)
                     }
                     .refreshable {
-                        await viewModel.refreshEvents()
+                        // Drain queued offline likes so the server is up-to-date,
+                        // then refresh events (which prefetches likes internally)
+                        // (mirrors the working foreground-return path in TapInAppApp)
+                        async let drain: Void = LikeSyncQueue.shared.drain()
+                        async let refresh: Void = viewModel.refreshEvents()
+                        _ = await (drain, refresh)
+                        await SocialService.shared.refreshAllCachedLikes()
                     }
                 }
             }

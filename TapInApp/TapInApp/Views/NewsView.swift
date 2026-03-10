@@ -86,6 +86,13 @@ struct NewsView: View {
             }
             .refreshable {
                 await viewModel.refreshArticles()
+                // Drain queued offline likes so the server is up-to-date before we read,
+                // then warm the cache with the freshly fetched articles and refresh all likes
+                // (mirrors the working foreground-return path in TapInAppApp)
+                async let drain: Void = LikeSyncQueue.shared.drain()
+                async let prefetch: Void = viewModel.prefetchLikes()
+                _ = await (drain, prefetch)
+                await SocialService.shared.refreshAllCachedLikes()
                 if viewModel.isForYouSelected {
                     rebuildForYouFeed()
                 }

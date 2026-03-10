@@ -279,6 +279,14 @@ struct EventDetailView: View {
             .task {
                 await geocodeLocation()
             }
+            .task {
+                // Warm the like cache before the real-time listener starts
+                await SocialService.shared.prefetchLikeStatus(items: [(.event, event.socialId)])
+                SocialService.shared.startListening(contentType: .event, contentId: event.socialId)
+            }
+            .onDisappear {
+                SocialService.shared.stopListening(contentType: .event, contentId: event.socialId)
+            }
 
             // Floating nav buttons (matches ArticleDetailView pattern)
             floatingButtons
