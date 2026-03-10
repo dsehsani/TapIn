@@ -315,6 +315,9 @@ class AppState: ObservableObject {
                 )
                 isAuthenticated = true
 
+                // Drain any pending like actions that were queued while offline/signed out
+                await LikeSyncQueue.shared.drain()
+
                 // Restore profile image from backend if not cached locally
                 if UserDefaults.standard.data(forKey: "profileImageData") == nil,
                    let imageURL = user.profileImageURL, !imageURL.isEmpty {

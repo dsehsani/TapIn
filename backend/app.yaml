@@ -25,7 +25,7 @@ instance_class: F1
 
 # Automatic scaling configuration
 automatic_scaling:
-  min_instances: 0
+  min_instances: 1
   max_instances: 2
   target_cpu_utilization: 0.65
 

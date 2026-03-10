@@ -6,7 +6,7 @@
 #  All data persisted in Firestore — nothing stored locally on client.
 #
 #  Public endpoints (all require JWT):
-#    POST /api/social/like               — toggle like
+#    POST /api/social/like               — idempotent like/unlike
 #    GET  /api/social/like-status        — single item like status
 #    POST /api/social/like-status/batch  — batch like status
 #    GET  /api/social/health             — health check
@@ -30,25 +30,34 @@ VALID_CONTENT_TYPES = {"article", "event"}
 # Likes
 # --------------------------------------------------------------------------
 
+VALID_ACTIONS = {"like", "unlike"}
+
+
 @social_bp.route("/like", methods=["POST"])
 @require_auth
-def toggle_like():
-    """Toggle a like on/off for a piece of content."""
+def set_like():
+    """Idempotent like/unlike (Instagram-style). Requires 'action': 'like' or 'unlike'."""
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"success": False, "error": "Request body must be JSON"}), 400
 
     content_type = data.get("content_type", "")
     content_id = data.get("content_id", "")
+    action = data.get("action", "")  # optional — old clients don't send this
 
     if content_type not in VALID_CONTENT_TYPES or not content_id:
         return jsonify({"success": False, "error": "Valid content_type and content_id required"}), 400
 
     try:
-        liked, like_count = social_repository.toggle_like(content_type, content_id, g.user_id)
+        if action in VALID_ACTIONS:
+            # New client — idempotent like/unlike
+            liked, like_count = social_repository.set_like(content_type, content_id, g.user_id, action)
+        else:
+            # Old client (no action field) — fall back to toggle for backward compat
+            liked, like_count = social_repository.toggle_like(content_type, content_id, g.user_id)
         return jsonify({"success": True, "liked": liked, "like_count": like_count}), 200
     except Exception as e:
-        logger.error(f"toggle_like error: {e}")
+        logger.error(f"set_like error: {e}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
@@ -84,6 +93,18 @@ def batch_like_status():
     except Exception as e:
         logger.error(f"batch_like_status error: {e}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+# --------------------------------------------------------------------------
+# Reconciliation (cron-only)
+# --------------------------------------------------------------------------
+
+@social_bp.route("/reconcile-likes", methods=["POST"])
+def reconcile_likes():
+    """Cron-only: recount like_count for all articles and events."""
+    from services.social_reconciler import reconcile_like_counts
+    reconcile_like_counts()
+    return jsonify({"status": "ok"}), 200
 
 
 # --------------------------------------------------------------------------

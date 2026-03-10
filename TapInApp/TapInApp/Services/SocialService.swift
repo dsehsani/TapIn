@@ -9,6 +9,7 @@
 
 import Foundation
 import Combine
+import FirebaseFirestore
 
 // MARK: - Models
 
@@ -36,9 +37,12 @@ final class SocialService: ObservableObject {
     /// This prevents stale Firestore reads from overwriting the optimistic/confirmed state.
     private var toggleCooldowns: [String: Date] = [:]
 
-    /// How long to protect a key after a toggle (seconds).
-    /// Gives Firestore transaction time to commit + propagate.
-    private let cooldownDuration: TimeInterval = 5
+    /// How long to protect a key's `liked` state after a toggle (seconds).
+    /// During cooldown, refreshes can still update likeCount but NOT the liked boolean.
+    private let cooldownDuration: TimeInterval = 10
+
+    /// Active Firestore real-time listeners for like_count updates.
+    private var likeListeners: [String: ListenerRegistration] = [:]
 
     // MARK: - Cache Helpers
 
@@ -58,7 +62,7 @@ final class SocialService: ObservableObject {
     }
 
     /// Check if a key is still in its cooldown window.
-    private func isInCooldown(_ key: String) -> Bool {
+    func isInCooldown(_ key: String) -> Bool {
         guard let expiry = toggleCooldowns[key] else { return false }
         if Date() < expiry {
             return true
@@ -66,6 +70,18 @@ final class SocialService: ObservableObject {
         // Cooldown expired — clean up
         toggleCooldowns.removeValue(forKey: key)
         return false
+    }
+
+    /// Merge a server status into the cache, respecting cooldown.
+    /// During cooldown: update likeCount but preserve the user's optimistic `liked` state.
+    /// After cooldown: full overwrite with server truth.
+    private func mergeStatus(key: String, serverStatus: LikeStatus) {
+        if isInCooldown(key), let current = likeCache[key] {
+            // Protect liked state, but accept the latest count
+            likeCache[key] = LikeStatus(liked: current.liked, likeCount: serverStatus.likeCount)
+        } else {
+            likeCache[key] = serverStatus
+        }
     }
 
     /// Prefetch and cache like status for a batch of items.
@@ -76,20 +92,17 @@ final class SocialService: ObservableObject {
         do {
             let statuses = try await batchLikeStatus(items: items)
             for (key, status) in statuses {
-                // Don't overwrite items in cooldown (recently toggled)
-                guard !isInCooldown(key) else { continue }
-                likeCache[key] = status
+                mergeStatus(key: key, serverStatus: status)
             }
-        } catch { /* silent */ }
+        } catch {
+            print("[SocialService] prefetchLikeStatus error: \(error)")
+        }
     }
 
     /// Refresh cache for all currently-tracked items.
     /// Call on foreground return, pull-to-refresh, or a timer.
     func refreshAllCachedLikes() async {
         let items: [(ContentType, String)] = likeCache.keys.compactMap { key in
-            // Skip items in cooldown
-            guard !isInCooldown(key) else { return nil }
-            // Key format: "article_<socialId>" or "event_<socialId>"
             guard let separatorIndex = key.firstIndex(of: "_") else { return nil }
             let typeStr = String(key[key.startIndex..<separatorIndex])
             let idStr = String(key[key.index(after: separatorIndex)...])
@@ -99,25 +112,28 @@ final class SocialService: ObservableObject {
         guard !items.isEmpty else { return }
         do {
             let statuses = try await batchLikeStatus(items: items)
+            print("[SocialService] refreshAllCachedLikes got \(statuses.count) items")
             for (key, status) in statuses {
-                // Double-check cooldown (might have started during the network call)
-                guard !isInCooldown(key) else { continue }
-                likeCache[key] = status
+                mergeStatus(key: key, serverStatus: status)
             }
-        } catch { /* silent */ }
+        } catch {
+            print("[SocialService] refreshAllCachedLikes error: \(error)")
+        }
     }
 
     // MARK: - Likes
 
-    /// Toggle like on/off. Returns (isLiked, likeCount).
-    func toggleLike(contentType: ContentType, contentId: String) async throws -> (Bool, Int) {
+    /// Idempotent like/unlike (Instagram-style). Returns (isLiked, likeCount).
+    /// action: "like" or "unlike" — sending the same action twice is a safe no-op.
+    func setLike(contentType: ContentType, contentId: String, action: String) async throws -> (Bool, Int) {
         guard let token = AppState.shared.backendToken else {
             throw SocialError.notAuthenticated
         }
 
         let body: [String: Any] = [
             "content_type": contentType.rawValue,
-            "content_id": contentId
+            "content_id": contentId,
+            "action": action
         ]
 
         let result = try await post(url: APIConfig.socialLikeURL, token: token, body: body)
@@ -132,8 +148,11 @@ final class SocialService: ObservableObject {
             throw SocialError.notAuthenticated
         }
 
-        let encodedType = contentType.rawValue.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? contentType.rawValue
-        let encodedId = contentId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? contentId
+        // Use a restricted character set that encodes &, ?, =, # which would break query params
+        var queryValueAllowed = CharacterSet.urlQueryAllowed
+        queryValueAllowed.remove(charactersIn: "&=+?#")
+        let encodedType = contentType.rawValue.addingPercentEncoding(withAllowedCharacters: queryValueAllowed) ?? contentType.rawValue
+        let encodedId = contentId.addingPercentEncoding(withAllowedCharacters: queryValueAllowed) ?? contentId
         let urlString = "\(APIConfig.socialLikeStatusURL)?content_type=\(encodedType)&content_id=\(encodedId)"
         let result = try await get(url: urlString, token: token)
         return LikeStatus(
@@ -164,6 +183,42 @@ final class SocialService: ObservableObject {
         return statuses
     }
 
+    // MARK: - Real-Time Listeners (Bug 4)
+
+    /// Subscribe to real-time like_count updates for an item.
+    /// The count updates instantly on all devices when any user likes/unlikes.
+    /// Call this when opening a detail view. Call stopListening() on dismiss.
+    func startListening(contentType: ContentType, contentId: String) {
+        let key = cacheKey(contentType, contentId)
+        guard likeListeners[key] == nil else { return }   // already listening
+
+        let collectionName = contentType == .article ? "articles" : "events"
+        let docRef = Firestore.firestore().collection(collectionName).document(contentId)
+
+        let listener = docRef.addSnapshotListener { [weak self] snapshot, error in
+            guard let self else { return }
+            guard let data = snapshot?.data() else { return }
+            let serverCount = data["like_count"] as? Int ?? 0
+
+            Task { @MainActor in
+                let currentStatus = self.likeCache[key]
+                let updatedStatus = LikeStatus(
+                    liked: currentStatus?.liked ?? false,
+                    likeCount: serverCount
+                )
+                self.mergeStatus(key: key, serverStatus: updatedStatus)
+            }
+        }
+        likeListeners[key] = listener
+    }
+
+    /// Stop listening. Call when leaving the detail view.
+    func stopListening(contentType: ContentType, contentId: String) {
+        let key = cacheKey(contentType, contentId)
+        likeListeners[key]?.remove()
+        likeListeners.removeValue(forKey: key)
+    }
+
     // MARK: - Private Helpers
 
     private func post(url: String, token: String, body: [String: Any]) async throws -> [String: Any] {
@@ -173,17 +228,28 @@ final class SocialService: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 15
+        request.timeoutInterval = 30   // handles slow cold starts
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw SocialError.serverError
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else { throw SocialError.serverError(0) }
+
+            if (400...499).contains(http.statusCode) {
+                throw SocialError.rejected(statusCode: http.statusCode)
+            }
+            if !(200...299).contains(http.statusCode) {
+                throw SocialError.serverError(http.statusCode)
+            }
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw SocialError.serverError(http.statusCode)
+            }
+            return json
+        } catch let error as SocialError {
+            throw error   // re-throw typed errors as-is
+        } catch {
+            throw SocialError.networkFailure(error)   // URLError.timedOut, no connection, etc.
         }
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw SocialError.serverError
-        }
-        return json
     }
 
     private func get(url: String, token: String) async throws -> [String: Any] {
@@ -192,16 +258,27 @@ final class SocialService: ObservableObject {
         var request = URLRequest(url: requestURL)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 15
+        request.timeoutInterval = 30
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw SocialError.serverError
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else { throw SocialError.serverError(0) }
+
+            if (400...499).contains(http.statusCode) {
+                throw SocialError.rejected(statusCode: http.statusCode)
+            }
+            if !(200...299).contains(http.statusCode) {
+                throw SocialError.serverError(http.statusCode)
+            }
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw SocialError.serverError(http.statusCode)
+            }
+            return json
+        } catch let error as SocialError {
+            throw error
+        } catch {
+            throw SocialError.networkFailure(error)
         }
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw SocialError.serverError
-        }
-        return json
     }
 }
 
@@ -210,12 +287,16 @@ final class SocialService: ObservableObject {
 enum SocialError: LocalizedError {
     case notAuthenticated
     case invalidURL
-    case serverError
+    case rejected(statusCode: Int)    // 4xx — server said no, revert
+    case networkFailure(Error)        // timeout, no connection — retry, don't revert
+    case serverError(Int)             // 5xx — retry, don't revert
 
     var errorDescription: String? {
         switch self {
         case .notAuthenticated: return "Please sign in to continue."
         case .invalidURL: return "Invalid request."
+        case .rejected: return "Request was rejected."
+        case .networkFailure: return "Network error. Your action will be retried."
         case .serverError: return "Something went wrong. Please try again."
         }
     }

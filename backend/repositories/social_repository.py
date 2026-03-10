@@ -38,8 +38,9 @@ class SocialRepository:
 
     def toggle_like(self, content_type: str, content_id: str, user_id: str) -> tuple[bool, int]:
         """
-        Toggle a like on/off. Returns (is_liked, new_like_count).
-        Uses a Firestore transaction to ensure atomicity.
+        Toggle a like on/off (legacy — for old clients without action field).
+        Returns (is_liked, new_like_count).
+        Uses atomic Increment for the count to avoid drift.
         """
         db = self._db()
         col_name = _content_collection(content_type)
@@ -49,27 +50,62 @@ class SocialRepository:
         @firestore.transactional
         def _toggle(transaction):
             like_snap = like_ref.get(transaction=transaction)
-            parent_snap = parent_ref.get(transaction=transaction)
-            current_count = (parent_snap.to_dict() or {}).get("like_count", 0) if parent_snap.exists else 0
 
             if like_snap.exists:
-                # Unlike
                 transaction.delete(like_ref)
-                new_count = max(0, current_count - 1)
-                transaction.set(parent_ref, {"like_count": new_count}, merge=True)
-                return False, new_count
+                transaction.set(parent_ref, {"like_count": firestore.Increment(-1)}, merge=True)
+                return False
             else:
-                # Like
+                transaction.set(like_ref, {"user_id": user_id, "liked_at": _now_iso()})
+                transaction.set(parent_ref, {"like_count": firestore.Increment(1)}, merge=True)
+                return True
+
+        transaction = db.transaction()
+        is_liked = _toggle(transaction)
+
+        parent_snap = parent_ref.get()
+        like_count = max(0, (parent_snap.to_dict() or {}).get("like_count", 0)) if parent_snap.exists else 0
+        return is_liked, like_count
+
+    def set_like(self, content_type: str, content_id: str, user_id: str, action: str) -> tuple[bool, int]:
+        """
+        Idempotent like/unlike (Instagram-style). Returns (is_liked, new_like_count).
+        action must be "like" or "unlike".
+        Sending "like" when already liked is a no-op (and vice versa).
+        Uses atomic Increment for the count — only reads the like sub-doc in the transaction.
+        """
+        db = self._db()
+        col_name = _content_collection(content_type)
+        parent_ref = db.collection(col_name).document(content_id)
+        like_ref = parent_ref.collection("likes").document(user_id)
+        want_liked = action == "like"
+
+        @firestore.transactional
+        def _set(transaction):
+            like_snap = like_ref.get(transaction=transaction)
+            already_liked = like_snap.exists
+
+            if want_liked and not already_liked:
                 transaction.set(like_ref, {
                     "user_id": user_id,
                     "liked_at": _now_iso(),
                 })
-                new_count = current_count + 1
-                transaction.set(parent_ref, {"like_count": new_count}, merge=True)
-                return True, new_count
+                transaction.set(parent_ref, {"like_count": firestore.Increment(1)}, merge=True)
+                return True
+            elif not want_liked and already_liked:
+                transaction.delete(like_ref)
+                transaction.set(parent_ref, {"like_count": firestore.Increment(-1)}, merge=True)
+                return False
+            else:
+                return already_liked
 
         transaction = db.transaction()
-        return _toggle(transaction)
+        is_liked = _set(transaction)
+
+        # Read committed count after the transaction (not inside it)
+        parent_snap = parent_ref.get()
+        like_count = max(0, (parent_snap.to_dict() or {}).get("like_count", 0)) if parent_snap.exists else 0
+        return is_liked, like_count
 
     def get_like_status(self, content_type: str, content_id: str, user_id: str) -> tuple[bool, int]:
         """Returns (is_liked_by_user, like_count)."""
@@ -85,21 +121,61 @@ class SocialRepository:
 
     def batch_like_status(self, items: list[dict], user_id: str) -> dict:
         """
-        Returns like status for multiple items.
-        Key format: "{content_type}_{content_id}"
+        Returns like status for multiple items using batched Firestore reads.
+        Reads all parent docs and like sub-docs in two bulk operations instead of 2N sequential reads.
         """
         db = self._db()
         results = {}
+
+        if not items:
+            return results
+
+        # Build all document references upfront
+        parent_refs = []
+        like_refs = []
+        keys = []
+
         for item in items:
             ct = item["content_type"]
             cid = item["content_id"]
             key = f"{ct}_{cid}"
+            keys.append(key)
+
+            col_name = _content_collection(ct)
+            parent_ref = db.collection(col_name).document(cid)
+            like_ref = parent_ref.collection("likes").document(user_id)
+            parent_refs.append(parent_ref)
+            like_refs.append(like_ref)
+
+        # Batch read all parent documents at once
+        parent_snaps = db.get_all(parent_refs)
+        parent_map = {}
+        for snap in parent_snaps:
+            parent_map[snap.reference.path] = snap
+
+        # Batch read all like sub-documents at once
+        like_snaps = db.get_all(like_refs)
+        like_map = {}
+        for snap in like_snaps:
+            like_map[snap.reference.path] = snap
+
+        # Assemble results
+        for i, key in enumerate(keys):
             try:
-                liked, count = self.get_like_status(ct, cid, user_id)
-                results[key] = {"liked": liked, "like_count": count}
+                parent_path = parent_refs[i].path
+                parent_snap = parent_map.get(parent_path)
+                like_count = 0
+                if parent_snap and parent_snap.exists:
+                    like_count = (parent_snap.to_dict() or {}).get("like_count", 0)
+
+                like_path = like_refs[i].path
+                liked = like_map.get(like_path) is not None and like_map[like_path].exists
+
+                results[key] = {"liked": liked, "like_count": like_count}
             except Exception as e:
                 logger.error(f"batch_like_status error for {key}: {e}")
                 results[key] = {"liked": False, "like_count": 0}
+
         return results
 
 

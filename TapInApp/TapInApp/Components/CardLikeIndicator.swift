@@ -14,6 +14,7 @@ struct CardLikeIndicator: View {
 
     @ObservedObject private var socialService = SocialService.shared
     @State private var isAnimating = false
+    @State private var isToggling = false
 
     private var cacheKey: String { socialService.cacheKey(contentType, contentId) }
     private var status: LikeStatus { socialService.likeCache[cacheKey] ?? LikeStatus(liked: false, likeCount: 0) }
@@ -50,37 +51,45 @@ struct CardLikeIndicator: View {
     }
 
     private func toggleLike() {
+        guard !isToggling else { return }
+        isToggling = true
+
         let wasLiked = status.liked
         let oldCount = status.likeCount
         let newLiked = !wasLiked
         let newCount = max(0, oldCount + (newLiked ? 1 : -1))
-
-        socialService.startToggleCooldown(contentType: contentType, contentId: contentId)
 
         socialService.updateCache(
             contentType: contentType, contentId: contentId,
             status: LikeStatus(liked: newLiked, likeCount: newCount)
         )
 
+        socialService.startToggleCooldown(contentType: contentType, contentId: contentId)
+
         withAnimation { isAnimating = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { isAnimating = false }
 
+        let action = newLiked ? "like" : "unlike"
         Task {
             do {
-                let (liked, count) = try await SocialService.shared.toggleLike(
-                    contentType: contentType, contentId: contentId
+                let (liked, count) = try await SocialService.shared.setLike(
+                    contentType: contentType, contentId: contentId, action: action
                 )
-                socialService.startToggleCooldown(contentType: contentType, contentId: contentId)
                 socialService.updateCache(
                     contentType: contentType, contentId: contentId,
                     status: LikeStatus(liked: liked, likeCount: count)
                 )
-            } catch {
+            } catch SocialError.rejected {
                 socialService.updateCache(
                     contentType: contentType, contentId: contentId,
                     status: LikeStatus(liked: wasLiked, likeCount: oldCount)
                 )
+            } catch {
+                LikeSyncQueue.shared.enqueue(
+                    contentType: contentType, contentId: contentId, action: action
+                )
             }
+            isToggling = false
         }
     }
 }

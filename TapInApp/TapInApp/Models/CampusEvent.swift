@@ -130,12 +130,24 @@ import SwiftUI
 extension CampusEvent {
     /// Deterministic ID for likes/comments — same across all devices.
     /// Uses title + date (stable from backend) instead of the random UUID.
+    /// IMPORTANT: Do NOT change this format — existing Firestore data depends on it.
     var socialId: String {
         let formatter = ISO8601DateFormatter()
-        let key = "\(title)_\(formatter.string(from: date))"
-        // Replace chars invalid in Firestore doc IDs
-        return key.replacingOccurrences(of: "/", with: "_")
-                  .replacingOccurrences(of: ".", with: "_")
+        let raw = "\(title)_\(formatter.string(from: date))"
+
+        var cleaned = raw.unicodeScalars.map { scalar in
+            CharacterSet.alphanumerics.contains(scalar) || scalar == "-" || scalar == "_"
+                ? String(scalar)
+                : "_"
+        }.joined()
+
+        // Collapse repeated underscores
+        while cleaned.contains("__") {
+            cleaned = cleaned.replacingOccurrences(of: "__", with: "_")
+        }
+
+        if cleaned.count > 200 { return String(cleaned.prefix(200)) }
+        return cleaned.isEmpty ? id.uuidString : cleaned
     }
 }
 

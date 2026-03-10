@@ -17,3 +17,15 @@ cron:
     http_method: POST
     schedule: every day 07:00
     timezone: America/Los_Angeles
+
+  - description: "Keep backend warm — prevent cold starts"
+    url: /api/social/health
+    http_method: GET
+    schedule: every 5 minutes
+    timezone: America/Los_Angeles
+
+  - description: "Reconcile like counts — fix any drift"
+    url: /api/social/reconcile-likes
+    http_method: POST
+    schedule: every day 03:00
+    timezone: America/Los_Angeles

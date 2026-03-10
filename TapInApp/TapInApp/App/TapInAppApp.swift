@@ -97,7 +97,9 @@ struct TapInAppApp: App {
                 if newPhase == .active && !isCheckingSession {
                     Task {
                         needsForceUpdate = await AppUpdateService.shared.isUpdateRequired()
-                        await SocialService.shared.refreshAllCachedLikes()
+                        async let drain: Void = LikeSyncQueue.shared.drain()
+                        async let refresh: Void = SocialService.shared.refreshAllCachedLikes()
+                        _ = await (drain, refresh)
                     }
                 }
             }

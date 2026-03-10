@@ -48,15 +48,37 @@ struct NewsArticle: Identifiable {
 extension NewsArticle {
     /// Deterministic ID for likes/comments — same across all devices.
     /// Uses articleURL (stable from backend) instead of the random UUID.
+    /// IMPORTANT: Do NOT change this format — existing Firestore data depends on it.
     var socialId: String {
-        if let url = articleURL, !url.isEmpty {
-            // Replace chars invalid in Firestore doc IDs
-            return url.replacingOccurrences(of: "https://", with: "")
-                      .replacingOccurrences(of: "http://", with: "")
-                      .replacingOccurrences(of: "/", with: "_")
-                      .replacingOccurrences(of: ".", with: "_")
+        guard let url = articleURL, !url.isEmpty else { return id.uuidString }
+
+        var cleaned = url
+            .replacingOccurrences(of: "https://", with: "")
+            .replacingOccurrences(of: "http://", with: "")
+
+        // Strip query string and fragment
+        if let idx = cleaned.firstIndex(of: "?") { cleaned = String(cleaned[..<idx]) }
+        if let idx = cleaned.firstIndex(of: "#") { cleaned = String(cleaned[..<idx]) }
+
+        // Strip trailing slashes
+        while cleaned.hasSuffix("/") { cleaned = String(cleaned.dropLast()) }
+
+        // Replace all characters that are invalid or unsafe in Firestore document IDs
+        cleaned = cleaned.unicodeScalars.map { scalar in
+            CharacterSet.alphanumerics.contains(scalar) || scalar == "-" || scalar == "_"
+                ? String(scalar)
+                : "_"
+        }.joined()
+
+        // Collapse repeated underscores
+        while cleaned.contains("__") {
+            cleaned = cleaned.replacingOccurrences(of: "__", with: "_")
         }
-        return id.uuidString
+
+        // Firestore doc IDs max 1500 bytes — cap at 200 for safety
+        if cleaned.count > 200 { cleaned = String(cleaned.prefix(200)) }
+
+        return cleaned.isEmpty ? id.uuidString : cleaned
     }
 }
 

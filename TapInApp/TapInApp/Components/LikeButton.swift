@@ -14,6 +14,7 @@ struct LikeButton: View {
 
     @ObservedObject private var socialService = SocialService.shared
     @State private var isAnimating = false
+    @State private var isToggling = false
 
     private var cacheKey: String { socialService.cacheKey(contentType, contentId) }
     private var status: LikeStatus { socialService.likeCache[cacheKey] ?? LikeStatus(liked: false, likeCount: 0) }
@@ -50,41 +51,50 @@ struct LikeButton: View {
     }
 
     private func toggleLike() {
+        guard !isToggling else { return }
+        isToggling = true
+
         let wasLiked = status.liked
         let oldCount = status.likeCount
         let newLiked = !wasLiked
         let newCount = max(0, oldCount + (newLiked ? 1 : -1))
 
-        // Start cooldown — all refreshes will ignore this key for 5 seconds
-        socialService.startToggleCooldown(contentType: contentType, contentId: contentId)
-
-        // Optimistic update — writes to shared cache, all observers see it
+        // Optimistic update — writes to shared cache, all observers see it immediately
         socialService.updateCache(
             contentType: contentType, contentId: contentId,
             status: LikeStatus(liked: newLiked, likeCount: newCount)
         )
 
+        // Cooldown protects this key from being overwritten by refreshes
+        socialService.startToggleCooldown(contentType: contentType, contentId: contentId)
+
         withAnimation { isAnimating = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { isAnimating = false }
 
+        // Fire-and-forget — idempotent, so duplicate taps are safe
+        let action = newLiked ? "like" : "unlike"
         Task {
             do {
-                let (liked, count) = try await SocialService.shared.toggleLike(
-                    contentType: contentType, contentId: contentId
+                let (liked, count) = try await SocialService.shared.setLike(
+                    contentType: contentType, contentId: contentId, action: action
                 )
-                // Server confirmed — update with real values, refresh cooldown timer
-                socialService.startToggleCooldown(contentType: contentType, contentId: contentId)
                 socialService.updateCache(
                     contentType: contentType, contentId: contentId,
                     status: LikeStatus(liked: liked, likeCount: count)
                 )
-            } catch {
-                // Revert on failure
+            } catch SocialError.rejected {
+                // Server explicitly rejected (401, 403) — revert
                 socialService.updateCache(
                     contentType: contentType, contentId: contentId,
                     status: LikeStatus(liked: wasLiked, likeCount: oldCount)
                 )
+            } catch {
+                // Timeout, 5xx, no network — keep optimistic state, queue for retry
+                LikeSyncQueue.shared.enqueue(
+                    contentType: contentType, contentId: contentId, action: action
+                )
             }
+            isToggling = false
         }
     }
 }
