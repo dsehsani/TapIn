@@ -99,7 +99,7 @@ def batch_like_status():
 # Reconciliation (cron-only)
 # --------------------------------------------------------------------------
 
-@social_bp.route("/reconcile-likes", methods=["POST"])
+@social_bp.route("/reconcile-likes", methods=["GET", "POST"])
 def reconcile_likes():
     """Cron-only: recount like_count for all articles and events."""
     from services.social_reconciler import reconcile_like_counts
