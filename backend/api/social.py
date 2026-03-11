@@ -108,6 +108,111 @@ def reconcile_likes():
 
 
 # --------------------------------------------------------------------------
+# Diagnostics
+# --------------------------------------------------------------------------
+
+@social_bp.route("/debug/likes", methods=["GET"])
+def debug_likes():
+    """
+    Diagnostic endpoint — shows raw Firestore state for a content item.
+    Use to verify likes are persisted and visible across users.
+
+    Query params:
+        content_type (str): "article" or "event"
+        content_id   (str): the socialId
+    """
+    content_type = request.args.get("content_type", "")
+    content_id = request.args.get("content_id", "")
+
+    if content_type not in VALID_CONTENT_TYPES or not content_id:
+        return jsonify({"success": False, "error": "content_type and content_id required"}), 400
+
+    try:
+        from services.firestore_client import get_firestore_client
+        db = get_firestore_client()
+
+        col_name = "articles" if content_type == "article" else "events"
+        parent_ref = db.collection(col_name).document(content_id)
+        parent_snap = parent_ref.get()
+
+        # Read all like sub-documents
+        likes_docs = list(parent_ref.collection("likes").stream())
+        likers = []
+        for doc in likes_docs:
+            data = doc.to_dict() or {}
+            likers.append({
+                "user_id": doc.id,
+                "liked_at": data.get("liked_at", "unknown"),
+            })
+
+        parent_data = parent_snap.to_dict() if parent_snap.exists else None
+        stored_count = (parent_data or {}).get("like_count", 0) if parent_data else 0
+
+        return jsonify({
+            "success": True,
+            "firestore_project": db.project,
+            "document_path": parent_ref.path,
+            "document_exists": parent_snap.exists,
+            "stored_like_count": stored_count,
+            "actual_like_sub_docs": len(likers),
+            "count_matches": stored_count == len(likers),
+            "likers": likers,
+            "parent_data_keys": list((parent_data or {}).keys()),
+        }), 200
+
+    except Exception as e:
+        logger.error(f"debug_likes error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@social_bp.route("/debug/test-like", methods=["POST"])
+def debug_test_like():
+    """
+    End-to-end like test — creates a like, reads it back, then cleans up.
+    No auth required. Uses a fake test user ID.
+
+    Body: { "content_type": "article", "content_id": "test_debug_item" }
+    """
+    data = request.get_json(silent=True) or {}
+    content_type = data.get("content_type", "article")
+    content_id = data.get("content_id", "test_debug_item")
+    test_user = "debug-test-user-000"
+
+    if content_type not in VALID_CONTENT_TYPES:
+        return jsonify({"success": False, "error": "Invalid content_type"}), 400
+
+    steps = {}
+    try:
+        # Step 1: Like
+        liked, count = social_repository.set_like(content_type, content_id, test_user, "like")
+        steps["1_like"] = {"liked": liked, "like_count": count}
+
+        # Step 2: Read back
+        read_liked, read_count = social_repository.get_like_status(content_type, content_id, test_user)
+        steps["2_read_back"] = {"liked": read_liked, "like_count": read_count}
+
+        # Step 3: Unlike (cleanup)
+        unliked, final_count = social_repository.set_like(content_type, content_id, test_user, "unlike")
+        steps["3_unlike_cleanup"] = {"liked": unliked, "like_count": final_count}
+
+        all_passed = (
+            steps["1_like"]["liked"] is True
+            and steps["2_read_back"]["liked"] is True
+            and steps["3_unlike_cleanup"]["liked"] is False
+        )
+
+        return jsonify({
+            "success": True,
+            "all_passed": all_passed,
+            "steps": steps,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"debug_test_like error: {e}")
+        return jsonify({"success": False, "error": str(e), "steps": steps}), 500
+
+
+# --------------------------------------------------------------------------
 # Health
 # --------------------------------------------------------------------------
 

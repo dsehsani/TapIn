@@ -16,8 +16,8 @@ final class AppUpdateService {
     private let bundleID = "DariusEhsani.TapInApp"
 
     /// The App Store URL to open when the user taps "Update Now".
-    /// Populated after a successful version check.
-    private(set) var appStoreURL: URL?
+    /// Defaults to TapIn's listing; overwritten if iTunes lookup returns a different ID.
+    private(set) var appStoreURL: URL? = URL(string: "https://apps.apple.com/app/id6759493072")
 
     /// Custom session with a short timeout so a slow network doesn't stall launch.
     private lazy var session: URLSession = {

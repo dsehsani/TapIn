@@ -316,39 +316,41 @@ class AppState: ObservableObject {
 
     // MARK: - Session Restoration
 
-    /// Validates the saved backend token on app launch and restores the session.
-    /// Called from TapInAppApp on startup — if UserDefaults was wiped (e.g. Xcode
-    /// rebuild) but the backend still has the account, this restores access.
+    /// Validates the saved backend token on every app launch.
+    /// If the token is invalid or expired (401), automatically signs out
+    /// so the user is prompted to re-authenticate.
     func restoreSession() async {
-        // Already authenticated from UserDefaults — nothing to do
-        if isAuthenticated && currentUser != nil { return }
+        guard let token = backendToken else { return }
 
-        // Have a backend token but lost isAuthenticated — validate and restore
-        if let token = backendToken {
-            if let user = try? await UserAPIService.shared.fetchProfile(token: token) {
-                currentUser = User(
-                    name: user.username,
-                    email: user.email,
-                    year: user.year,
-                    interests: user.interests
-                )
-                isAuthenticated = true
+        do {
+            let user = try await UserAPIService.shared.fetchProfile(token: token)
+            currentUser = User(
+                name: user.username,
+                email: user.email,
+                year: user.year,
+                interests: user.interests
+            )
+            isAuthenticated = true
 
-                // Drain any pending like actions that were queued while offline/signed out
-                await LikeSyncQueue.shared.drain()
+            // Drain any pending like actions that were queued while offline/signed out
+            await LikeSyncQueue.shared.drain()
 
-                // Restore profile image from backend if not cached locally
-                if UserDefaults.standard.data(forKey: "profileImageData") == nil,
-                   let imageURL = user.profileImageURL, !imageURL.isEmpty {
-                    Task {
-                        if let data = try? await UserAPIService.shared.downloadProfileImage(from: imageURL) {
-                            UserDefaults.standard.set(data, forKey: "profileImageData")
-                        }
+            // Restore profile image from backend if not cached locally
+            if UserDefaults.standard.data(forKey: "profileImageData") == nil,
+               let imageURL = user.profileImageURL, !imageURL.isEmpty {
+                Task {
+                    if let data = try? await UserAPIService.shared.downloadProfileImage(from: imageURL) {
+                        UserDefaults.standard.set(data, forKey: "profileImageData")
                     }
                 }
-
-                persistState()
             }
+
+            persistState()
+        } catch {
+            // Token is invalid/expired — force re-authentication.
+            // This clears local auth state so the app shows the sign-in screen.
+            print("[AppState] restoreSession failed (\(error)) — signing out")
+            signOut()
         }
     }
 
