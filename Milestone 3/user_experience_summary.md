@@ -15,6 +15,7 @@ The number one remaining hesitation seems to be the events page. Although cited 
 ### Features Planned for Final
  
 - Flesh out friends/social layer — see who's interested and saved an event
+    - Fix likes and comments
 - Calendar integration — export events to personal calendar
 - Event filtering & better event detail — filter by type, host photos/visuals, clarity on openness (if possible)
 - Community features — comments, discussions, and voting on news and events
