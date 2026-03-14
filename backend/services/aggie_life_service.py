@@ -7,11 +7,18 @@
 #  Fetches the Aggie Life iCal feed and returns a list of event dicts.
 #
 
+import os
 import re
+import logging
 import urllib.request
 import hashlib
 import uuid
 from datetime import datetime, timezone, timedelta
+
+import requests
+from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 
 AGGIE_LIFE_URL = "https://aggielife.ucdavis.edu/ical/ucdavis/ical_ucdavis.ics"
@@ -48,12 +55,82 @@ def fetch_events() -> list[dict]:
 # ------------------------------------------------------------------------------
 
 def _fetch_ics() -> str:
+    """
+    Fetches the Aggie Life iCal feed. If UC Davis credentials are configured
+    (UCDAVIS_LOGIN_ID + UCDAVIS_PASSWORD), authenticates via CAS first so
+    that hidden event locations are included in the feed.
+    Falls back to an unauthenticated fetch if credentials are missing or login fails.
+    """
+    login_id = os.environ.get("UCDAVIS_LOGIN_ID", "").strip()
+    password = os.environ.get("UCDAVIS_PASSWORD", "").strip()
+
+    if login_id and password:
+        try:
+            return _fetch_ics_authenticated(login_id, password)
+        except Exception as e:
+            logger.warning(f"Authenticated iCal fetch failed, falling back to public: {e}")
+
+    # Fallback: unauthenticated fetch
     req = urllib.request.Request(
         AGGIE_LIFE_URL,
         headers={"User-Agent": "TapIn-Backend/1.0"}
     )
     with urllib.request.urlopen(req, timeout=15) as resp:
         return resp.read().decode("utf-8", errors="replace")
+
+
+def _fetch_ics_authenticated(login_id: str, password: str) -> str:
+    """
+    Authenticates with UC Davis CAS and fetches the iCal feed with session cookies.
+    CAS flow: GET login page → extract form fields → POST credentials → follow redirect.
+    """
+    session = requests.Session()
+    session.headers.update({"User-Agent": "TapIn-Backend/1.0"})
+
+    # Step 1: GET the CAS login page (with service= pointing to Aggie Life)
+    cas_url = "https://cas.ucdavis.edu/cas/login"
+    login_page = session.get(cas_url, params={"service": AGGIE_LIFE_URL}, timeout=15)
+    login_page.raise_for_status()
+
+    # Step 2: Extract hidden form fields (lt, execution, _eventId, etc.)
+    soup = BeautifulSoup(login_page.text, "html.parser")
+    form = soup.find("form")
+    if not form:
+        raise ValueError("Could not find CAS login form")
+
+    form_data = {}
+    for inp in form.find_all("input"):
+        name = inp.get("name")
+        if name:
+            form_data[name] = inp.get("value", "")
+
+    # Fill in credentials
+    form_data["username"] = login_id
+    form_data["password"] = password
+
+    # Step 3: POST credentials to CAS
+    form_action = form.get("action", "")
+    if form_action.startswith("/"):
+        post_url = f"https://cas.ucdavis.edu{form_action}"
+    elif form_action.startswith("http"):
+        post_url = form_action
+    else:
+        post_url = f"https://cas.ucdavis.edu/cas/login"
+
+    login_resp = session.post(post_url, data=form_data, timeout=15)
+    login_resp.raise_for_status()
+
+    # Step 4: Fetch the iCal feed with authenticated session
+    ics_resp = session.get(AGGIE_LIFE_URL, timeout=15)
+    ics_resp.raise_for_status()
+
+    ics_text = ics_resp.text
+    # Verify we got actual iCal data and not a login page
+    if "BEGIN:VCALENDAR" not in ics_text:
+        raise ValueError("Authenticated fetch did not return valid iCal data — login may have failed")
+
+    logger.info("Successfully fetched iCal feed with authentication")
+    return ics_text
 
 
 # ------------------------------------------------------------------------------
@@ -198,7 +275,59 @@ def _clean_location(raw: str) -> str:
     trimmed = raw.strip()
     if "sign in to download" in trimmed.lower():
         return "TBD"
+    if "private location" in trimmed.lower():
+        return "TBD"
     return trimmed if trimmed else "TBD"
+
+
+# ------------------------------------------------------------------------------
+# MARK: - Authenticated Location Scraping
+# ------------------------------------------------------------------------------
+
+def scrape_event_location(event_url: str) -> str | None:
+    """
+    Scrapes a single Aggie Life event page using the stored session cookie
+    to extract a private location from the JSON-LD structured data.
+
+    Returns the location name string, or None if not found / cookie expired.
+    """
+    session_cookie = os.environ.get("AGGIELIFE_SESSION", "").strip()
+    if not session_cookie:
+        return None
+
+    try:
+        resp = requests.get(
+            event_url,
+            headers={"User-Agent": "Mozilla/5.0"},
+            cookies={"CG.SessionID": session_cookie},
+            timeout=15,
+            allow_redirects=True,
+        )
+        resp.raise_for_status()
+
+        # Extract location from JSON-LD structured data
+        import json
+        match = re.search(
+            r'<script type="application/ld\+json">(.*?)</script>',
+            resp.text,
+            re.DOTALL,
+        )
+        if not match:
+            return None
+
+        data = json.loads(match.group(1))
+        location = data.get("location", {})
+        name = location.get("name", "") if isinstance(location, dict) else ""
+
+        # Reject placeholder values
+        if not name or "sign in" in name.lower() or "private location" in name.lower():
+            return None
+
+        return name.strip()
+
+    except Exception as e:
+        logger.warning(f"Failed to scrape location from {event_url}: {e}")
+        return None
 
 
 # ------------------------------------------------------------------------------

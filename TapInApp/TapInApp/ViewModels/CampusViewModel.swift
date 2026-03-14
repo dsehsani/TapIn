@@ -47,15 +47,24 @@ class CampusViewModel: ObservableObject {
             allEvents = fetched.map { resolveLocation($0) }
             applyFilter()
             generateMissingSummaries()
-
-            // Batch prefetch like status for all events
-            let likeItems = allEvents.map { (ContentType.event, $0.socialId) }
-            await SocialService.shared.prefetchLikeStatus(items: likeItems)
+        } catch is CancellationError {
+            print("[CampusVM] fetchEvents cancelled — keeping existing data")
+            isLoading = false
+            return
         } catch {
+            print("[CampusVM] fetchEvents error: \(error)")
             errorMessage = error.localizedDescription
-            // Fall back to sample data if network fails
-            allEvents = CampusEvent.sampleData
-            applyFilter()
+            if allEvents.isEmpty {
+                allEvents = CampusEvent.sampleData
+                applyFilter()
+            }
+        }
+
+        // Prefetch like status — runs after events are set so a failure
+        // here never replaces real events with sample data.
+        if !allEvents.isEmpty {
+            let likeItems = allEvents.map { (ContentType.event, $0.socialId) }
+            try? await SocialService.shared.prefetchLikeStatus(items: likeItems)
         }
 
         isLoading = false
@@ -126,10 +135,14 @@ class CampusViewModel: ObservableObject {
     // MARK: - Location Resolution
 
     /// If an event's location is "TBD" or empty, try to extract it from the description.
-    /// Falls back to "N/A" if nothing is found.
+    /// Prefers backend aiLocation, then client-side regex, then keeps original.
     private func resolveLocation(_ event: CampusEvent) -> CampusEvent {
         let loc = event.location.trimmingCharacters(in: .whitespacesAndNewlines)
         guard loc.isEmpty || loc == "TBD" else { return event }
+
+        // If backend already provided an AI or web location, keep the event as-is —
+        // displayLocation will pick up aiLocation/webLocation automatically.
+        if event.aiLocation != nil || event.webLocation != nil { return event }
 
         let extracted = extractLocation(from: event.description)
 
@@ -149,7 +162,12 @@ class CampusViewModel: ObservableObject {
             eventURL: event.eventURL,
             organizerURL: event.organizerURL,
             aiSummary: event.aiSummary,
-            aiBulletPoints: event.aiBulletPoints
+            aiBulletPoints: event.aiBulletPoints,
+            aiLocation: event.aiLocation,
+            webLocation: event.webLocation,
+            webLocationSource: event.webLocationSource,
+            locationConfidence: event.locationConfidence,
+            locationConfidenceReason: event.locationConfidenceReason
         )
     }
 

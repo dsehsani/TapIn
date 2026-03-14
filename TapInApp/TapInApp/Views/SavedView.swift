@@ -324,15 +324,31 @@ struct SavedEventRow: View {
                         .foregroundColor(.textSecondary)
                 }
 
-                if !event.location.isEmpty {
+                if !event.displayLocation.isEmpty && event.displayLocation != "TBD" && event.displayLocation != "N/A" {
                     HStack(spacing: 6) {
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(Color.ucdBlue)
-                        Text(event.location)
-                            .font(.system(size: 12))
-                            .foregroundColor(.textSecondary)
-                            .lineLimit(1)
+                        if event.confidenceLevel == .low {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                            Text("Usually: \(event.displayLocation)")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        } else {
+                            Image(systemName: "mappin.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(Color.ucdBlue)
+                            Text(event.displayLocation)
+                                .font(.system(size: 12))
+                                .foregroundColor(.textSecondary)
+                                .lineLimit(1)
+                            if event.confidenceLevel == .moderate {
+                                SuggestedLocationBadge(
+                                    confidence: event.confidenceScore,
+                                    reason: event.confidenceReason
+                                )
+                            }
+                        }
                     }
                 }
 

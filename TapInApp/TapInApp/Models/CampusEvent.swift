@@ -26,6 +26,11 @@ struct CampusEvent: Identifiable, Equatable, Codable {
     // Server pre-computed AI content (populated by backend pipeline)
     let aiSummary: String?
     let aiBulletPoints: [String]
+    let aiLocation: String?
+    let webLocation: String?         // Web-searched club meeting location (unverified)
+    let webLocationSource: String?   // Where it was found, e.g. "ASUCD page", "Linktree"
+    let locationConfidence: Int?             // 0-100 confidence score from backend
+    let locationConfidenceReason: String?    // Human-readable reason for the score
 
     // MARK: - Memberwise init (for sample data & local construction)
     init(
@@ -44,7 +49,12 @@ struct CampusEvent: Identifiable, Equatable, Codable {
         eventURL: String? = nil,
         organizerURL: String? = nil,
         aiSummary: String? = nil,
-        aiBulletPoints: [String] = []
+        aiBulletPoints: [String] = [],
+        aiLocation: String? = nil,
+        webLocation: String? = nil,
+        webLocationSource: String? = nil,
+        locationConfidence: Int? = nil,
+        locationConfidenceReason: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -62,6 +72,11 @@ struct CampusEvent: Identifiable, Equatable, Codable {
         self.organizerURL = organizerURL
         self.aiSummary = aiSummary
         self.aiBulletPoints = aiBulletPoints
+        self.aiLocation = aiLocation
+        self.webLocation = webLocation
+        self.webLocationSource = webLocationSource
+        self.locationConfidence = locationConfidence
+        self.locationConfidenceReason = locationConfidenceReason
     }
 
     // MARK: - Codable (custom to handle server "startDate" vs local "date")
@@ -69,7 +84,7 @@ struct CampusEvent: Identifiable, Equatable, Codable {
     enum CodingKeys: String, CodingKey {
         case id, title, description, location, isOfficial
         case imageURL, organizerName, clubAcronym, eventType
-        case tags, eventURL, organizerURL, aiSummary, aiBulletPoints
+        case tags, eventURL, organizerURL, aiSummary, aiBulletPoints, aiLocation, webLocation, webLocationSource, locationConfidence, locationConfidenceReason
         case startDate, date, endDate
     }
 
@@ -101,6 +116,11 @@ struct CampusEvent: Identifiable, Equatable, Codable {
         organizerURL  = try? c.decode(String.self, forKey: .organizerURL)
         aiSummary     = try? c.decode(String.self, forKey: .aiSummary)
         aiBulletPoints = (try? c.decode([String].self, forKey: .aiBulletPoints)) ?? []
+        aiLocation     = try? c.decode(String.self, forKey: .aiLocation)
+        webLocation    = try? c.decode(String.self, forKey: .webLocation)
+        webLocationSource = try? c.decode(String.self, forKey: .webLocationSource)
+        locationConfidence = try? c.decode(Int.self, forKey: .locationConfidence)
+        locationConfidenceReason = try? c.decode(String.self, forKey: .locationConfidenceReason)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -121,6 +141,11 @@ struct CampusEvent: Identifiable, Equatable, Codable {
         try c.encodeIfPresent(organizerURL,  forKey: .organizerURL)
         try c.encodeIfPresent(aiSummary,     forKey: .aiSummary)
         try c.encode(aiBulletPoints, forKey: .aiBulletPoints)
+        try c.encodeIfPresent(aiLocation, forKey: .aiLocation)
+        try c.encodeIfPresent(webLocation, forKey: .webLocation)
+        try c.encodeIfPresent(webLocationSource, forKey: .webLocationSource)
+        try c.encodeIfPresent(locationConfidence, forKey: .locationConfidence)
+        try c.encodeIfPresent(locationConfidenceReason, forKey: .locationConfidenceReason)
     }
 }
 
@@ -148,6 +173,91 @@ extension CampusEvent {
 
         if cleaned.count > 200 { return String(cleaned.prefix(200)) }
         return cleaned.isEmpty ? id.uuidString : cleaned
+    }
+}
+
+// MARK: - Location Confidence
+enum LocationConfidenceLevel {
+    case high      // ≥80
+    case moderate  // 50-79
+    case low       // 1-49
+    case none      // 0
+
+    var color: Color {
+        switch self {
+        case .high:     return .green
+        case .moderate: return .orange
+        case .low:      return Color(red: 0.92, green: 0.27, blue: 0.27)
+        case .none:     return .gray
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .high:     return "High confidence"
+        case .moderate: return "Moderate confidence"
+        case .low:      return "Low confidence"
+        case .none:     return "No location"
+        }
+    }
+}
+
+extension CampusEvent {
+    /// Confidence level derived from the backend score, with a fallback heuristic
+    /// for cached events that predate the confidence field.
+    var confidenceLevel: LocationConfidenceLevel {
+        let score: Int
+        if let s = locationConfidence {
+            score = s
+        } else {
+            // Fallback for old cached events without backend confidence
+            if location != "TBD" && !location.isEmpty { score = 95 }
+            else if aiLocation != nil { score = 75 }
+            else if webLocation != nil { score = 40 }
+            else { score = 0 }
+        }
+
+        if score >= 80 { return .high }
+        if score >= 50 { return .moderate }
+        if score > 0   { return .low }
+        return .none
+    }
+
+    var confidenceScore: Int {
+        if let s = locationConfidence { return s }
+        // Fallback
+        if location != "TBD" && !location.isEmpty { return 95 }
+        if aiLocation != nil { return 75 }
+        if webLocation != nil { return 40 }
+        return 0
+    }
+
+    var confidenceReason: String {
+        locationConfidenceReason ?? "No confidence data available"
+    }
+}
+
+// MARK: - Display Location
+extension CampusEvent {
+    /// The best available location string for display.
+    /// Priority: confirmed iCal → AI description scan → web search → "TBD".
+    var displayLocation: String {
+        if location != "TBD" && !location.isEmpty { return location }
+        if let ai = aiLocation { return ai }
+        if let web = webLocation { return web }
+        return "TBD"
+    }
+
+    /// True when the shown location was inferred by AI from the description.
+    var isLocationInferred: Bool {
+        return (location == "TBD" || location.isEmpty) && aiLocation != nil
+    }
+
+    /// True when the location came from a web search — least confident source.
+    var isLocationFromWeb: Bool {
+        return (location == "TBD" || location.isEmpty)
+            && aiLocation == nil
+            && webLocation != nil
     }
 }
 

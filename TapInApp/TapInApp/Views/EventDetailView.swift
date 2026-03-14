@@ -83,21 +83,40 @@ struct EventDetailView: View {
                             colorScheme: colorScheme
                         )
 
-                        if event.location != "N/A" {
-                            DetailRow(
-                                icon: "mappin.circle.fill",
-                                title: "Location",
-                                value: event.location,
-                                colorScheme: colorScheme
-                            )
+                        if event.displayLocation != "N/A" && event.displayLocation != "TBD" && !event.displayLocation.isEmpty {
+                            // ── Location row with confidence badge ──
+                            HStack(spacing: 4) {
+                                DetailRow(
+                                    icon: "mappin.circle.fill",
+                                    title: "Location",
+                                    value: event.displayLocation,
+                                    colorScheme: colorScheme
+                                )
 
-                            // Tappable map preview
-                            if let coordinate = locationCoordinate {
+                                if event.confidenceScore < 90 {
+                                    SuggestedLocationBadge(
+                                        confidence: event.confidenceScore,
+                                        reason: event.confidenceReason
+                                    )
+                                }
+                            }
+
+                            // Unverified banner for low confidence only
+                            if event.confidenceLevel == .low, let webLoc = event.webLocation {
+                                UnverifiedLocationBanner(
+                                    location: webLoc,
+                                    source: event.webLocationSource ?? "web"
+                                )
+                            }
+
+                            // Map preview for moderate or high confidence
+                            if event.confidenceLevel == .moderate || event.confidenceLevel == .high,
+                               let coordinate = locationCoordinate {
                                 Map(initialPosition: .region(MKCoordinateRegion(
                                     center: coordinate,
                                     span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
                                 ))) {
-                                    Marker(event.location, coordinate: coordinate)
+                                    Marker(event.displayLocation, coordinate: coordinate)
                                         .tint(.red)
                                 }
                                 .mapStyle(.standard(pointsOfInterest: .excludingAll))
@@ -109,17 +128,10 @@ struct EventDetailView: View {
                                         .fill(Color.clear)
                                         .contentShape(Rectangle())
                                         .onTapGesture {
-                                            openInMaps(location: event.location)
+                                            openInMaps(location: event.displayLocation)
                                         }
                                 )
                             }
-                        } else {
-                            DetailRow(
-                                icon: "mappin.circle.fill",
-                                title: "Location",
-                                value: "N/A",
-                                colorScheme: colorScheme
-                            )
                         }
                     }
 
@@ -332,8 +344,8 @@ struct EventDetailView: View {
     private var shareText: String {
         var text = "\(event.title)\n"
         text += "\(event.friendlyDateLabel) at \(event.date.formatted(date: .omitted, time: .shortened))"
-        if !event.location.isEmpty && event.location != "N/A" {
-            text += "\n\(event.location)"
+        if !event.displayLocation.isEmpty && event.displayLocation != "N/A" && event.displayLocation != "TBD" {
+            text += "\n\(event.displayLocation)"
         }
         if let urlString = event.eventURL {
             text += "\n\(urlString)"
@@ -345,8 +357,9 @@ struct EventDetailView: View {
 
     /// Geocodes the event location to get a coordinate for the map preview.
     private func geocodeLocation() async {
-        let location = event.location
-        guard location != "N/A" && !location.isEmpty else { return }
+        let location = event.displayLocation
+        guard location != "N/A" && !location.isEmpty && location != "TBD"
+              && (event.confidenceLevel == .moderate || event.confidenceLevel == .high) else { return }
 
         let query = mapsQuery(for: location)
 

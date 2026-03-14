@@ -101,6 +101,234 @@ def trigger_refresh():
 
 
 # ------------------------------------------------------------------------------
+# MARK: - POST /api/events/backfill-locations
+# ------------------------------------------------------------------------------
+
+@events_bp.route("/backfill-locations", methods=["POST"])
+def backfill_locations():
+    """
+    One-time backfill: scans existing events with location == "TBD" and
+    uses Claude to extract a location from the description.
+    """
+    from repositories.event_repository import event_repository
+    from services.claude_service import claude_service
+    from services.firestore_client import get_firestore_client
+
+    db = get_firestore_client()
+    updated = 0
+    skipped = 0
+    errors = 0
+
+    try:
+        for doc in db.collection("processed_events").stream():
+            data = doc.to_dict()
+            # Skip events that already have aiLocation/webLocation or have a real location
+            if data.get("aiLocation") or data.get("webLocation"):
+                skipped += 1
+                continue
+            if data.get("location", "TBD") not in ("TBD", "", None):
+                skipped += 1
+                continue
+
+            title = data.get("title", "")
+            description = data.get("description", "")
+            if not description.strip():
+                skipped += 1
+                continue
+
+            try:
+                # Step 1: scan description
+                inferred = claude_service.extract_location_from_description(title, description)
+                if inferred:
+                    doc.reference.update({"aiLocation": inferred, "webLocation": None, "webLocationSource": None})
+                    updated += 1
+                    logger.info(f"Backfilled aiLocation for '{title}': {inferred}")
+                else:
+                    # Step 2: web search for club meeting place
+                    organizer = data.get("organizerName") or data.get("clubAcronym")
+                    if organizer:
+                        web_result = claude_service.search_club_location(
+                            organizer_name=data.get("organizerName", ""),
+                            club_acronym=data.get("clubAcronym")
+                        )
+                        if web_result:
+                            doc.reference.update({
+                                "aiLocation": None,
+                                "webLocation": web_result["location"],
+                                "webLocationSource": web_result["source"],
+                            })
+                            updated += 1
+                            logger.info(f"Backfilled webLocation for '{title}': {web_result['location']}")
+                        else:
+                            doc.reference.update({"aiLocation": None, "webLocation": None, "webLocationSource": None})
+                            skipped += 1
+                    else:
+                        doc.reference.update({"aiLocation": None, "webLocation": None, "webLocationSource": None})
+                        skipped += 1
+            except Exception as e:
+                errors += 1
+                logger.error(f"Failed to backfill '{title}': {e}")
+
+        return jsonify({
+            "success": True,
+            "updated": updated,
+            "skipped": skipped,
+            "errors": errors,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Backfill failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ------------------------------------------------------------------------------
+# MARK: - POST /api/events/backfill-confidence
+# ------------------------------------------------------------------------------
+
+@events_bp.route("/backfill-confidence", methods=["POST"])
+def backfill_confidence():
+    """
+    One-time backfill: computes locationConfidence + locationConfidenceReason
+    for every existing event in Firestore.
+    """
+    from repositories.event_repository import event_repository
+    from services.claude_service import compute_location_confidence
+    from services.firestore_client import get_firestore_client
+
+    db = get_firestore_client()
+    updated = 0
+    skipped = 0
+    errors = 0
+
+    try:
+        for doc in db.collection("processed_events").stream():
+            data = doc.to_dict()
+
+            # Skip events that already have a confidence score
+            if data.get("locationConfidence") is not None:
+                skipped += 1
+                continue
+
+            try:
+                score, reason = compute_location_confidence(data)
+                doc.reference.update({
+                    "locationConfidence": score,
+                    "locationConfidenceReason": reason,
+                })
+                updated += 1
+                logger.info(f"Backfilled confidence for '{data.get('title')}': {score} — {reason}")
+            except Exception as e:
+                errors += 1
+                logger.error(f"Failed to backfill confidence for '{data.get('title')}': {e}")
+
+        return jsonify({
+            "success": True,
+            "updated": updated,
+            "skipped": skipped,
+            "errors": errors,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Backfill confidence failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ------------------------------------------------------------------------------
+# MARK: - POST /api/events/scrape-locations
+# ------------------------------------------------------------------------------
+
+@events_bp.route("/scrape-locations", methods=["POST"])
+def scrape_private_locations():
+    """
+    Scrapes Aggie Life event pages using the authenticated session cookie
+    to fill in private locations for events that currently have confidence=0.
+    """
+    from services.firestore_client import get_firestore_client
+    from services.aggie_life_service import scrape_event_location
+    from services.claude_service import compute_location_confidence
+
+    db = get_firestore_client()
+    updated = 0
+    skipped = 0
+    errors = 0
+    cookie_expired = False
+
+    try:
+        for doc in db.collection("processed_events").stream():
+            data = doc.to_dict()
+
+            # Only target events with no location
+            if (data.get("locationConfidence") or 0) != 0:
+                skipped += 1
+                continue
+
+            event_url = data.get("eventURL")
+            if not event_url:
+                skipped += 1
+                continue
+
+            try:
+                location = scrape_event_location(event_url)
+                if location:
+                    # Update the event with the scraped location as the iCal location
+                    data["location"] = location
+                    score, reason = compute_location_confidence(data)
+                    doc.reference.update({
+                        "location": location,
+                        "locationConfidence": score,
+                        "locationConfidenceReason": reason,
+                    })
+                    updated += 1
+                    logger.info(f"Scraped location for '{data.get('title')}': {location} (conf={score})")
+                else:
+                    skipped += 1
+            except Exception as e:
+                errors += 1
+                logger.error(f"Failed to scrape '{data.get('title')}': {e}")
+
+        return jsonify({
+            "success": True,
+            "updated": updated,
+            "skipped": skipped,
+            "errors": errors,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Scrape locations failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ------------------------------------------------------------------------------
+# MARK: - POST /api/events/reset-tbd
+# ------------------------------------------------------------------------------
+
+@events_bp.route("/reset-tbd", methods=["POST"])
+def reset_tbd_events():
+    """
+    Deletes processed events that still have location == 'TBD' (and no AI/web
+    location) so the next refresh reprocesses them with the full pipeline.
+    """
+    from services.firestore_client import get_firestore_client
+
+    db = get_firestore_client()
+    deleted = 0
+
+    try:
+        for doc in db.collection("processed_events").stream():
+            data = doc.to_dict()
+            loc = data.get("location", "TBD")
+            if loc in ("TBD", "", None) and not data.get("aiLocation") and not data.get("webLocation"):
+                doc.reference.delete()
+                deleted += 1
+
+        return jsonify({"success": True, "deleted": deleted}), 200
+
+    except Exception as e:
+        logger.error(f"Reset TBD failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ------------------------------------------------------------------------------
 # MARK: - GET /api/events/health
 # ------------------------------------------------------------------------------
 

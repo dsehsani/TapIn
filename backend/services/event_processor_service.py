@@ -18,7 +18,8 @@ import threading
 from datetime import datetime, timezone
 
 from services import aggie_life_service
-from services.claude_service import claude_service
+from services.aggie_life_service import scrape_event_location
+from services.claude_service import claude_service, compute_location_confidence
 from repositories.event_repository import event_repository
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,41 @@ def _run_refresh() -> dict:
             # Generate AI bullet points (for detail view)
             event["aiBulletPoints"] = claude_service.generate_bullet_points(title, description)
 
+            # ── Location enrichment pipeline ──────────────────────────────
+            has_real_location = event.get("location", "TBD") not in ("TBD", "", None)
+
+            if has_real_location:
+                # iCal gave us a real location — no AI scan needed
+                event["aiLocation"] = None
+            else:
+                # Step 1: scan the description for a location (TBD events only)
+                inferred = claude_service.extract_location_from_description(title, description)
+                event["aiLocation"] = inferred if inferred else None
+
+            # Step 2: web search for ALL events with an organizer
+            # Even events with confirmed locations benefit from a web search
+            # so we can cross-reference and build confidence.
+            organizer = event.get("organizerName") or event.get("clubAcronym")
+            if organizer and not event.get("aiLocation"):
+                web_result = claude_service.search_club_location(
+                    organizer_name=event.get("organizerName", ""),
+                    club_acronym=event.get("clubAcronym")
+                )
+                if web_result:
+                    event["webLocation"] = web_result["location"]
+                    event["webLocationSource"] = web_result["source"]
+                else:
+                    event["webLocation"] = None
+                    event["webLocationSource"] = None
+            else:
+                event["webLocation"] = None
+                event["webLocationSource"] = None
+
+            # ── Location confidence scoring ────────────────────────────
+            score, reason = compute_location_confidence(event)
+            event["locationConfidence"] = score
+            event["locationConfidenceReason"] = reason
+
             # Timestamp when processed
             event["processedAt"] = datetime.now(tz=timezone.utc)
 
@@ -117,10 +153,35 @@ def _run_refresh() -> dict:
             errors += 1
             logger.error(f"Failed to process event '{event.get('title')}': {e}")
 
+    # ── Step 3: Scrape private locations for events still missing one ──
+    scraped = 0
+    try:
+        all_stored = event_repository.get_all_events()
+        for stored in all_stored:
+            if (stored.get("locationConfidence") or 0) != 0:
+                continue
+            event_url = stored.get("eventURL")
+            if not event_url:
+                continue
+            location = scrape_event_location(event_url)
+            if location:
+                stored["location"] = location
+                score, reason = compute_location_confidence(stored)
+                event_repository.update_event(stored["id"], {
+                    "location": location,
+                    "locationConfidence": score,
+                    "locationConfidenceReason": reason,
+                })
+                scraped += 1
+                logger.info(f"Scraped location for '{stored.get('title')}': {location}")
+    except Exception as e:
+        logger.error(f"Location scraping step failed: {e}")
+
     result = {
         "processed": processed,
         "skipped": skipped,
         "removed_past": removed,
+        "scraped_locations": scraped,
         "errors": errors,
         "total_fetched": len(raw_events),
         "completed_at": datetime.now(tz=timezone.utc).isoformat(),

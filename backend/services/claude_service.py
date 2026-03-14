@@ -259,6 +259,148 @@ class ClaudeService:
         except Exception:
             return []
 
+    def extract_location_from_description(self, title: str, description: str) -> str | None:
+        """
+        Scans an event description for a venue or location mention.
+        Called internally by the event processor when location == "TBD".
+
+        Args:
+            title: The event title (provides helpful context).
+            description: The full event description text.
+
+        Returns:
+            A short location string (e.g. "CoHo", "Wellman Hall 26", "Zoom"),
+            or None if no location is found in the text.
+        """
+        if not description or not description.strip():
+            return None
+
+        cache_key = f"loc_{title}\n{description}"
+        cached = self._location_cache.get(cache_key)
+        if cached is not None:
+            return cached if cached != "__NONE__" else None
+
+        system_prompt = (
+            "You are a location extractor for a UC Davis campus events app. "
+            "Your only job is to find a venue or location name mentioned in the event text. "
+            "Return ONLY the location name — nothing else. No sentences, no punctuation. "
+            "If the event is online, return 'Zoom' or the platform name. "
+            "If no specific location is mentioned, return exactly: NONE"
+        )
+
+        user_prompt = (
+            f"Event: {title}\n\n"
+            f"{description}\n\n"
+            "What is the location or venue for this event? "
+            "Reply with ONLY the location name, or NONE if not mentioned."
+        )
+
+        try:
+            client = self._get_client()
+            message = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=30,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}]
+            )
+
+            raw = message.content[0].text.strip()
+
+            if not raw or raw.upper() == "NONE" or len(raw) > 80:
+                self._location_cache.set(cache_key, "__NONE__")
+                return None
+
+            self._location_cache.set(cache_key, raw)
+            return raw
+
+        except Exception:
+            return None
+
+    def search_club_location(self, organizer_name: str, club_acronym: str | None = None) -> dict | None:
+        """
+        Uses Claude + web search to find where a club typically meets.
+        Only called when iCal location == "TBD" AND description scan found nothing.
+
+        Returns:
+            dict with keys: { "location": str, "source": str } on success,
+            or None if nothing credible is found.
+        """
+        if not organizer_name or not organizer_name.strip():
+            return None
+
+        cache_key = f"webloc_{organizer_name}_{club_acronym or ''}"
+        cached = self._web_location_cache.get(cache_key)
+        if cached is not None:
+            import json
+            try:
+                return json.loads(cached) if cached != "__NONE__" else None
+            except Exception:
+                return None
+
+        system_prompt = (
+            "You are a research assistant helping a UC Davis campus events app. "
+            "Use your web search tool to find where a UC Davis student club typically holds its meetings or events. "
+            "Look at their ASUCD page, club website, Linktree, or Instagram bio. "
+            "Return a JSON object with exactly two keys: "
+            '  "location": a short venue name (e.g. "Wellman Hall", "CoHo", "Zoom"), '
+            '  "source": a short label for where you found it (e.g. "ASUCD page", "club website", "Linktree"). '
+            'If you cannot find a credible, specific location, return exactly: {"location": null, "source": null}. '
+            "Never guess or hallucinate. Only return a location you actually found in a source."
+        )
+
+        try:
+            client = self._get_client()
+
+            message = client.messages.create(
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=120,
+                system=system_prompt,
+                tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 2}],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"Find where this UC Davis club usually meets: {organizer_name}"
+                                   + (f" (acronym: {club_acronym})" if club_acronym else "")
+                    }
+                ]
+            )
+
+            # Extract the final text response from the message
+            raw = ""
+            for block in message.content:
+                if hasattr(block, "text"):
+                    raw = block.text.strip()
+                    break
+
+            if not raw:
+                self._web_location_cache.set(cache_key, "__NONE__")
+                return None
+
+            import json, re
+            json_match = re.search(r'\{.*?\}', raw, re.DOTALL)
+            if not json_match:
+                self._web_location_cache.set(cache_key, "__NONE__")
+                return None
+
+            result = json.loads(json_match.group())
+            location = result.get("location")
+            source = result.get("source")
+
+            if not location or location == "null":
+                self._web_location_cache.set(cache_key, "__NONE__")
+                return None
+
+            if len(location) > 80:
+                self._web_location_cache.set(cache_key, "__NONE__")
+                return None
+
+            output = {"location": location, "source": source or "web"}
+            self._web_location_cache.set(cache_key, json.dumps(output))
+            return output
+
+        except Exception:
+            return None
+
     def summarize_event_internal(self, description: str) -> str | None:
         """
         Summarizes an event description without rate limiting.
@@ -291,6 +433,88 @@ class ClaudeService:
             return None
 
 
+# ------------------------------------------------------------------------------
+# MARK: - Location Confidence Scoring
+# ------------------------------------------------------------------------------
+
+# Known UC Davis buildings — used by compute_location_confidence to boost scores
+# when the AI-extracted location matches a real campus building.
+KNOWN_UC_DAVIS_BUILDINGS = [
+    "memorial union", "arc pavilion", "arc",
+    "shields library", "wellman hall", "hutchison hall",
+    "olson hall", "mondavi center", "freeborn hall",
+    "young hall", "kemper hall", "cruess hall",
+    "sciences lecture hall", "giedt hall", "haring hall",
+    "hunt hall", "walker hall", "rock hall",
+    "student community center", "coho", "coffee house",
+    "the silo", "the quad",
+    "activities and recreation center",
+    "international center", "genome center",
+    "conference center", "alumni center",
+    "putah creek lodge", "walter a. buehler",
+    "surge", "everson hall", "hart hall",
+    "plant and environmental sciences",
+    "social sciences", "sprocket",
+]
+
+# Social media sources get a lower confidence than official sources
+_SOCIAL_MEDIA_SOURCES = {"instagram", "twitter", "x", "facebook", "reddit", "tiktok"}
+
+
+def compute_location_confidence(event: dict) -> tuple[int, str]:
+    """
+    Pure-Python heuristic that scores how trustworthy an event's location is.
+    Zero API cost — uses only the fields already on the event dict.
+
+    Returns:
+        (score 0-100, human-readable reason string)
+    """
+    location = event.get("location", "TBD")
+    has_real_location = location not in ("TBD", "", None)
+    description = (event.get("description") or "").lower()
+    ai_location = event.get("aiLocation")
+    web_location = event.get("webLocation")
+    web_source = event.get("webLocationSource") or "web"
+
+    # ── iCal confirmed location ──
+    if has_real_location:
+        loc_lower = location.lower()
+        # Check if the iCal location is also mentioned in the description
+        if loc_lower in description or any(
+            word in description for word in loc_lower.split() if len(word) > 3
+        ):
+            return 100, "Confirmed on event page"
+        return 95, "Listed by event organizer"
+
+    # ── AI extracted from description ──
+    if ai_location:
+        ai_lower = ai_location.lower()
+        # Online event detection
+        online_keywords = ["zoom", "online", "virtual", "teams", "discord", "webex", "google meet"]
+        if any(kw in ai_lower for kw in online_keywords):
+            return 60, "Online event detected"
+        # Known UC Davis building
+        if any(building in ai_lower for building in KNOWN_UC_DAVIS_BUILDINGS):
+            return 85, "Found specific building in description"
+        return 75, "Location mentioned in description"
+
+    # ── Web search result ──
+    if web_location:
+        source_lower = web_source.lower()
+        # Official sources (ASUCD, club website, etc.)
+        if any(kw in source_lower for kw in ("asucd", "club website", "official", ".edu")):
+            return 55, f"Found on {web_source}"
+        # Social media
+        if any(kw in source_lower for kw in _SOCIAL_MEDIA_SOURCES):
+            return 30, f"Found on {web_source} — may be outdated"
+        return 45, f"Found via web search"
+
+    # ── No location at all ──
+    return 0, "No location information available"
+
+
 # Singleton instance
 claude_service = ClaudeService()
 claude_service._bullet_cache = SummaryCache(max_size=500)
+claude_service._location_cache = SummaryCache(max_size=500)
+claude_service._web_location_cache = SummaryCache(max_size=500)

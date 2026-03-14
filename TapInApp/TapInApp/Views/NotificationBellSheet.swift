@@ -159,13 +159,22 @@ struct NotificationBellSheet: View {
                     Text(event.date.formatted(date: .omitted, time: .shortened))
                         .font(.system(size: 13))
 
-                    Text("·")
-
-                    Image(systemName: "mappin")
-                        .font(.system(size: 11))
-                    Text(event.location)
-                        .font(.system(size: 13))
-                        .lineLimit(1)
+                    if !event.displayLocation.isEmpty && event.displayLocation != "TBD" && event.displayLocation != "N/A" {
+                        Text("·")
+                        if event.confidenceLevel == .low {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 10))
+                            Text("Usually: \(event.displayLocation)")
+                                .font(.system(size: 13))
+                                .lineLimit(1)
+                        } else {
+                            Image(systemName: "mappin")
+                                .font(.system(size: 11))
+                            Text(event.displayLocation)
+                                .font(.system(size: 13))
+                                .lineLimit(1)
+                        }
+                    }
                 }
                 .foregroundColor(.secondary)
             }

@@ -78,14 +78,17 @@ struct ForYouEventCard: View {
     /// True only when location has real, useful data
     private var hasRealLocation: Bool {
         let loc = event.location
-        return !loc.isEmpty && loc != "TBD" && loc != "N/A"
+        if !loc.isEmpty && loc != "TBD" && loc != "N/A" { return true }
+        if event.aiLocation != nil { return true }
+        if event.webLocation != nil { return true }
+        return false
     }
 
     /// Extracts just the building/hall + room from a full address.
     /// e.g. "123 Shields Library, Room 360, Davis, CA" → "Shields Library, Rm 360"
     /// e.g. "Hunt Hall Room 100, Shields Ave, Davis, CA" → "Hunt Hall Rm 100"
     private var shortenedLocation: String {
-        let loc = event.location
+        let loc = event.displayLocation
 
         // Split by comma and keep relevant parts (building, room)
         let parts = loc.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
@@ -188,14 +191,32 @@ struct ForYouEventCard: View {
 
                     // Location — only if real data, above time
                     if hasRealLocation {
-                        HStack(spacing: 4) {
-                            Image(systemName: "mappin")
-                                .font(.system(size: 11))
-                            Text(shortenedLocation)
-                                .font(.system(size: 11, weight: .medium))
+                        if event.confidenceLevel == .low {
+                            // Low confidence: muted styling to signal uncertainty
+                            HStack(spacing: 4) {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 10))
+                                Text("Usually: \(shortenedLocation)")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                        } else {
+                            // Moderate or high confidence: normal pin
+                            HStack(spacing: 4) {
+                                Image(systemName: "mappin")
+                                    .font(.system(size: 11))
+                                Text(shortenedLocation)
+                                    .font(.system(size: 11, weight: .medium))
+                                if event.confidenceLevel == .moderate {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 9))
+                                        .foregroundColor(.orange)
+                                }
+                            }
+                            .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
+                            .lineLimit(1)
                         }
-                        .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
-                        .lineLimit(1)
                     }
 
                     // Time

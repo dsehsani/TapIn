@@ -38,6 +38,15 @@ class EventRepository:
             logger.error(f"Failed to save event {event.get('id')}: {e}")
             raise
 
+    def update_event(self, doc_id: str, fields: dict) -> None:
+        """Updates specific fields on an existing event document."""
+        try:
+            db = get_firestore_client()
+            db.collection(COLLECTION).document(doc_id).update(fields)
+        except Exception as e:
+            logger.error(f"Failed to update event {doc_id}: {e}")
+            raise
+
     # --------------------------------------------------------------------------
     # MARK: - Read
     # --------------------------------------------------------------------------
