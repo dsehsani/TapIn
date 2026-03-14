@@ -318,7 +318,9 @@ enum EventFilterType: String, CaseIterable {
     case forYou = "For You"
     case all = "All Events"
     case official = "UC Davis"
-    case studentPosted = "Club Events"
+
+    /// Pills that always appear in the filter bar.
+    static let permanentFilters: [EventFilterType] = [.all]
 }
 
 enum EventTimeFilter: String, CaseIterable {

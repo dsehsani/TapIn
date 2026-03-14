@@ -97,7 +97,7 @@ class ForYouFeedEngine {
             }
             let matching = allScored.filter { $0.2 }.sorted { $0.1 > $1.1 }.map { $0.0 }
             let nonMatching = allScored.filter { !$0.2 }.sorted { $0.1 > $1.1 }.map { $0.0 }
-            let minCarouselSize = 15
+            let minCarouselSize = 5
             if matching.count >= minCarouselSize {
                 scoredEvents = Array(matching.prefix(minCarouselSize))
             } else {
@@ -110,7 +110,7 @@ class ForYouFeedEngine {
                 return (event, score)
             }
             .sorted { $0.1 > $1.1 }
-            .prefix(15)
+            .prefix(5)
             .map { $0.0 }
         }
 

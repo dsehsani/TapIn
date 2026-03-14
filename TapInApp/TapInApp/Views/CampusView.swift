@@ -11,6 +11,7 @@ struct CampusView: View {
     @ObservedObject var viewModel: CampusViewModel
     @ObservedObject var savedViewModel: SavedViewModel
 
+    @ObservedObject private var subscriptionService = ClubSubscriptionService.shared
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedEvent: CampusEvent?
 
@@ -49,67 +50,39 @@ struct CampusView: View {
                 // Filter Pills
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-                        ForEach(EventFilterType.allCases, id: \.self) { filter in
+                        // Permanent + conditional UC Davis pills
+                        ForEach(EventFilterType.permanentFilters + (viewModel.hasUCDavisEvents ? [.official] : []), id: \.self) { filter in
                             Button(action: {
-                                if filter == .forYou {
-                                    viewModel.setProfileEvents(savedViewModel.savedEvents)
-                                }
                                 viewModel.filterEvents(by: filter)
                             }) {
-                                HStack(spacing: 4) {
-                                    if filter == .forYou {
-                                        Image(systemName: "sparkles")
-                                            .font(.system(size: 12, weight: .medium))
-                                    }
-                                    Text(filter.rawValue)
-                                }
-                                    .font(.system(size: 14, weight: viewModel.filterType == filter ? .semibold : .medium))
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(
-                                        viewModel.filterType == filter
-                                            ? (colorScheme == .dark ? Color(hex: "#1a1060") : Color.accentCoral)
-                                            : (colorScheme == .dark ? Color(hex: "#1a2033") : .white)
-                                    )
-                                    .foregroundColor(
-                                        viewModel.filterType == filter
-                                            ? .white
-                                            : (colorScheme == .dark ? Color(hex: "#cbd5e1") : Color(hex: "#334155"))
-                                    )
-                                    .clipShape(Capsule())
-                                    .overlay(
-                                        Capsule()
-                                            .stroke(
-                                                viewModel.filterType == filter
-                                                    ? Color.clear
-                                                    : (colorScheme == .dark ? Color(hex: "#334155") : Color(hex: "#e2e8f0")),
-                                                lineWidth: 1
-                                            )
-                                    )
-                                    .shadow(color: viewModel.filterType == filter ? (colorScheme == .dark ? Color(hex: "#1a1060").opacity(0.4) : Color.accentCoral.opacity(0.25)) : .clear, radius: 4, x: 0, y: 2)
+                                pillLabel(
+                                    for: filter.rawValue,
+                                    isSelected: viewModel.selectedClubOrganizer == nil
+                                        && viewModel.filterType == filter
+                                )
+                            }
+                        }
+
+                        // Club subscription pills
+                        ForEach(viewModel.activeSubscribedClubs, id: \.self) { organizer in
+                            let acronym = viewModel.allEvents
+                                .first { $0.organizerName == organizer }?
+                                .clubAcronym
+                            let label = subscriptionService.displayName(
+                                for: organizer,
+                                acronym: acronym
+                            )
+                            Button(action: {
+                                viewModel.filterByClub(organizer)
+                            }) {
+                                pillLabel(
+                                    for: label,
+                                    isSelected: viewModel.selectedClubOrganizer == organizer,
+                                    isClub: true
+                                )
                             }
                         }
                     }
-                    .padding(.horizontal, 16)
-                }
-
-                // Cold-start hint for "For You"
-                if viewModel.filterType == .forYou && !EventPreferenceEngine.shared.hasHistory {
-                    HStack(spacing: 8) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 14))
-                            .foregroundColor(Color.ucdGold)
-                        Text("Save events to personalize your feed")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(colorScheme == .dark ? Color(hex: "#cbd5e1") : Color(hex: "#475569"))
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(colorScheme == .dark ? Color(hex: "#1a2033") : Color(hex: "#fef9c3"))
-                    )
                     .padding(.horizontal, 16)
                 }
 
@@ -131,18 +104,50 @@ struct CampusView: View {
                     Spacer()
                 } else {
                     ScrollView(showsIndicators: false) {
-                        LazyVStack(spacing: 16) {
-                            ForEach(viewModel.events) { event in
-                                EventCard(
-                                    event: event,
-                                    colorScheme: colorScheme,
-                                    savedViewModel: savedViewModel,
-                                    aiSummary: viewModel.summary(for: event)
-                                )
-                                    .padding(.horizontal, 16)
-                                    .onTapGesture {
-                                        selectedEvent = event
+                        VStack(spacing: 16) {
+                            // "For You" Carousel — top 3 recommended events (hidden when filtering by club)
+                            if viewModel.selectedClubOrganizer == nil && !viewModel.forYouEvents.isEmpty {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "sparkles")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(Color.ucdGold)
+                                        Text("For You")
+                                            .font(.system(size: 18, weight: .bold))
+                                            .foregroundColor(colorScheme == .dark ? .white : .black)
                                     }
+                                    .padding(.horizontal, 16)
+
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 12) {
+                                            ForEach(viewModel.forYouEvents) { event in
+                                                ForYouEventCard(
+                                                    event: event,
+                                                    savedViewModel: savedViewModel,
+                                                    onTap: { selectedEvent = event }
+                                                )
+                                            }
+                                        }
+                                        .padding(.horizontal, 16)
+                                    }
+                                }
+                            }
+
+                            // All Events list (exclude events already in the carousel)
+                            let forYouIDs = Set(viewModel.forYouEvents.map(\.id))
+                            LazyVStack(spacing: 16) {
+                                ForEach(viewModel.events.filter { !forYouIDs.contains($0.id) }) { event in
+                                    EventCard(
+                                        event: event,
+                                        colorScheme: colorScheme,
+                                        savedViewModel: savedViewModel,
+                                        aiSummary: viewModel.summary(for: event)
+                                    )
+                                        .padding(.horizontal, 16)
+                                        .onTapGesture {
+                                            selectedEvent = event
+                                        }
+                                }
                             }
                         }
                         .padding(.bottom, 8)
@@ -162,6 +167,49 @@ struct CampusView: View {
         .sheet(item: $selectedEvent) { event in
             EventDetailView(event: event, savedViewModel: savedViewModel)
         }
+        .onAppear {
+            viewModel.setProfileEvents(savedViewModel.savedEvents)
+        }
+    }
+
+    // MARK: - Pill Label Helper
+
+    private func pillLabel(for title: String,
+                           isSelected: Bool,
+                           isClub: Bool = false) -> some View {
+        HStack(spacing: 4) {
+            if isClub {
+                Circle()
+                    .fill(isSelected ? Color.white : Color.accentPurple)
+                    .frame(width: 5, height: 5)
+            }
+            Text(title)
+                .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(
+            isSelected
+                ? (colorScheme == .dark ? Color(hex: "#1a1060") : Color.accentCoral)
+                : (colorScheme == .dark ? Color(hex: "#1a2033") : .white)
+        )
+        .foregroundColor(
+            isSelected
+                ? .white
+                : (colorScheme == .dark ? Color(hex: "#cbd5e1") : Color(hex: "#334155"))
+        )
+        .clipShape(Capsule())
+        .overlay(
+            Capsule().stroke(
+                isSelected
+                    ? Color.clear
+                    : (isClub
+                        ? Color.accentPurple.opacity(0.4)
+                        : (colorScheme == .dark ? Color(hex: "#334155") : Color(hex: "#e2e8f0"))),
+                lineWidth: 1
+            )
+        )
+        .shadow(color: isSelected ? (colorScheme == .dark ? Color(hex: "#1a1060").opacity(0.4) : Color.accentCoral.opacity(0.25)) : .clear, radius: 4, x: 0, y: 2)
     }
 }
 
@@ -169,6 +217,7 @@ struct EventCard: View {
     let event: CampusEvent
     let colorScheme: ColorScheme
     @ObservedObject var savedViewModel: SavedViewModel
+    @ObservedObject private var subscriptionService = ClubSubscriptionService.shared
     var aiSummary: String? = nil
 
     var body: some View {
@@ -180,6 +229,35 @@ struct EventCard: View {
                         .tracking(1)
                         .foregroundColor(Color.ucdGold)
                         .lineLimit(1)
+
+                    let isFollowing = subscriptionService.isSubscribed(organizer)
+                    Button(action: {
+                        subscriptionService.toggle(organizer)
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: isFollowing ? "checkmark" : "plus")
+                                .font(.system(size: 9, weight: .bold))
+                            Text(isFollowing ? "Following" : "Follow")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .foregroundColor(isFollowing ? Color(hex: "#0095F6") : .white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(isFollowing
+                                    ? Color(hex: "#0095F6").opacity(0.12)
+                                    : Color(hex: "#0095F6"))
+                        )
+                        .overlay(
+                            Capsule().strokeBorder(
+                                isFollowing ? Color(hex: "#0095F6").opacity(0.4) : Color.clear,
+                                lineWidth: 1
+                            )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .animation(.easeInOut(duration: 0.15), value: isFollowing)
                 } else {
                     Text(event.isOfficial ? "OFFICIAL" : "CLUB EVENT")
                         .font(.system(size: 10, weight: .bold))

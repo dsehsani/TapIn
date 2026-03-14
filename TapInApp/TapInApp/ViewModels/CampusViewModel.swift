@@ -18,11 +18,31 @@ class CampusViewModel: ObservableObject {
     @Published var events: [CampusEvent] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
-    @Published var filterType: EventFilterType = .forYou
+    @Published var filterType: EventFilterType = .all
     @Published var timeFilter: EventTimeFilter = .thisWeek
+    /// When non-nil, the event list is filtered to this organizer only.
+    @Published var selectedClubOrganizer: String? = nil
 
     private let service = EventsAPIService.shared
     @Published private(set) var allEvents: [CampusEvent] = []
+
+    /// Whether any fetched events are official UC Davis events (no club organizer).
+    var hasUCDavisEvents: Bool { allEvents.contains { $0.isOfficial && $0.organizerName == nil } }
+
+    /// Top 3 recommended events for the "For You" carousel.
+    var forYouEvents: [CampusEvent] {
+        let upcoming = allEvents.filter { $0.date >= Calendar.current.startOfDay(for: Date()) }
+            .sorted { $0.date < $1.date }
+        return Array(EventPreferenceEngine.shared.recommend(from: upcoming).prefix(3))
+    }
+
+    /// Returns subscribed organizer names that have at least one upcoming event.
+    var activeSubscribedClubs: [String] {
+        let upcoming = allEvents.filter { $0.date >= Calendar.current.startOfDay(for: Date()) }
+        return ClubSubscriptionService.shared.subscribedOrganizers.filter { organizer in
+            upcoming.contains { $0.organizerName == organizer }
+        }
+    }
 
     /// Client-generated summaries for events missing backend AI content
     private var localSummaries: [UUID: String] = [:]
@@ -80,7 +100,13 @@ class CampusViewModel: ObservableObject {
     // MARK: - Filtering
 
     func filterEvents(by type: EventFilterType) {
+        selectedClubOrganizer = nil
         filterType = type
+        applyFilter()
+    }
+
+    func filterByClub(_ organizerName: String) {
+        selectedClubOrganizer = organizerName
         applyFilter()
     }
 
@@ -117,18 +143,21 @@ class CampusViewModel: ObservableObject {
                 .sorted { $0.date < $1.date }
         }
 
+        // Club filter takes priority over standard filter type
+        if let club = selectedClubOrganizer {
+            events = upcoming.filter { $0.organizerName == club }
+            return
+        }
+
         // Apply category filter
-        // Events without an organizerName are official UC Davis events;
-        // events with one are from student clubs/orgs.
+        if filterType == .official && !hasUCDavisEvents {
+            filterType = .all
+        }
         switch filterType {
-        case .all:
+        case .all, .forYou:
             events = upcoming
-        case .forYou:
-            events = EventPreferenceEngine.shared.recommend(from: upcoming)
         case .official:
-            events = upcoming.filter { $0.organizerName == nil }
-        case .studentPosted:
-            events = upcoming.filter { $0.organizerName != nil }
+            events = upcoming.filter { $0.isOfficial && $0.organizerName == nil }
         }
     }
 

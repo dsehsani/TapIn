@@ -11,6 +11,7 @@ import MapKit
 struct EventDetailView: View {
     let event: CampusEvent
     @ObservedObject var savedViewModel: SavedViewModel
+    @ObservedObject private var subscriptionService = ClubSubscriptionService.shared
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
 
@@ -59,9 +60,40 @@ struct EventDetailView: View {
                             Image(systemName: "person.2.fill")
                                 .font(.system(size: 14))
                                 .foregroundColor(Color.ucdBlue)
-                            Text("Hosted by \(organizer)")
+                            Text(organizer)
                                 .font(.system(size: 15, weight: .medium))
                                 .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#334155"))
+                                .lineLimit(1)
+
+                            Spacer()
+
+                            let isFollowing = subscriptionService.isSubscribed(organizer)
+                            Button(action: {
+                                subscriptionService.toggle(organizer)
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: isFollowing ? "checkmark" : "plus")
+                                        .font(.system(size: 11, weight: .bold))
+                                    Text(isFollowing ? "Following" : "Follow")
+                                        .font(.system(size: 12, weight: .semibold))
+                                }
+                                .foregroundColor(isFollowing ? Color(hex: "#0095F6") : .white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    Capsule()
+                                        .fill(isFollowing
+                                            ? Color(hex: "#0095F6").opacity(0.12)
+                                            : Color(hex: "#0095F6"))
+                                )
+                                .overlay(
+                                    Capsule().strokeBorder(
+                                        isFollowing ? Color(hex: "#0095F6").opacity(0.4) : Color.clear,
+                                        lineWidth: 1
+                                    )
+                                )
+                            }
+                            .animation(.easeInOut(duration: 0.15), value: isFollowing)
                         }
                     }
 
