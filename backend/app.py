@@ -26,6 +26,12 @@ import os
 from flask import Flask, jsonify, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
+
+# Load environment variables BEFORE importing blueprints.
+# Blueprint imports trigger singleton creation (e.g. claude_service)
+# which reads env vars at __init__ time.
+load_dotenv()
+
 from api.leaderboard import leaderboard_bp
 from api.claude import claude_bp
 from api.events import events_bp
@@ -35,9 +41,6 @@ from api.pipes import pipes_bp
 from api.analytics import analytics_bp
 from api.config import config_bp
 from api.social import social_bp
-
-# Load environment variables from .env file (for local development)
-load_dotenv()
 
 
 # ------------------------------------------------------------------------------

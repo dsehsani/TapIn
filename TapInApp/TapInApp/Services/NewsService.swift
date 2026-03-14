@@ -382,6 +382,7 @@ private struct BackendArticleContent: Decodable {
     let thumbnailURL: String?
     let bodyParagraphs: [String]?
     let articleURL: String?
+    let tldrBullets: [String]?
 
     func toArticleContent(fallbackDate: Date) -> ArticleContent? {
         guard let paragraphs = bodyParagraphs, !paragraphs.isEmpty,
@@ -396,7 +397,8 @@ private struct BackendArticleContent: Decodable {
             category: category ?? "",
             thumbnailURL: thumbnailURL.flatMap { URL(string: $0) },
             bodyParagraphs: paragraphs,
-            articleURL: url
+            articleURL: url,
+            tldrBullets: tldrBullets ?? []
         )
     }
 }

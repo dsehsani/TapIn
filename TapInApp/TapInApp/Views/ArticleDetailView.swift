@@ -138,6 +138,13 @@ private struct ArticleReadingView: View {
                         Divider()
                             .background(colorScheme == .dark ? Color(hex: "#1e293b") : Color(hex: "#e2e8f0"))
 
+                        // TLDR card
+                        if !content.tldrBullets.isEmpty {
+                            ArticleTLDRCard(bullets: content.tldrBullets, colorScheme: colorScheme)
+                                .padding(.top, 4)
+                                .padding(.bottom, 4)
+                        }
+
                         // Body paragraphs
                         ForEach(Array(content.bodyParagraphs.enumerated()), id: \.offset) { _, paragraph in
                             if isQuote(paragraph) {
@@ -388,5 +395,105 @@ private struct ArticleErrorView: View {
             Spacer()
         }
         .background(Color.adaptiveBackground(colorScheme).ignoresSafeArea())
+    }
+}
+
+// MARK: - Article TLDR Card
+
+private struct ArticleTLDRCard: View {
+    let bullets: [String]
+    let colorScheme: ColorScheme
+
+    @State private var isExpanded: Bool = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Header row — tappable to collapse/expand
+            HStack(spacing: 6) {
+                Image(systemName: "list.bullet.rectangle")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+                Text("TLDR")
+                    .font(.system(size: 11, weight: .heavy))
+                    .tracking(1.2)
+                    .foregroundColor(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+
+                Spacer()
+
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondary)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    isExpanded.toggle()
+                }
+            }
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 7) {
+                    ForEach(bullets, id: \.self) { bullet in
+                        ArticleTLDRBullet(raw: bullet, colorScheme: colorScheme)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(colorScheme == .dark
+                    ? Color(hex: "#1a2033")
+                    : Color(hex: "#f8fafc"))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(
+                            colorScheme == .dark
+                                ? Color.ucdGold.opacity(0.2)
+                                : Color.ucdBlue.opacity(0.15),
+                            lineWidth: 1
+                        )
+                )
+        )
+    }
+}
+
+private struct ArticleTLDRBullet: View {
+    let raw: String
+    let colorScheme: ColorScheme
+
+    /// Splits "**Label:** Body" into (label, body). Falls back to (nil, raw).
+    private var parsed: (label: String?, body: String) {
+        guard raw.hasPrefix("**"),
+              let closeRange = raw.range(of: ":**")
+        else {
+            return (nil, raw)
+        }
+        let label = String(raw[raw.index(raw.startIndex, offsetBy: 2)..<closeRange.lowerBound])
+        let body  = String(raw[closeRange.upperBound...]).trimmingCharacters(in: .whitespaces)
+        return (label, body)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(colorScheme == .dark ? Color.ucdGold : Color.ucdBlue)
+                .frame(width: 5, height: 5)
+                .padding(.top, 6)
+
+            Group {
+                if let label = parsed.label {
+                    Text(label).fontWeight(.semibold)
+                    + Text(": ").fontWeight(.semibold)
+                    + Text(parsed.body)
+                } else {
+                    Text(parsed.body)
+                }
+            }
+            .font(.system(size: 13))
+            .foregroundColor(colorScheme == .dark ? .white.opacity(0.88) : Color(hex: "#1e293b"))
+            .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }

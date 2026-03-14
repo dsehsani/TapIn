@@ -93,6 +93,12 @@ struct TapInAppApp: App {
                     }
                     UserDefaults.standard.set(true, forKey: tipCleanupKey)
                 }
+                // One-time: clear article content disk cache so articles re-fetch with TLDR bullets
+                let tldrCacheKey = "article_content_cache_cleared_tldr_v1"
+                if !UserDefaults.standard.bool(forKey: tldrCacheKey) {
+                    ArticleCacheService.shared.clearAllArticleContent()
+                    UserDefaults.standard.set(true, forKey: tldrCacheKey)
+                }
                 // Run update check and session restore in parallel
                 async let updateRequired = AppUpdateService.shared.isUpdateRequired()
                 if !appState.isGuestMode {

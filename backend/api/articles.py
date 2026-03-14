@@ -26,6 +26,7 @@ from repositories.article_repository import article_repository
 from repositories.article_content_repository import article_content_repository
 from services.aggie_rss_service import fetch_articles, CATEGORY_FEEDS
 from services.article_scraper_service import scrape_article
+from services.claude_service import claude_service
 
 logger = logging.getLogger(__name__)
 
@@ -213,6 +214,13 @@ def get_article_content():
                 "error": "Failed to scrape article content",
             }), 422
 
+        # Generate TLDR bullets (once, at scrape time)
+        tldr = claude_service.generate_article_tldr(
+            title=content.get("title", ""),
+            paragraphs=content.get("bodyParagraphs", [])
+        )
+        content["tldrBullets"] = tldr
+
         # Persist to Firestore
         article_content_repository.save_content(content)
 
@@ -348,6 +356,81 @@ def generate_daily_briefing():
         }), 200
     except Exception as e:
         logger.error(f"POST /api/articles/daily-briefing/generate failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ------------------------------------------------------------------------------
+# MARK: - POST /api/articles/backfill-tldr
+# ------------------------------------------------------------------------------
+
+@articles_bp.route("/backfill-tldr", methods=["POST"])
+def backfill_tldr():
+    """
+    Generates TLDR bullets for cached articles that don't have them yet.
+    Safe to call repeatedly — skips articles that already have tldrBullets.
+
+    Query params:
+        limit (int): max articles to process per call, default 10
+    """
+    try:
+        limit = request.args.get("limit", "10")
+        try:
+            limit = min(int(limit), 50)
+        except ValueError:
+            limit = 10
+
+        from services.firestore_client import get_firestore_client
+        db = get_firestore_client()
+        docs = db.collection("cached_article_content").stream()
+
+        updated = 0
+        skipped = 0
+        errors = 0
+        no_paragraphs = 0
+        already_has_tldr = 0
+
+        for doc in docs:
+            if updated + errors >= limit:
+                break
+            data = doc.to_dict()
+            existing_tldr = data.get("tldrBullets")
+            if existing_tldr:
+                already_has_tldr += 1
+                skipped += 1
+                continue
+
+            title = data.get("title", "")
+            paragraphs = data.get("bodyParagraphs", [])
+            if not paragraphs:
+                no_paragraphs += 1
+                skipped += 1
+                continue
+
+            try:
+                tldr = claude_service.generate_article_tldr(title, paragraphs)
+                if tldr:
+                    db.collection("cached_article_content").document(doc.id).update({
+                        "tldrBullets": tldr
+                    })
+                    updated += 1
+                    logger.info(f"Backfilled TLDR for: {title}")
+                else:
+                    skipped += 1
+            except Exception as e:
+                errors += 1
+                logger.error(f"TLDR backfill failed for '{title}': {e}")
+
+        return jsonify({
+            "success": True,
+            "updated": updated,
+            "skipped": skipped,
+            "already_has_tldr": already_has_tldr,
+            "no_paragraphs": no_paragraphs,
+            "errors": errors,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"POST /api/articles/backfill-tldr failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

@@ -15,7 +15,10 @@
 import os
 import time
 import hashlib
+import logging
 import anthropic
+
+logger = logging.getLogger(__name__)
 
 
 # ------------------------------------------------------------------------------
@@ -119,6 +122,9 @@ class ClaudeService:
 
     def _get_client(self) -> anthropic.Anthropic:
         """Create an Anthropic client. Raises if API key is missing."""
+        # Re-read env var in case load_dotenv() ran after __init__
+        if not self.api_key:
+            self.api_key = os.environ.get("CLAUDE_API_KEY")
         if not self.api_key:
             raise ValueError(
                 "CLAUDE_API_KEY environment variable is not set. "
@@ -401,6 +407,59 @@ class ClaudeService:
         except Exception:
             return None
 
+    def generate_article_tldr(self, title: str, paragraphs: list[str]) -> list[str]:
+        """
+        Generates 3–5 TLDR bullet points for a news article.
+        Each bullet: short bold label + one short explanation sentence.
+        Uses only the first 4 paragraphs to minimize token cost.
+        Called once at scrape time — result cached in Firestore permanently.
+        """
+        if not paragraphs:
+            return []
+
+        cache_key = f"tldr_{title}"
+        cached = self._tldr_cache.get(cache_key)
+        if cached is not None:
+            import json
+            try:
+                return json.loads(cached)
+            except Exception:
+                return []
+
+        excerpt = "\n\n".join(paragraphs[:4])
+
+        system_prompt = (
+            "You are a concise news summarizer for a UC Davis campus app. "
+            "Given a news article, produce exactly 3 to 5 TLDR bullet points. "
+            "Each bullet must follow this exact format: **Label:** One short sentence. "
+            "The label should be 1–3 words (e.g. 'What happened', 'Why it matters', 'Key detail', 'Who's involved', 'What's next'). "
+            "The sentence must be under 15 words. "
+            "Return ONLY the bullet points, one per line, starting with **. No intro, no extra text."
+        )
+
+        try:
+            client = self._get_client()
+            message = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=180,
+                system=system_prompt,
+                messages=[{"role": "user", "content": f"Article: {title}\n\n{excerpt}"}]
+            )
+
+            raw = message.content[0].text.strip()
+            lines = [l.strip() for l in raw.splitlines() if l.strip() and l.strip().startswith("**")]
+
+            if not lines:
+                return []
+
+            import json
+            self._tldr_cache.set(cache_key, json.dumps(lines))
+            return lines
+
+        except Exception as e:
+            logger.error(f"generate_article_tldr failed for '{title}': {e}")
+            return []
+
     def summarize_event_internal(self, description: str) -> str | None:
         """
         Summarizes an event description without rate limiting.
@@ -518,3 +577,4 @@ claude_service = ClaudeService()
 claude_service._bullet_cache = SummaryCache(max_size=500)
 claude_service._location_cache = SummaryCache(max_size=500)
 claude_service._web_location_cache = SummaryCache(max_size=500)
+claude_service._tldr_cache = SummaryCache(max_size=1000)

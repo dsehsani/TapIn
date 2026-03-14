@@ -62,6 +62,15 @@ final class ArticleCacheService {
         try? data.write(to: listCacheURL(category: category), options: .atomic)
     }
 
+    /// Clears all article content cache files so articles are re-fetched from backend.
+    func clearAllArticleContent() {
+        guard let files = try? fileManager.contentsOfDirectory(at: cacheDirectory,
+                                                                includingPropertiesForKeys: nil) else { return }
+        for file in files where file.lastPathComponent.hasPrefix("content_") {
+            try? fileManager.removeItem(at: file)
+        }
+    }
+
     /// Deletes all article list cache files so the next fetch hits the backend.
     func clearAllArticleLists() {
         guard let files = try? fileManager.contentsOfDirectory(at: cacheDirectory,
@@ -163,6 +172,7 @@ private struct CachedArticleContent: Codable {
     let thumbnailURL: String?
     let bodyParagraphs: [String]
     let articleURL: String
+    let tldrBullets: [String]?
 
     init(from content: ArticleContent) {
         self.title          = content.title
@@ -173,6 +183,7 @@ private struct CachedArticleContent: Codable {
         self.thumbnailURL   = content.thumbnailURL?.absoluteString
         self.bodyParagraphs = content.bodyParagraphs
         self.articleURL     = content.articleURL.absoluteString
+        self.tldrBullets    = content.tldrBullets
     }
 
     func toArticleContent() -> ArticleContent? {
@@ -185,7 +196,8 @@ private struct CachedArticleContent: Codable {
             category:       category,
             thumbnailURL:   thumbnailURL.flatMap { URL(string: $0) },
             bodyParagraphs: bodyParagraphs,
-            articleURL:     url
+            articleURL:     url,
+            tldrBullets:    tldrBullets ?? []
         )
     }
 }

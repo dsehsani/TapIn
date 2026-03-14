@@ -16,4 +16,5 @@ struct ArticleContent {
     let thumbnailURL: URL?
     let bodyParagraphs: [String]   // Clean extracted paragraphs, in order
     let articleURL: URL            // Kept for the share sheet
+    let tldrBullets: [String]      // AI-generated TLDR; empty = no TLDR shown
 }

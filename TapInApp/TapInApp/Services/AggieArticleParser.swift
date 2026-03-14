@@ -91,7 +91,8 @@ final class AggieArticleParser {
             category: category,
             thumbnailURL: thumbnailURL,
             bodyParagraphs: bodyParagraphs,
-            articleURL: articleURL
+            articleURL: articleURL,
+            tldrBullets: []
         )
     }
 
