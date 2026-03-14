@@ -67,6 +67,7 @@
 				Prompts/PipesEncouragement.md,
 				Prompts/ProfilePersistencePrompt.md,
 				Prompts/RefreshedSerach.md,
+				Prompts/RemoveOnboardingTips.md,
 				Prompts/SocialFeatsPhaseOne.md,
 				Prompts/TextRenderingPrompt.md,
 				Prompts/TutorialPrompt.md,

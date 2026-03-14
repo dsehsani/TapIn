@@ -92,8 +92,20 @@ final class NotificationService {
         center.removeAllPendingNotificationRequests()
     }
 
-    // MARK: - DailyFive Reminders
+    // MARK: - Pipes Giveaway Notification Messages
 
+    // ── Active during Pipes giveaway promotion ────────────────────────────────────
+    private let pipesGiveawayMessages: [(title: String, body: String)] = [
+        ("🎁 Giveaway Alert!", "Play Pipes today for a chance to win. Don't miss your daily shot!"),
+        ("Your Pipes puzzle is waiting 🔵", "Solve it daily — every play is a giveaway entry."),
+        ("New day, new Pipes puzzle 🎯", "Jump in and keep your streak alive for the giveaway."),
+        ("The giveaway is live! 🎉", "Play today's Pipes puzzle and stay in the running to win."),
+        ("Don't lose your streak 🔗", "A new Pipes puzzle just dropped. Play for the giveaway!"),
+        ("Today's Pipes puzzle = giveaway entry 🏆", "Solve it now and climb the leaderboard."),
+        ("Quick one today? 🔵", "Pipes is live. One solve = one giveaway entry. Go!"),
+    ]
+
+    // ── DailyFive messages (not scheduled during Pipes giveaway promo) ───────────
     private let dailyFiveMessages: [(title: String, body: String)] = [
         ("Your DailyFive is waiting! 🧩", "Solve today's word and climb the leaderboard."),
         ("Can you crack today's word?", "DailyFive is live — see if you can top the leaderboard."),
@@ -150,6 +162,57 @@ final class NotificationService {
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
         let todayId = "dailyfive_reminder_\(df.string(from: Date()))"
+        center.removePendingNotificationRequests(withIdentifiers: [todayId])
+    }
+
+    // MARK: - Pipes Giveaway Reminders
+
+    /// Schedules one Pipes giveaway reminder per day for the next 7 days.
+    /// Safe to call repeatedly — cancels stale reminders before rescheduling.
+    func schedulePipesGiveawayReminders() async {
+        guard AppState.shared.gameNotificationsEnabled else { return }
+        let granted = await requestPermissionIfNeeded()
+        guard granted else { return }
+
+        // Remove any stale Pipes giveaway reminders
+        let pending = await center.pendingNotificationRequests()
+        let staleIds = pending
+            .map { $0.identifier }
+            .filter { $0.hasPrefix("pipes_giveaway_reminder_") }
+        center.removePendingNotificationRequests(withIdentifiers: staleIds)
+
+        let calendar = Calendar.current
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+
+        for dayOffset in 1...7 {
+            guard let day = calendar.date(byAdding: .day, value: dayOffset, to: Date()) else { continue }
+
+            let hour = Int.random(in: 10...19)
+            let minute = Int.random(in: 0...59)
+
+            var comps = calendar.dateComponents([.year, .month, .day], from: day)
+            comps.hour = hour
+            comps.minute = minute
+
+            let message = pipesGiveawayMessages[dayOffset % pipesGiveawayMessages.count]
+            let content = UNMutableNotificationContent()
+            content.title = message.title
+            content.body = message.body
+            content.sound = .default
+
+            let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+            let id = "pipes_giveaway_reminder_\(df.string(from: day))"
+            let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+            try? await center.add(request)
+        }
+    }
+
+    /// Cancels today's Pipes giveaway reminder (call when the user completes today's puzzle).
+    func cancelTodaysPipesGiveawayReminder() {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        let todayId = "pipes_giveaway_reminder_\(df.string(from: Date()))"
         center.removePendingNotificationRequests(withIdentifiers: [todayId])
     }
 }

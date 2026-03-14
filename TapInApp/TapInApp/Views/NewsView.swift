@@ -48,12 +48,6 @@ struct NewsView: View {
                             }
                         }
                     )
-                    .pulsingHotspot(
-                        tip: .categoryPills,
-                        message: "Choose your focus.",
-                        arrowEdge: .top,
-                        cornerRadius: 20
-                    )
                     .padding(.bottom, 16)
 
                     if viewModel.isForYouSelected {

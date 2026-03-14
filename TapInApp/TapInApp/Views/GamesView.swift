@@ -72,22 +72,35 @@ struct GamesView: View {
 
                     // Featured Game
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Daily Challenge")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
-                            .padding(.horizontal, 16)
+                        HStack(spacing: 8) {
+                            Text("Daily Challenge")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
 
-                        if let featuredGame = viewModel.availableGames.first {
-                            FeaturedGameCard(game: featuredGame, colorScheme: colorScheme) {
+                            Text("GIVEAWAY")
+                                .font(.system(size: 9, weight: .heavy))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Color.ucdGold))
+                        }
+                        .padding(.horizontal, 16)
+
+                        if let featuredGame = viewModel.availableGames.first(where: { $0.type == .pipes })
+                                           ?? viewModel.availableGames.first {
+                            FeaturedGameCard(
+                                game: featuredGame,
+                                colorScheme: colorScheme,
+                                subtitle: featuredGame.type == .pipes
+                                    ? "Play daily for a chance to win big 🎁"
+                                    : nil,
+                                isGiveaway: featuredGame.type == .pipes
+                            ) {
                                 viewModel.startGame(featuredGame)
                             }
-                            .pulsingHotspot(
-                                tip: .featuredGame,
-                                message: "Try today's daily challenge.",
-                                arrowEdge: .top
-                            )
                             .padding(.horizontal, 16)
                         }
+
                     }
 
                     // All Games
@@ -173,6 +186,8 @@ struct StatCard: View {
 struct FeaturedGameCard: View {
     let game: Game
     let colorScheme: ColorScheme
+    var subtitle: String? = nil
+    var isGiveaway: Bool = false
     let onPlay: () -> Void
 
     var body: some View {
@@ -187,15 +202,22 @@ struct FeaturedGameCard: View {
 
             HStack {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(game.name)
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.white)
-                    Text(game.description)
+                    HStack(spacing: 8) {
+                        Text(game.name)
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.white)
+                        if isGiveaway {
+                            Image(systemName: "gift.fill")
+                                .font(.system(size: 16))
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+                    }
+                    Text(subtitle ?? game.description)
                         .font(.system(size: 14))
                         .foregroundColor(.white.opacity(0.8))
 
                     Button(action: onPlay) {
-                        Text("Play Now")
+                        Text(isGiveaway ? "Play for Giveaway" : "Play Now")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(colorScheme == .dark ? Color.navyDeep : Color.accentCoral)
                             .padding(.horizontal, 20)
@@ -209,7 +231,7 @@ struct FeaturedGameCard: View {
 
                 Spacer()
 
-                Image(systemName: game.iconName)
+                Image(systemName: isGiveaway ? "gift.fill" : game.iconName)
                     .font(.system(size: 60))
                     .foregroundColor(.white.opacity(0.15))
             }
@@ -217,6 +239,28 @@ struct FeaturedGameCard: View {
         }
         .frame(height: 160)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(alignment: .topTrailing) {
+            if isGiveaway {
+                Button {
+                    if let url = URL(string: "https://instagram.com/tapin.ucd") {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image("InstagramLogo")
+                            .resizable()
+                            .frame(width: 14, height: 14)
+                        Text("@tapin.ucd")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Color.white.opacity(0.25)))
+                }
+                .padding(12)
+            }
+        }
         .shadow(color: (colorScheme == .dark ? Color.accentPurple : Color.accentCoral).opacity(0.3), radius: 8, x: 0, y: 4)
     }
 }

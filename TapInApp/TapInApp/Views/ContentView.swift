@@ -118,32 +118,6 @@ struct ContentView: View {
                 selectedTab: $selectedTab
             )
         }
-        .overlayPreferenceValue(OnboardingTipOverlayKey.self) { tipInfos in
-            if let activeTip = OnboardingManager.shared.activeTip,
-               let info = tipInfos[activeTip] {
-                Color.black.opacity(0.01)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        OnboardingManager.shared.dismissTip(activeTip)
-                    }
-
-                GeometryReader { proxy in
-                    let rect = proxy[info.anchor]
-
-                    OnboardingTipView(message: info.message, arrowEdge: info.arrowEdge)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: 280)
-                        .position(
-                            x: proxy.size.width / 2,
-                            y: info.arrowEdge == .top
-                                ? rect.maxY + 24
-                                : rect.minY - 24
-                        )
-                        .transition(.scale(scale: 0.8).combined(with: .opacity))
-                }
-                .allowsHitTesting(false)
-            }
-        }
     }
 
     // MARK: - Legacy Tab View (iOS 17–25) — matches iOS 26+ design
@@ -194,46 +168,6 @@ struct ContentView: View {
                 gamesViewModel: gamesViewModel,
                 selectedTab: $selectedTab
             )
-        }
-        .overlay {
-            // MARK: - Onboarding Dismiss Overlay
-            if OnboardingManager.shared.activeTip != nil {
-                Color.black.opacity(0.001)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        if let tip = OnboardingManager.shared.activeTip {
-                            OnboardingManager.shared.dismissTip(tip)
-                        }
-                    }
-            }
-        }
-        // MARK: - Onboarding Tooltip Overlay (floats above everything)
-        .overlayPreferenceValue(OnboardingTipOverlayKey.self) { tipInfos in
-            if let activeTip = OnboardingManager.shared.activeTip,
-               let info = tipInfos[activeTip] {
-                // Tap anywhere to dismiss
-                Color.black.opacity(0.01)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        OnboardingManager.shared.dismissTip(activeTip)
-                    }
-
-                GeometryReader { proxy in
-                    let rect = proxy[info.anchor]
-
-                    OnboardingTipView(message: info.message, arrowEdge: info.arrowEdge)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: 280)
-                        .position(
-                            x: proxy.size.width / 2,
-                            y: info.arrowEdge == .top
-                                ? rect.maxY + 24
-                                : rect.minY - 24
-                        )
-                        .transition(.scale(scale: 0.8).combined(with: .opacity))
-                }
-                .allowsHitTesting(false)
-            }
         }
     }
 }

@@ -57,8 +57,6 @@ struct TapInAppApp: App {
     // MARK: - Debug Flags
     // Set to true to force onboarding screen on launch (keeps your account intact)
     private let forceOnboarding = false
-    // Set to true to replay all onboarding tips on next launch
-    private let resetTips = false
 
     var body: some Scene {
         WindowGroup {
@@ -80,7 +78,21 @@ struct TapInAppApp: App {
                 GIDSignIn.sharedInstance.handle(url)
             }
             .task {
-                if resetTips { OnboardingManager.shared.resetAllTips() }
+                // One-time cleanup of removed onboarding tip keys
+                let tipCleanupKey = "onboarding_tips_removed_v1"
+                if !UserDefaults.standard.bool(forKey: tipCleanupKey) {
+                    let keysToRemove = [
+                        "onboarding_tip_dismissed_categoryPills",
+                        "onboarding_tip_dismissed_featuredGame",
+                        "tutorial_seen_wordle",
+                        "tutorial_seen_pipes",
+                        "tutorial_seen_echo",
+                    ]
+                    for key in keysToRemove {
+                        UserDefaults.standard.removeObject(forKey: key)
+                    }
+                    UserDefaults.standard.set(true, forKey: tipCleanupKey)
+                }
                 // Run update check and session restore in parallel
                 async let updateRequired = AppUpdateService.shared.isUpdateRequired()
                 if !appState.isGuestMode {
@@ -93,7 +105,7 @@ struct TapInAppApp: App {
                 withAnimation { isCheckingSession = false }
                 // Only schedule reminders for signed-in users (not guests)
                 if appState.isAuthenticated && !appState.isGuestMode && !needsForceUpdate {
-                    await NotificationService.shared.scheduleDailyFiveReminders()
+                    await NotificationService.shared.schedulePipesGiveawayReminders()
                 }
             }
             .onChange(of: scenePhase) { _, newPhase in

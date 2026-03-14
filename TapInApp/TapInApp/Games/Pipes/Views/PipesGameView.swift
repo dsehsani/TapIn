@@ -215,6 +215,7 @@ struct PipesGameView: View {
         .onChange(of: viewModel.justCompletedAll) { _, isComplete in
             if isComplete && !viewModel.isArchiveMode {
                 fetchPipesLeaderboard()
+                NotificationService.shared.cancelTodaysPipesGiveawayReminder()
             }
         }
         .sheet(isPresented: $showArchive) {
