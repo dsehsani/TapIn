@@ -21,6 +21,7 @@ struct PipesGameView: View {
     @State private var pipesLeaderboardEntries: [PipesLeaderboardEntryResponse] = []
     @State private var isLoadingPipesLeaderboard = false
     @State private var sheetDragOffset: CGFloat = 0
+    @State private var isLeaderboardExpanded: Bool = false
 
     var body: some View {
         ZStack {
@@ -127,9 +128,9 @@ struct PipesGameView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .zIndex(1)
             }
-            // 3. "Already completed today" — re-entry when all 5 were done previously
+            // 3. "Already completed today" — re-entry shows same bottom sheet
             else if !viewModel.isLoadingPuzzle && viewModel.alreadyCompletedToday {
-                alreadyCompletedOverlay
+                allCompleteOverlay
             }
             // 4. Tutorial / start screen — only for fresh day (no progress)
             else if !viewModel.isLoadingPuzzle && showStartScreen && viewModel.gameState == .playing {
@@ -170,6 +171,11 @@ struct PipesGameView: View {
                         viewModel.startTimer()
                     }
                 }
+            }
+
+            // Fetch leaderboard for re-entry (already completed today)
+            if viewModel.alreadyCompletedToday && !viewModel.isArchiveMode {
+                fetchPipesLeaderboard()
             }
         }
         .overlay {
@@ -216,6 +222,10 @@ struct PipesGameView: View {
             if isComplete && !viewModel.isArchiveMode {
                 fetchPipesLeaderboard()
                 NotificationService.shared.cancelTodaysPipesGiveawayReminder()
+            }
+            if !isComplete {
+                isLeaderboardExpanded = false
+                sheetDragOffset = 0
             }
         }
         .sheet(isPresented: $showArchive) {
@@ -424,7 +434,11 @@ struct PipesGameView: View {
             Color.black.opacity(colorScheme == .dark ? 0.5 : 0.25)
                 .ignoresSafeArea()
                 .onTapGesture {
-                    withAnimation { viewModel.justCompletedAll = false }
+                    withAnimation {
+                        viewModel.justCompletedAll = false
+                        viewModel.alreadyCompletedToday = false
+                    }
+                    isLeaderboardExpanded = false
                 }
 
             // Bottom sheet
@@ -472,11 +486,6 @@ struct PipesGameView: View {
 
                 // Actions
                 VStack(spacing: 10) {
-                    if !viewModel.isArchiveMode {
-                        Text("Come back tomorrow!")
-                            .font(.system(size: 13))
-                            .foregroundColor(muted)
-                    }
                     Button(action: {
                         viewModel.alreadyCompletedToday = false
                         showArchive = true
@@ -507,20 +516,46 @@ struct PipesGameView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 30)
             }
+            .contentShape(Rectangle())
             .offset(y: sheetDragOffset)
             .gesture(
                 DragGesture()
                     .onChanged { value in
-                        if value.translation.height > 0 {
-                            sheetDragOffset = value.translation.height
+                        let dy = value.translation.height
+                        if isLeaderboardExpanded {
+                            if dy > 0 { sheetDragOffset = dy }
+                        } else {
+                            sheetDragOffset = dy
                         }
                     }
                     .onEnded { value in
-                        if value.translation.height > 120 {
-                            withAnimation { viewModel.justCompletedAll = false }
-                        }
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            sheetDragOffset = 0
+                        let dy = value.translation.height
+                        if isLeaderboardExpanded {
+                            if dy > 80 {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                    isLeaderboardExpanded = false
+                                }
+                            }
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                sheetDragOffset = 0
+                            }
+                        } else {
+                            if dy < -60 {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                    isLeaderboardExpanded = true
+                                    sheetDragOffset = 0
+                                }
+                            } else if dy > 120 {
+                                withAnimation {
+                                    viewModel.justCompletedAll = false
+                                    viewModel.alreadyCompletedToday = false
+                                }
+                                isLeaderboardExpanded = false
+                            } else {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    sheetDragOffset = 0
+                                }
+                            }
                         }
                     }
             )
@@ -539,6 +574,7 @@ struct PipesGameView: View {
         .ignoresSafeArea(edges: .bottom)
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.justCompletedAll)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isLeaderboardExpanded)
     }
 
     // MARK: - Pipes Leaderboard Section
@@ -546,25 +582,47 @@ struct PipesGameView: View {
     @ViewBuilder
     private func pipesLeaderboardSection(muted: Color, textPrimary: Color) -> some View {
         VStack(spacing: 12) {
-            HStack(spacing: 5) {
-                Image(systemName: "trophy.fill")
-                    .font(.system(size: 11))
-                    .foregroundColor(Color.ucdGold)
-                Text("LEADERBOARD")
-                    .font(.system(size: 11, weight: .bold))
-                    .tracking(1)
+            // Header row
+            HStack {
+                HStack(spacing: 5) {
+                    Image(systemName: "trophy.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color.ucdGold)
+                    Text("LEADERBOARD")
+                        .font(.system(size: 11, weight: .bold))
+                        .tracking(1)
+                        .foregroundColor(muted)
+                }
+                Spacer()
+                if !isLeaderboardExpanded {
+                    HStack(spacing: 3) {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("See top 10")
+                            .font(.system(size: 11, weight: .medium))
+                    }
                     .foregroundColor(muted)
+                }
             }
+            .padding(.horizontal, 24)
 
             if isLoadingPipesLeaderboard {
                 ProgressView()
                     .padding(.vertical, 16)
+
             } else if pipesLeaderboardEntries.isEmpty {
-                Text("No entries yet")
+                Text("No entries yet — you might be first!")
                     .font(.system(size: 13))
                     .foregroundColor(muted)
                     .padding(.vertical, 8)
+
+            } else if isLeaderboardExpanded {
+                // Expanded: full scrollable top-10 list
+                pipesFullLeaderboardList(muted: muted, textPrimary: textPrimary)
+                    .padding(.horizontal, 24)
+
             } else {
+                // Collapsed: podium (top 3 only)
                 pipesPodiumView(muted: muted, textPrimary: textPrimary)
                     .padding(.horizontal, 24)
 
@@ -703,6 +761,62 @@ struct PipesGameView: View {
         .frame(maxWidth: .infinity)
     }
 
+    @ViewBuilder
+    private func pipesFullLeaderboardList(muted: Color, textPrimary: Color) -> some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 0) {
+                ForEach(Array(pipesLeaderboardEntries.enumerated()), id: \.element.id) { index, entry in
+                    let isMe = viewModel.assignedUsername != nil && entry.username == viewModel.assignedUsername
+
+                    HStack(spacing: 12) {
+                        Text("#\(entry.rank)")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundColor(rankColor(for: entry.rank))
+                            .frame(width: 32, alignment: .leading)
+
+                        Text(entry.username)
+                            .font(.system(size: 14, weight: isMe ? .bold : .semibold))
+                            .foregroundColor(isMe ? Color.ucdGold : textPrimary)
+                            .lineLimit(1)
+
+                        Spacer()
+
+                        Text("\(entry.totalMoves) mv")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(muted)
+
+                        Text(formatTime(entry.totalTimeSeconds))
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundColor(muted)
+                            .frame(width: 44, alignment: .trailing)
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(isMe ? Color.ucdGold.opacity(0.08) : Color.clear)
+                    )
+
+                    if index < pipesLeaderboardEntries.count - 1 {
+                        Divider()
+                            .opacity(0.4)
+                            .padding(.leading, 44)
+                    }
+                }
+            }
+        }
+        .frame(maxHeight: 340)
+    }
+
+    private func rankColor(for rank: Int) -> Color {
+        switch rank {
+        case 1: return Color.ucdGold
+        case 2: return Color(hex: "#94a3b8")
+        case 3: return Color(hex: "#b45309")
+        default: return Color.secondary
+        }
+    }
+
     private func formatTime(_ seconds: Int) -> String {
         let minutes = seconds / 60
         let secs = seconds % 60
@@ -715,7 +829,7 @@ struct PipesGameView: View {
         isLoadingPipesLeaderboard = true
         Task {
             do {
-                let entries = try await LeaderboardService.shared.fetchPipesLeaderboard(for: viewModel.currentDateKey, limit: 5)
+                let entries = try await LeaderboardService.shared.fetchPipesLeaderboard(for: viewModel.currentDateKey, limit: 10)
                 await MainActor.run {
                     pipesLeaderboardEntries = entries
                     isLoadingPipesLeaderboard = false
@@ -728,79 +842,4 @@ struct PipesGameView: View {
         }
     }
 
-    // MARK: - Already Completed Today (re-entry overlay)
-
-    private var alreadyCompletedOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.6)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    viewModel.alreadyCompletedToday = false
-                }
-
-            VStack(spacing: 20) {
-                // Close button
-                HStack {
-                    Spacer()
-                    Button(action: {
-                        viewModel.alreadyCompletedToday = false
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 28, height: 28)
-                            .background(Color.white.opacity(0.15))
-                            .clipShape(Circle())
-                    }
-                }
-
-                Image(systemName: "checkmark.seal.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(Color.ucdGold)
-
-                Text("Today's Puzzles Complete")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(.white)
-
-                Text("You've already solved all 5 of today's puzzles. Come back tomorrow for a new set!")
-                    .font(.system(size: 15))
-                    .foregroundColor(.white.opacity(0.8))
-                    .multilineTextAlignment(.center)
-
-                VStack(spacing: 12) {
-                    Button(action: {
-                        viewModel.saveCurrentPuzzleProgress()
-                        showArchive = true
-                        viewModel.alreadyCompletedToday = false
-                    }) {
-                        Text("View Archive")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(Color.ucdBlue)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Color.ucdGold)
-                            .clipShape(Capsule())
-                    }
-
-                    Button(action: onDismiss) {
-                        Text("Back to Games")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Color.white.opacity(0.15))
-                            .clipShape(Capsule())
-                    }
-                }
-                .padding(.top, 8)
-            }
-            .padding(32)
-            .background(
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(Color(hex: "#0f172a"))
-            )
-            .padding(.horizontal, 40)
-        }
-        .transition(.opacity)
-    }
 }

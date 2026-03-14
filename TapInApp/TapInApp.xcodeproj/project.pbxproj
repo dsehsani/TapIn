@@ -60,6 +60,7 @@
 				Prompts/FixUI.md,
 				Prompts/GameTutorialPrompt.md,
 				Prompts/LEADERBOARD.md,
+				Prompts/LeaderboardDropDownFix.md,
 				Prompts/LikeFeatureRevamp.md,
 				Prompts/LikesBugPrompt.md,
 				Prompts/LikingPostingFix2.md,

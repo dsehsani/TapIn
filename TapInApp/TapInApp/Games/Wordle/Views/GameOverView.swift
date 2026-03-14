@@ -30,6 +30,11 @@ struct GameOverView: View {
 
     var colorScheme: ColorScheme = .light
 
+    // MARK: - Drag / Expand State
+
+    @State private var sheetDragOffset: CGFloat = 0
+    @State private var isLeaderboardExpanded: Bool = false
+
     // MARK: - Helpers
 
     private var cardBg: Color {
@@ -51,7 +56,10 @@ struct GameOverView: View {
             // Backdrop
             Color.black.opacity(colorScheme == .dark ? 0.5 : 0.25)
                 .ignoresSafeArea()
-                .onTapGesture { onDismiss() }
+                .onTapGesture {
+                    isLeaderboardExpanded = false
+                    onDismiss()
+                }
 
             // Bottom sheet
             VStack(spacing: 0) {
@@ -63,7 +71,10 @@ struct GameOverView: View {
 
                     HStack {
                         Spacer()
-                        Button(action: onDismiss) {
+                        Button(action: {
+                            isLeaderboardExpanded = false
+                            onDismiss()
+                        }) {
                             Image(systemName: "xmark")
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#0f172a"))
@@ -97,17 +108,60 @@ struct GameOverView: View {
                     .padding(.horizontal, 24)
                     .padding(.bottom, 30)
             }
+            .contentShape(Rectangle())
+            .offset(y: sheetDragOffset)
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        let dy = value.translation.height
+                        if isLeaderboardExpanded {
+                            if dy > 0 { sheetDragOffset = dy }
+                        } else {
+                            sheetDragOffset = dy
+                        }
+                    }
+                    .onEnded { value in
+                        let dy = value.translation.height
+                        if isLeaderboardExpanded {
+                            if dy > 80 {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                    isLeaderboardExpanded = false
+                                }
+                            }
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                sheetDragOffset = 0
+                            }
+                        } else {
+                            if dy < -60 {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                    isLeaderboardExpanded = true
+                                    sheetDragOffset = 0
+                                }
+                            } else if dy > 120 {
+                                isLeaderboardExpanded = false
+                                onDismiss()
+                            } else {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    sheetDragOffset = 0
+                                }
+                            }
+                        }
+                    }
+            )
             .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(cardBg)
                     .shadow(color: .black.opacity(0.2), radius: 30, y: -5)
+                    .offset(y: sheetDragOffset)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .stroke(colorScheme == .dark ? Color.white.opacity(0.06) : .clear, lineWidth: 1)
+                    .offset(y: sheetDragOffset)
             )
         }
         .ignoresSafeArea(edges: .bottom)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isLeaderboardExpanded)
     }
 
     // MARK: - Result Header
@@ -143,27 +197,46 @@ struct GameOverView: View {
 
     private var leaderboardSection: some View {
         VStack(spacing: 12) {
-            // Section label
-            HStack(spacing: 5) {
-                Image(systemName: "trophy.fill")
-                    .font(.system(size: 11))
-                    .foregroundColor(Color.ucdGold)
-                Text("LEADERBOARD")
-                    .font(.system(size: 11, weight: .bold))
-                    .tracking(1)
+            // Header row
+            HStack {
+                HStack(spacing: 5) {
+                    Image(systemName: "trophy.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color.ucdGold)
+                    Text("LEADERBOARD")
+                        .font(.system(size: 11, weight: .bold))
+                        .tracking(1)
+                        .foregroundColor(muted)
+                }
+                Spacer()
+                if !isLeaderboardExpanded {
+                    HStack(spacing: 3) {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("See top 10")
+                            .font(.system(size: 11, weight: .medium))
+                    }
                     .foregroundColor(muted)
+                }
             }
+            .padding(.horizontal, 24)
 
             if isLoadingLeaderboard {
                 ProgressView()
                     .padding(.vertical, 16)
             } else if leaderboardEntries.isEmpty {
-                Text("No entries yet")
+                Text("No entries yet — you might be first!")
                     .font(.system(size: 13))
                     .foregroundColor(muted)
                     .padding(.vertical, 8)
+
+            } else if isLeaderboardExpanded {
+                // Expanded: full scrollable list
+                fullLeaderboardList
+                    .padding(.horizontal, 24)
+
             } else {
-                // Podium for top 3
+                // Collapsed: podium (top 3)
                 podiumView
                     .padding(.horizontal, 24)
 
@@ -323,9 +396,6 @@ struct GameOverView: View {
                 }
                 actionButton("Browse Archive", filled: isTodayCompleted, action: onBrowseArchive)
             } else {
-                Text("Come back tomorrow!")
-                    .font(.system(size: 13))
-                    .foregroundColor(muted)
                 actionButton("Browse Archive", filled: true, action: onBrowseArchive)
             }
             actionButton("Back to Games", filled: false, action: onBack)
@@ -347,6 +417,63 @@ struct GameOverView: View {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(filled ? Color.clear : (colorScheme == .dark ? Color.white.opacity(0.12) : Color(hex: "#e2e8f0")), lineWidth: 1)
                 )
+        }
+    }
+
+    // MARK: - Full Leaderboard List (Expanded)
+
+    private var fullLeaderboardList: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 0) {
+                ForEach(Array(leaderboardEntries.enumerated()), id: \.element.id) { index, entry in
+                    let isMe = assignedUsername != nil && entry.username == assignedUsername
+
+                    HStack(spacing: 12) {
+                        Text("#\(entry.rank)")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundColor(rankColor(for: entry.rank))
+                            .frame(width: 32, alignment: .leading)
+
+                        Text(entry.username)
+                            .font(.system(size: 14, weight: isMe ? .bold : .semibold))
+                            .foregroundColor(isMe ? Color.wordleGreen : textPrimary)
+                            .lineLimit(1)
+
+                        Spacer()
+
+                        Text("\(entry.guesses)/6")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(muted)
+
+                        Text(formatTime(entry.timeSeconds))
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundColor(muted)
+                            .frame(width: 44, alignment: .trailing)
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(isMe ? Color.wordleGreen.opacity(0.08) : Color.clear)
+                    )
+
+                    if index < leaderboardEntries.count - 1 {
+                        Divider()
+                            .opacity(0.4)
+                            .padding(.leading, 44)
+                    }
+                }
+            }
+        }
+        .frame(maxHeight: 340)
+    }
+
+    private func rankColor(for rank: Int) -> Color {
+        switch rank {
+        case 1: return Color.ucdGold
+        case 2: return Color(hex: "#94a3b8")
+        case 3: return Color(hex: "#b45309")
+        default: return Color.secondary
         }
     }
 

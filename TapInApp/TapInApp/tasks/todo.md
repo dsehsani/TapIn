@@ -1,18 +1,18 @@
-# To-Do: Article TLDR Bullets
+# To-Do: Pipes Completion Sheet — Pull-Up Leaderboard
 
 ## Plan
-- [x] Backend: `claude_service.py` — add `generate_article_tldr()` + `_tldr_cache`
-- [x] Backend: `api/articles.py` — generate TLDR on cache miss before saving
-- [x] iOS: `ArticleContent.swift` — add `tldrBullets: [String]`
-- [x] iOS: `NewsService.swift` — decode `tldrBullets` in `BackendArticleContent`
-- [x] iOS: `ArticleCacheService.swift` — add `tldrBullets` to `CachedArticleContent`
-- [x] iOS: `AggieArticleParser.swift` — pass empty `tldrBullets` in fallback construction
-- [x] iOS: `ArticleDetailView.swift` — add `ArticleTLDRCard` + `ArticleTLDRBullet`, render above body
-- [x] Verify: backend syntax check passes
+- [x] Add `isLeaderboardExpanded` state variable
+- [x] Change leaderboard fetch limit from 5 to 10
+- [x] Replace DragGesture to handle both up (expand) and down (collapse/dismiss)
+- [x] Add `frame(maxHeight:)` to sheet VStack for collapsed/expanded sizing
+- [x] Update `pipesLeaderboardSection` with collapsed vs expanded views + "See top 10" hint
+- [x] Add `pipesFullLeaderboardList` for expanded top-10 list with `rankColor` helper
+- [x] Reset `isLeaderboardExpanded` on dismiss (backdrop tap, drag dismiss, onChange)
+- [x] Add animation value for `isLeaderboardExpanded` on the overlay
 
 ## Results
-- Backend: `generate_article_tldr()` uses Haiku, first 4 paragraphs only, cached in `_tldr_cache`
-- Backend: TLDR generated on cache miss in `GET /api/articles/content`, stored permanently in Firestore
-- iOS: `tldrBullets` flows through all 4 construction sites (backend response, disk cache, parser fallback, model)
-- iOS: `ArticleTLDRCard` renders above body paragraphs with bold label parsing
-- Legacy articles without `tldrBullets` gracefully show no card (empty array fallback)
+- Sheet is two-state: collapsed (~60% height, podium top 3) and expanded (~92% height, full top-10 list)
+- Drag up ≥60pt expands, drag down ≥80pt from expanded collapses, drag down ≥120pt from collapsed dismisses
+- "See top 10" hint shown in collapsed header, disappears when expanded
+- Full leaderboard list shows rank, username, moves, time; current user highlighted in gold
+- `isLeaderboardExpanded` resets on every dismiss path (backdrop, drag, onChange)

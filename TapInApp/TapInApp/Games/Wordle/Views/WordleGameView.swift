@@ -295,7 +295,7 @@ struct WordleGameView: View {
 
     // MARK: - Leaderboard Methods
 
-    /// Fetches the leaderboard for the current puzzle date (top 5, for game over view)
+    /// Fetches the leaderboard for the current puzzle date (top 10, for game over view)
     private func fetchLeaderboard() {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
@@ -305,7 +305,7 @@ struct WordleGameView: View {
 
         Task {
             do {
-                let entries = try await LeaderboardService.shared.fetchLeaderboard(for: puzzleDate)
+                let entries = try await LeaderboardService.shared.fetchLeaderboard(for: puzzleDate, limit: 10)
                 await MainActor.run {
                     leaderboardEntries = entries
                     isLoadingLeaderboard = false
