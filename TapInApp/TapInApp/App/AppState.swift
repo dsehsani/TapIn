@@ -147,6 +147,7 @@ class AppState: ObservableObject {
 
     /// Signs out the current user
     func signOut() {
+        SocialService.shared.clearCache()
         NotificationService.shared.cancelAllReminders()
 
         // Save profile image under a provider-scoped key before clearing,

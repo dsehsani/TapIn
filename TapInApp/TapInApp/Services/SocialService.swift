@@ -44,6 +44,9 @@ final class SocialService: ObservableObject {
     /// Active Firestore real-time listeners for like_count updates.
     private var likeListeners: [String: ListenerRegistration] = [:]
 
+    /// In-flight toggle tasks per cache key — cancels stale requests on rapid like/unlike.
+    private var toggleTasks: [String: Task<Void, Never>] = [:]
+
     // MARK: - Cache Helpers
 
     func cacheKey(_ contentType: ContentType, _ contentId: String) -> String {
@@ -197,6 +200,19 @@ final class SocialService: ObservableObject {
 
         let listener = docRef.addSnapshotListener { [weak self] snapshot, error in
             guard let self else { return }
+
+            if let error {
+                print("[SocialService] Firestore listener error for \(key): \(error.localizedDescription)")
+                // Re-establish listener after a brief delay
+                Task { @MainActor in
+                    self.likeListeners[key]?.remove()
+                    self.likeListeners.removeValue(forKey: key)
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    self.startListening(contentType: contentType, contentId: contentId)
+                }
+                return
+            }
+
             guard let data = snapshot?.data() else { return }
             let serverCount = data["like_count"] as? Int ?? 0
 
@@ -219,6 +235,24 @@ final class SocialService: ObservableObject {
         likeListeners.removeValue(forKey: key)
     }
 
+    /// Cancel any in-flight toggle for this item and track a new one.
+    /// Prevents rapid like/unlike from arriving out-of-order at the server.
+    func trackToggle(contentType: ContentType, contentId: String, task: Task<Void, Never>) {
+        let key = cacheKey(contentType, contentId)
+        toggleTasks[key]?.cancel()
+        toggleTasks[key] = task
+    }
+
+    /// Clear all cached state — call on sign-out so the next user starts fresh.
+    func clearCache() {
+        likeCache.removeAll()
+        toggleCooldowns.removeAll()
+        for (_, listener) in likeListeners { listener.remove() }
+        likeListeners.removeAll()
+        for (_, task) in toggleTasks { task.cancel() }
+        toggleTasks.removeAll()
+    }
+
     // MARK: - Private Helpers
 
     private func post(url: String, token: String, body: [String: Any]) async throws -> [String: Any] {
@@ -228,7 +262,7 @@ final class SocialService: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 30   // handles slow cold starts
+        request.timeoutInterval = 10
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         do {
@@ -258,7 +292,7 @@ final class SocialService: ObservableObject {
         var request = URLRequest(url: requestURL)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 30
+        request.timeoutInterval = 10
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)

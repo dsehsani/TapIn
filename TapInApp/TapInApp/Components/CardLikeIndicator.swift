@@ -84,26 +84,30 @@ struct CardLikeIndicator: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { isAnimating = false }
 
         let action = newLiked ? "like" : "unlike"
-        Task {
+        let task = Task {
+            defer { isToggling = false }
             do {
                 let (liked, count) = try await SocialService.shared.setLike(
                     contentType: contentType, contentId: contentId, action: action
                 )
+                guard !Task.isCancelled else { return }
                 socialService.updateCache(
                     contentType: contentType, contentId: contentId,
                     status: LikeStatus(liked: liked, likeCount: count)
                 )
             } catch SocialError.rejected {
+                guard !Task.isCancelled else { return }
                 socialService.updateCache(
                     contentType: contentType, contentId: contentId,
                     status: LikeStatus(liked: wasLiked, likeCount: oldCount)
                 )
             } catch {
+                guard !Task.isCancelled else { return }
                 LikeSyncQueue.shared.enqueue(
                     contentType: contentType, contentId: contentId, action: action
                 )
             }
-            isToggling = false
         }
+        socialService.trackToggle(contentType: contentType, contentId: contentId, task: task)
     }
 }

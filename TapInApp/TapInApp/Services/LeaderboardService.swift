@@ -78,9 +78,24 @@ class LeaderboardService: ObservableObject {
 
         // Configure URL session with timeout
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 20
         self.session = URLSession(configuration: config)
+    }
+
+    // MARK: - Pipes Leaderboard Cache
+
+    private struct PipesCacheEntry {
+        let entries: [PipesLeaderboardEntryResponse]
+        let timestamp: Date
+    }
+    /// In-memory cache keyed by "date_limit"
+    private var pipesCache: [String: PipesCacheEntry] = [:]
+    private let pipesCacheTTL: TimeInterval = 30 // seconds
+
+    /// Clears cached leaderboard data for a given date so the next fetch hits the network.
+    func invalidatePipesCache(for puzzleDate: String) {
+        pipesCache = pipesCache.filter { !$0.key.hasPrefix(puzzleDate) }
     }
 
     // MARK: - Submit Score
@@ -327,6 +342,13 @@ class LeaderboardService: ObservableObject {
     // MARK: - Pipes: Fetch Leaderboard
 
     func fetchPipesLeaderboard(for puzzleDate: String, limit: Int = 5) async throws -> [PipesLeaderboardEntryResponse] {
+        // Check cache first
+        let cacheKey = "\(puzzleDate)_\(limit)"
+        if let cached = pipesCache[cacheKey],
+           Date().timeIntervalSince(cached.timestamp) < pipesCacheTTL {
+            return cached.entries
+        }
+
         isLoading = true
         lastError = nil
         defer { isLoading = false }
@@ -355,6 +377,8 @@ class LeaderboardService: ObservableObject {
             }
 
             let leaderboardResponse = try JSONDecoder().decode(PipesLeaderboardResponse.self, from: data)
+            // Store in cache
+            pipesCache[cacheKey] = PipesCacheEntry(entries: leaderboardResponse.leaderboard, timestamp: Date())
             return leaderboardResponse.leaderboard
 
         } catch let error as AppError {

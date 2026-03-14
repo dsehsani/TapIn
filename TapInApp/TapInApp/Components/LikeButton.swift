@@ -85,30 +85,32 @@ struct LikeButton: View {
         withAnimation { isAnimating = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { isAnimating = false }
 
-        // Fire-and-forget — idempotent, so duplicate taps are safe
+        // Cancel any previous in-flight toggle to prevent out-of-order responses
         let action = newLiked ? "like" : "unlike"
-        Task {
+        let task = Task {
+            defer { isToggling = false }
             do {
                 let (liked, count) = try await SocialService.shared.setLike(
                     contentType: contentType, contentId: contentId, action: action
                 )
+                guard !Task.isCancelled else { return }
                 socialService.updateCache(
                     contentType: contentType, contentId: contentId,
                     status: LikeStatus(liked: liked, likeCount: count)
                 )
             } catch SocialError.rejected {
-                // Server explicitly rejected (401, 403) — revert
+                guard !Task.isCancelled else { return }
                 socialService.updateCache(
                     contentType: contentType, contentId: contentId,
                     status: LikeStatus(liked: wasLiked, likeCount: oldCount)
                 )
             } catch {
-                // Timeout, 5xx, no network — keep optimistic state, queue for retry
+                guard !Task.isCancelled else { return }
                 LikeSyncQueue.shared.enqueue(
                     contentType: contentType, contentId: contentId, action: action
                 )
             }
-            isToggling = false
         }
+        socialService.trackToggle(contentType: contentType, contentId: contentId, task: task)
     }
 }

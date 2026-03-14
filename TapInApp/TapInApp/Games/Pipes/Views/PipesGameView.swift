@@ -220,7 +220,11 @@ struct PipesGameView: View {
         }
         .onChange(of: viewModel.justCompletedAll) { _, isComplete in
             if isComplete && !viewModel.isArchiveMode {
-                fetchPipesLeaderboard()
+                // Submit score first, then fetch leaderboard — avoids race condition
+                Task {
+                    await viewModel.submitScoreToLeaderboard()
+                    await fetchPipesLeaderboardAsync()
+                }
                 NotificationService.shared.cancelTodaysPipesGiveawayReminder()
             }
             if !isComplete {
@@ -826,20 +830,19 @@ struct PipesGameView: View {
     // MARK: - Leaderboard Fetch
 
     private func fetchPipesLeaderboard() {
+        Task { await fetchPipesLeaderboardAsync() }
+    }
+
+    @MainActor
+    private func fetchPipesLeaderboardAsync() async {
         isLoadingPipesLeaderboard = true
-        Task {
-            do {
-                let entries = try await LeaderboardService.shared.fetchPipesLeaderboard(for: viewModel.currentDateKey, limit: 10)
-                await MainActor.run {
-                    pipesLeaderboardEntries = entries
-                    isLoadingPipesLeaderboard = false
-                }
-            } catch {
-                await MainActor.run {
-                    isLoadingPipesLeaderboard = false
-                }
-            }
+        do {
+            let entries = try await LeaderboardService.shared.fetchPipesLeaderboard(for: viewModel.currentDateKey, limit: 10)
+            pipesLeaderboardEntries = entries
+        } catch {
+            // Keep existing entries on failure
         }
+        isLoadingPipesLeaderboard = false
     }
 
 }

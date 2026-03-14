@@ -41,10 +41,14 @@ final class LikeSyncQueue {
         let queue = load()
         guard !queue.isEmpty else { return }
 
+        print("[LikeSyncQueue] Draining \(queue.count) pending action(s)")
         var remaining: [PendingAction] = []
         for var item in queue {
             // Expire actions older than 48 hours
-            if Date().timeIntervalSince(item.enqueuedAt) > 172_800 { continue }
+            if Date().timeIntervalSince(item.enqueuedAt) > 172_800 {
+                print("[LikeSyncQueue] Expired: \(item.contentType)_\(item.contentId)")
+                continue
+            }
 
             do {
                 let (liked, count) = try await SocialService.shared.setLike(
@@ -59,17 +63,23 @@ final class LikeSyncQueue {
                         status: LikeStatus(liked: liked, likeCount: count)
                     )
                 }
+                print("[LikeSyncQueue] Synced: \(item.action) \(item.contentType)_\(item.contentId)")
             } catch SocialError.rejected {
-                // Server rejected — discard, don't retry
+                print("[LikeSyncQueue] Rejected (discarding): \(item.contentType)_\(item.contentId)")
             } catch {
-                // Still failing — keep in queue, cap at 5 retries
                 item.retryCount += 1
                 if item.retryCount < 5 {
                     remaining.append(item)
+                    print("[LikeSyncQueue] Retry \(item.retryCount)/5: \(item.contentType)_\(item.contentId) — \(error.localizedDescription)")
+                } else {
+                    print("[LikeSyncQueue] Dropped after 5 retries: \(item.contentType)_\(item.contentId)")
                 }
             }
         }
         save(remaining)
+        if !remaining.isEmpty {
+            print("[LikeSyncQueue] \(remaining.count) action(s) still pending")
+        }
     }
 
     private func load() -> [PendingAction] {

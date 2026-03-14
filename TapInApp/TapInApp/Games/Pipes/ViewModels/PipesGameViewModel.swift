@@ -442,7 +442,7 @@ class PipesGameViewModel {
         // Set session-only flags so overlays show
         if dailyCompletedCount == dailyPuzzles.count {
             justCompletedAll = true
-            submitScoreToLeaderboard()
+            // Submission + leaderboard fetch handled by the view's onChange
         } else {
             justSolvedPuzzle = true
         }
@@ -494,13 +494,16 @@ class PipesGameViewModel {
 
     // MARK: - Leaderboard Submission
 
-    func submitScoreToLeaderboard() {
+    /// Submits the score and invalidates the leaderboard cache so the next fetch includes it.
+    /// Returns `true` if submission succeeded (or was already submitted).
+    @discardableResult
+    func submitScoreToLeaderboard() async -> Bool {
         // Guests can't compete on leaderboards
-        guard !AppState.shared.isGuestMode else { return }
+        guard !AppState.shared.isGuestMode else { return false }
 
-        guard !isArchiveMode else { return }
-        guard !scoreSubmitted else { return }
-        guard !didExitGame else { return }
+        guard !isArchiveMode else { return false }
+        guard !scoreSubmitted else { return true }
+        guard !didExitGame else { return false }
 
         let dateKey = currentDateKey
 
@@ -519,33 +522,35 @@ class PipesGameViewModel {
         // Use wall-clock session time for accuracy (not sum of per-puzzle times)
         let totalTime = sessionStartTime.map { Int(Date().timeIntervalSince($0)) } ?? totalTimeForDay
 
-        guard completed > 0 else { return }
+        guard completed > 0 else { return false }
 
-        Task {
-            do {
-                let response = try await LeaderboardService.shared.submitPipesScore(
-                    puzzlesCompleted: completed,
-                    totalMoves: totalMoves,
-                    totalTimeSeconds: totalTime,
-                    puzzleDate: dateKey,
-                    username: AppState.shared.userName
-                )
+        do {
+            let response = try await LeaderboardService.shared.submitPipesScore(
+                puzzlesCompleted: completed,
+                totalMoves: totalMoves,
+                totalTimeSeconds: totalTime,
+                puzzleDate: dateKey,
+                username: AppState.shared.userName
+            )
 
-                await MainActor.run {
-                    self.assignedUsername = response.score.username
-                    self.scoreSubmitted = true
-                    // Persist so re-entry after app restart doesn't re-submit
-                    UserDefaults.standard.set(true, forKey: "pipes_score_submitted_\(dateKey)")
-                }
-
-                #if DEBUG
-                print("Pipes score submitted! Username: \(response.score.username)")
-                #endif
-            } catch {
-                #if DEBUG
-                print("Failed to submit pipes score: \(error)")
-                #endif
+            await MainActor.run {
+                self.assignedUsername = response.score.username
+                self.scoreSubmitted = true
+                UserDefaults.standard.set(true, forKey: "pipes_score_submitted_\(dateKey)")
             }
+
+            // Invalidate cache so the next fetch picks up our new score
+            LeaderboardService.shared.invalidatePipesCache(for: dateKey)
+
+            #if DEBUG
+            print("Pipes score submitted! Username: \(response.score.username)")
+            #endif
+            return true
+        } catch {
+            #if DEBUG
+            print("Failed to submit pipes score: \(error)")
+            #endif
+            return false
         }
     }
 
